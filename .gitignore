@@ -1,0 +1,13 @@
+# Données locales de la passerelle
+cache/
+
+# Compilation du firmware
+firmware/.pio/
+firmware/tools/simulateur/out/
+firmware/tools/simulateur/sim
+firmware/tools/simulateur/planche.png
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,65 @@
+#pragma once
+#include <Arduino.h>
+
+// =====================================================
+// Configuration persistante (EEPROM émulée en flash)
+// =====================================================
+
+#define FW_VERSION      "2.1.0"
+#define EEPROM_SIZE     1024
+#define CONFIG_MAGIC    0x4D524447UL   // "MRDG" (identique au firmware Discord)
+#define CONFIG_VERSION  3
+
+// Une page = un module de la passerelle (même identifiant que /modules).
+enum PageId : uint8_t {
+  PG_HEURE = 0,
+  PG_METEO,
+  PG_DISCORD,
+  PG_SUP,
+  PG_BTC,
+  PG_COUNT
+};
+
+extern const char* const PAGE_NAMES[PG_COUNT];   // libellés affichés
+extern const char* const PAGE_IDS[PG_COUNT];     // identifiants des modules
+
+struct Config {
+  uint32_t magic;
+  uint16_t version;
+
+  char wifiSsid[33];
+  char wifiPass[65];
+  char apSsid[33];
+
+  char gateway[96];     // ex. http://192.168.1.44:8080
+  char ville[48];       // utilisée par l'heure et la météo
+
+  uint8_t  pages;       // bit n = page n affichée
+  uint8_t  pageSec;     // durée d'affichage d'une page (s)
+
+  uint8_t  nightOn;
+  uint16_t nightStart;  // minutes depuis minuit
+  uint16_t nightEnd;
+  uint8_t  brightDay;   // 5..100 %
+  uint8_t  brightNight; // 0..100 % (0 = écran éteint)
+
+  // Réglages de chaque module, sous forme de requête « cle=valeur&... »
+  // décrite par le manifeste de la passerelle (ex. "ids=3,7,12").
+  char pHeure[24];
+  char pMeteo[24];
+  char pDiscord[40];
+  char pSup[300];
+  char pBtc[24];
+};
+
+extern Config cfg;
+
+void loadConfig();
+void saveConfig();
+bool pageEnabled(uint8_t page);
+
+// Réglages d'un module : tampon et taille.
+char*  modParams(uint8_t page);
+size_t modParamsSize(uint8_t page);
+// Valeur d'une clé dans les réglages d'un module ("" si absente).
+String modParam(uint8_t page, const char* key);

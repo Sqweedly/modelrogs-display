@@ -1,0 +1,64 @@
+# =====================================================================
+# MODELROGS Display — passerelle des afficheurs SmallTV
+#
+#   1. Copier ce fichier sur le serveur, dans un dossier dédié
+#   2. Choisir les modules (MODULES) et renseigner leurs blocs
+#   3. chmod 600 docker-compose.yml     (il peut contenir le jeton Discord)
+#   4. docker compose up -d
+#
+# Les réglages personnels (ville, devise, salon vocal, services
+# supervisés) se font ensuite dans l'interface de l'afficheur.
+# NE JAMAIS publier ce fichier une fois le jeton Discord renseigné.
+# =====================================================================
+
+services:
+  gateway:
+    image: ghcr.io/sqweedly/modelrogs-gateway:2
+    container_name: modelrogs-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./cache:/cache            # géocodage et historique BTC conservés
+
+    environment:
+      TZ: Europe/Paris            # fuseau par défaut (si la ville est introuvable)
+      VILLE_DEFAUT: Paris         # si l'afficheur n'envoie pas de ville
+
+      # ---------------------------------------------------------------
+      # MODULES ACTIFS — retirer un nom désactive le module.
+      # Disponibles : heure, meteo, btc, supervision, discord
+      # ---------------------------------------------------------------
+      MODULES: heure,meteo,btc,supervision,discord
+
+      # --- Module « supervision » (Uptime Kuma) ----------------------
+      # Page de statut regroupant TOUTES les sondes cochables depuis l'afficheur
+      # (http://kuma:3001/status/modelrogs  ->  slug = modelrogs)
+      KUMA_URL: http://192.168.1.10:3001
+      KUMA_STATUS_SLUG: modelrogs
+
+      # --- Module « discord » (bot intégré) ---------------------------
+      # Jeton : portail développeur Discord > Bot > Reset Token
+      # Serveur : mode développeur Discord > clic droit sur le serveur > Copier l'identifiant
+      # Le salon vocal se choisit dans l'interface de l'afficheur.
+      DISCORD_TOKEN: "colle-ici-le-jeton-du-bot"
+      DISCORD_GUILD_ID: "123456789012345678"
+      DISCORD_MEMBERS_INTENT: "1"   # 1 si « Server Members Intent » est activé sur le bot
+
+      # --- Module « btc » (facultatif) --------------------------------
+      # COINGECKO_KEY: ""           # clé « Demo » si l'API refuse les requêtes anonymes
+
+    # Durcissement
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"

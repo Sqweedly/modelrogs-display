@@ -1,0 +1,138 @@
+"""Supervision via l'API publique d'une page de statut Uptime Kuma.
+
+Aucune clé n'est nécessaire : la passerelle lit la page de statut indiquée
+par KUMA_STATUS_SLUG. Cette page doit contenir toutes les sondes que l'on
+veut pouvoir cocher depuis l'interface de l'afficheur.
+"""
+
+import os
+from datetime import datetime, timezone
+
+import aiohttp
+
+from ..cache import cache
+from ..http import get_json
+from ..text import ecran
+from . import Module
+
+# États envoyés à l'afficheur
+PANNE, INSTABLE, MAINTENANCE, OK = 2, 1, 3, 0
+_ORDRE = {PANNE: 0, INSTABLE: 1, MAINTENANCE: 2, OK: 3}
+# Statut Kuma -> état écran (0 = down, 1 = up, 2 = pending, 3 = maintenance)
+_KUMA = {0: PANNE, 1: OK, 2: INSTABLE, 3: MAINTENANCE}
+
+MAX_TUILES = 12      # au-delà : mode « résumé » (compteur + problèmes)
+MAX_PROBLEMES = 3    # lignes de problèmes en mode résumé (= ce que l'écran affiche)
+MAX_CHOIX = 48       # services cochables sur l'afficheur
+
+
+def _kuma() -> tuple[str, str]:
+    return os.environ.get("KUMA_URL", "").rstrip("/"), os.environ.get("KUMA_STATUS_SLUG", "")
+
+
+async def _sondes(session: aiohttp.ClientSession) -> tuple[list[dict], bool]:
+    """Sondes de la page de statut : [{id, nom}] (cache 10 min)."""
+    url, slug = _kuma()
+
+    async def charger() -> list[dict]:
+        donnees = await get_json(session, f"{url}/api/status-page/{slug}")
+        vues: dict[int, str] = {}
+        for groupe in donnees.get("publicGroupList", []):
+            for sonde in groupe.get("monitorList", []):
+                vues.setdefault(int(sonde["id"]), sonde.get("name", f"#{sonde['id']}"))
+        return [{"id": i, "nom": n} for i, n in vues.items()]
+
+    return await cache.obtenir("kuma-sondes", 10 * 60, charger)
+
+
+async def _battements(session: aiohttp.ClientSession) -> tuple[dict, bool]:
+    """Derniers battements par sonde (cache 30 s)."""
+    url, slug = _kuma()
+
+    async def charger() -> dict:
+        donnees = await get_json(session, f"{url}/api/status-page/heartbeat/{slug}")
+        return donnees.get("heartbeatList", {})
+
+    return await cache.obtenir("kuma-battements", 30, charger)
+
+
+def _date_kuma(texte: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(texte.replace(" ", "T")[:19]).replace(tzinfo=timezone.utc)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _minutes_en_panne(historique: list[dict]) -> int:
+    """Minutes écoulées depuis le passage en panne (dernière suite de statuts 0)."""
+    debut = None
+    for battement in reversed(historique):
+        if battement.get("status") != 0:
+            break
+        debut = battement.get("time")
+    moment = _date_kuma(debut) if debut else None
+    if moment is None:
+        return 0
+    return max(0, int((datetime.now(timezone.utc) - moment).total_seconds() // 60))
+
+
+async def liste_services(session: aiohttp.ClientSession, q: dict) -> dict:
+    """Liste dynamique pour l'interface de l'afficheur : toutes les sondes."""
+    sondes, perime = await _sondes(session)
+    return {
+        "ok": 1,
+        "s": [{"id": str(s["id"]), "n": s["nom"][:40]}
+              for s in sorted(sondes, key=lambda s: s["nom"].lower())],
+        "p": int(perime),
+    }
+
+
+async def etat(session: aiohttp.ClientSession, q: dict) -> dict:
+    """État des sondes choisies sur l'afficheur (?ids=3,7,12), prêt à afficher."""
+    choisis = {int(x) for x in q.get("ids", "").split(",") if x.strip().isdigit()}
+    sondes, perime1 = await _sondes(session)
+    battements, perime2 = await _battements(session)
+
+    services = []
+    for sonde in sondes:
+        if sonde["id"] not in choisis:
+            continue
+        historique = battements.get(str(sonde["id"])) or []
+        statut = historique[-1].get("status") if historique else None
+        e = _KUMA.get(statut, INSTABLE)
+        services.append({"nom": sonde["nom"], "e": e,
+                         "min": _minutes_en_panne(historique) if e == PANNE else 0})
+
+    services.sort(key=lambda s: (_ORDRE[s["e"]], s["nom"].lower()))
+    compte = {k: sum(1 for s in services if s["e"] == k) for k in (OK, INSTABLE, PANNE, MAINTENANCE)}
+    total = len(services)
+
+    if total <= MAX_TUILES:
+        mode, affiches, autres = "t", services, 0
+    else:
+        problemes = [s for s in services if s["e"] != OK]
+        mode, affiches, autres = "r", problemes[:MAX_PROBLEMES], max(0, len(problemes) - MAX_PROBLEMES)
+
+    # L'alerte met en avant la panne la plus ancienne.
+    pannes = sorted((s for s in services if s["e"] == PANNE), key=lambda s: -s["min"])
+    alerte = {"n": ecran(pannes[0]["nom"], 16), "m": pannes[0]["min"], "k": len(pannes)} if pannes else None
+
+    return {
+        "ok": 1,
+        "tot": total, "okn": compte[OK], "pa": compte[PANNE], "in": compte[INSTABLE], "ma": compte[MAINTENANCE],
+        "md": mode,
+        "s": [{"n": ecran(s["nom"], 14), "e": s["e"]} for s in affiches],
+        "x": autres,
+        "al": alerte,
+        "p": int(perime1 or perime2),
+    }
+
+
+MODULE = Module(
+    id="supervision",
+    nom="Supervision",
+    requis=["KUMA_URL", "KUMA_STATUS_SLUG"],
+    params=[{"k": "ids", "l": "Services affichés", "t": "multi",
+             "src": "/supervision/services", "max": MAX_CHOIX}],
+    routes={"/supervision": etat, "/supervision/services": liste_services},
+)

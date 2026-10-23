@@ -5,6 +5,8 @@
 // - Interface web 192.168.4.1 : Wi-Fi, pages, ville, nuit, luminosités,
 //   choix des services supervisés
 // - OTA /update inchangée (ESP8266HTTPUpdateServer)
+// - Après l'installation d'un firmware différent : « Configuration à valider »
+//   jusqu'au premier Enregistrer ; ensuite, démarrage direct sur les pages
 // - Mode secours : après 3 plantages au démarrage, seuls le Wi-Fi,
 //   l'interface web et l'OTA tournent (l'OTA reste toujours joignable)
 // - Pages en rotation : Heure, Météo, Discord, Supervision, Bitcoin
@@ -31,7 +33,7 @@ static const uint32_t DISCORD_POLL_MS = 5UL * 1000;
 static const uint32_t SUP_POLL_MS     = 30UL * 1000;
 static const uint32_t MODULES_MS      = 10UL * 60 * 1000;
 
-enum ScreenState : uint8_t { S_BOOT, S_SETUP, S_CONNECTING, S_NO_GATEWAY, S_PAGES };
+enum ScreenState : uint8_t { S_BOOT, S_VALIDATE, S_SETUP, S_CONNECTING, S_NO_GATEWAY, S_PAGES };
 
 static ScreenState screen = S_BOOT;
 static int8_t   curPage = -1;          // -1 : aucune page affichée
@@ -176,6 +178,10 @@ static void setScreen(ScreenState s) {
   curPage = -1;
   alertShown = false;
   switch (s) {
+    case S_VALIDATE:
+      drawSplash("Configuration à valider", "1. Wi-Fi \"" + String(cfg.apSsid) + "\"",
+                 "2. http://192.168.4.1 > Enregistrer");
+      break;
     case S_SETUP:
       drawSplash("Configuration requise", "1. Wi-Fi \"" + String(cfg.apSsid) + "\"",
                  "2. Ouvrir http://192.168.4.1");
@@ -246,6 +252,8 @@ void loop() {
   applyBacklight(brightness);
 
   // --- États sans pages
+  // Nouveau firmware : rien ne démarre avant validation dans l'interface web.
+  if (!cfg.validated) { setScreen(S_VALIDATE); return; }
   if (cfg.wifiSsid[0] == '\0') { setScreen(S_SETUP); return; }
   if (!staConnected()) {
     if (screen != S_PAGES || millis() - gwLastOkMs > 60000UL) setScreen(S_CONNECTING);

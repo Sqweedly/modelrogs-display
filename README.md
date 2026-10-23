@@ -144,10 +144,10 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 1. Connecte ton téléphone ou ton PC au Wi-Fi de l'afficheur. Avec l'ancien firmware, il s'appelle « MODELROGS Discord ».
 2. Ouvre **http://192.168.4.1/update**.
-3. Envoie **`firmware/bin/modelrogs-display-2.1.1.bin.gz`** (341 Ko). L'OTA accepte directement le fichier compressé.
+3. Envoie **`firmware/bin/modelrogs-display-2.2.0.bin.gz`** (341 Ko). L'OTA accepte directement le fichier compressé.
 4. Attends le redémarrage, environ 30 secondes, **sans débrancher**.
 
-**Configuration conservée** : le Wi-Fi maison, le nom du point d'accès et la luminosité de l'ancien firmware sont repris. L'adresse de la passerelle est déduite de l'ancienne URL du snapshot (même machine, port 8080).
+**Reprise depuis l'ancien firmware Discord** : le Wi-Fi maison est pré-rempli, et l'adresse de la passerelle est déduite de l'ancienne URL du snapshot (même machine, port 8080). Le point d'accès s'appelle désormais **« MODELROGS Display »**. L'écran demande de valider la configuration (étape 5).
 
 **L'OTA reste toujours accessible** : à l'adresse `/update`, et par le bouton « Mettre à jour le firmware » en haut de l'interface. Elle accepte les fichiers `.bin` et `.bin.gz`. Avec une flash de 4 Mo, la place libre pour la mise à jour suivante est d'environ 2,5 Mo.
 
@@ -162,6 +162,26 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 ---
 
 ## Étape 5 — Configurer l'afficheur (http://192.168.4.1)
+
+**Validation après l'installation d'un firmware différent**
+
+- Après l'installation de ce firmware à la place d'un autre (par exemple l'ancien « MODELROGS Discord »), l'écran affiche **« Configuration à valider »**.
+- Rien ne démarre tant que tu n'as pas vérifié les réglages et cliqué sur **Enregistrer**. Les réglages récupérables sont pré-remplis.
+- Ensuite, chaque démarrage lance directement la rotation des pages.
+
+**Conservation de la configuration entre deux versions**
+
+- Une **nouvelle version de MODELROGS Display**, par OTA, conserve tout : Wi-Fi, passerelle, ville, pages, réglages des modules, nuit, luminosités et validation.
+- La configuration est stockée dans une zone de la flash que l'OTA n'efface pas. Une signature y identifie le firmware.
+- Si une version change le format de la configuration, elle reprend l'ancien format automatiquement.
+- Tout est perdu dans trois cas :
+  - un flash par câble avec effacement complet de la flash ;
+  - l'installation entre-temps d'un autre firmware qui écrit dans cette zone ;
+  - un retour à une version plus ancienne que celle qui a écrit la configuration.
+
+**Modifier la configuration plus tard** : connecte-toi au point d'accès de l'afficheur, toujours actif, puis ouvre `192.168.4.1`, ajuste et enregistre. Les changements s'appliquent sans redémarrage. Les mises à jour du firmware passent par le même point d'accès (`/update`).
+
+**Réglages de la page**
 
 - **Général** : adresse de la passerelle (`http://IP_SERVEUR:8080`) et ville.
 - **Pages et modules** : la liste suit les modules de la passerelle.
@@ -188,7 +208,7 @@ Ces réglages sont dans `firmware/platformio.ini`. Ils demandent de recompiler l
 |---|---|
 | Rouge et bleu inversés | `-D TFT_RGB_ORDER=0` |
 | Couleurs en négatif | remplacer `-D TFT_INVERSION_ON=1` par `-D TFT_INVERSION_OFF=1` |
-| Image retournée ou décalée | `tft.setRotation(2)` dans `src/ui.cpp` : essayer 0, 1 ou 3 |
+| Image retournée ou décalée | `tft.setRotation(0)` dans `src/ui.cpp` : essayer 2 (180°), 1 ou 3 |
 | Parasites | `-D SPI_FREQUENCY=27000000` |
 
 **Compiler** : `cd firmware && pio run`. Cela produit `.pio/build/smalltv/firmware.bin` et `firmware.bin.gz`. Reprends dans `platformio.ini` les lignes `board` et `board_build.ldscript` de ton ancien projet pour garder le même découpage de la flash.

@@ -20,6 +20,8 @@ class TFT_eSPI {
   uint16_t fb[240 * 240];
   void init() {}
   void setRotation(int) {}
+  void writecommand(uint8_t) {}
+  void writedata(uint8_t) {}
   void setTextWrap(bool, bool) {}
   void fillScreen(uint32_t c) { for (auto& p : fb) p = c; }
   void fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t c);

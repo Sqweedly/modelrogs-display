@@ -5,10 +5,19 @@
 // Configuration persistante (EEPROM émulée en flash)
 // =====================================================
 
-#define FW_VERSION      "2.1.1"
+#define FW_VERSION      "2.2.0"
 #define EEPROM_SIZE     1024
-#define CONFIG_MAGIC    0x4D524447UL   // "MRDG" (identique au firmware Discord)
-#define CONFIG_VERSION  3
+
+// Identité du firmware dans l'EEPROM (zone que l'OTA ne touche pas).
+//  - PRODUCT_MAGIC identifie le firmware MODELROGS Display : NE JAMAIS LE CHANGER.
+//    Même identité = même firmware : la configuration validée est conservée
+//    d'une version à l'autre.
+//  - CONFIG_VERSION décrit la structure ci-dessous : toute évolution de la
+//    structure l'incrémente ET ajoute une migration dans config.cpp.
+//    Pour ajouter un réglage sans migration, prendre de la place dans `reserve`.
+#define PRODUCT_MAGIC   0x5044524DUL   // "MRDP"
+#define CONFIG_VERSION  4
+#define LEGACY_MAGIC    0x4D524447UL   // "MRDG" : firmware Discord (v1), Display 2.0/2.1 (v2, v3)
 
 // Une page = un module de la passerelle (même identifiant que /modules).
 enum PageId : uint8_t {
@@ -50,6 +59,9 @@ struct Config {
   char pDiscord[40];
   char pSup[300];
   char pBtc[24];
+
+  uint8_t validated;    // 1 = configuration validée dans l'interface (bouton Enregistrer)
+  uint8_t reserve[63];  // place libre pour de futurs réglages (initialisée à 0)
 };
 
 extern Config cfg;

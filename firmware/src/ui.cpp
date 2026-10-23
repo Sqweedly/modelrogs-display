@@ -8,7 +8,30 @@ static int8_t currentFont = -1;
 
 void uiBegin() {
   tft.init();
-  tft.setRotation(2);          // même orientation que le firmware d'origine
+
+  // TFT_eSPI règle les tensions et le gamma de l'écran pour d'autres modèles
+  // de dalle : sur le SmallTV, les noirs deviennent gris clair. On réinitialise
+  // la dalle puis on applique la même séquence minimale que l'ancien firmware
+  // (Adafruit_ST7789) : réglages d'usine de la dalle conservés.
+  tft.writecommand(0x01);      // SWRESET : registres remis aux valeurs d'usine
+  delay(150);
+  tft.writecommand(0x11);      // SLPOUT
+  delay(120);
+  tft.writecommand(0x3A);      // COLMOD : couleurs 16 bits
+  tft.writedata(0x55);
+  delay(10);
+#ifdef TFT_INVERSION_OFF
+  tft.writecommand(0x20);      // INVOFF
+#else
+  tft.writecommand(0x21);      // INVON (comme l'ancien firmware)
+#endif
+  tft.writecommand(0x13);      // NORON
+  delay(10);
+  tft.writecommand(0x29);      // DISPON
+  delay(10);
+
+  // Rotation 0 de TFT_eSPI = rotation 2 d'Adafruit (orientation de l'ancien firmware)
+  tft.setRotation(0);
   tft.setTextWrap(false, false);
   tft.fillScreen(Col::BG);
 }
@@ -68,20 +91,21 @@ void pill(int x, int y, const String& s, FontId f, uint16_t fg, uint16_t fill, u
 }
 
 void pageDots(uint8_t active, uint8_t count, uint16_t color) {
-  tft.fillRect(0, 225, 240, 12, Col::BG);
+  const int y = 240 - MARGE_BAS - 12;   // points de 5 px, au-dessus de la zone masquée
+  tft.fillRect(0, y - 3, 240, 11, Col::BG);
   if (count < 2) return;
   int total = (count - 1) * 10 + 14;
   int x = 120 - total / 2;
   for (uint8_t i = 0; i < count; i++) {
     int w = (i == active) ? 14 : 5;
-    tft.fillSmoothRoundRect(x, 228, w, 5, 2, i == active ? color : Col::DIM, Col::BG);
+    tft.fillSmoothRoundRect(x, y, w, 5, 2, i == active ? color : Col::DIM, Col::BG);
     x += w + 5;
   }
 }
 
 void staleMark(bool stale, uint16_t bg) {
   // Petit point ambre en haut à droite : donnée ancienne (source injoignable).
-  tft.fillSmoothCircle(231, 8, 3, stale ? Col::AMBRE : bg, bg);
+  tft.fillSmoothCircle(231, 8 + MARGE_HAUT, 3, stale ? Col::AMBRE : bg, bg);
 }
 
 // -----------------------------------------------------------------

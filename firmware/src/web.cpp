@@ -265,6 +265,12 @@ static void handleRoot() {
            "<a class='sm' href='/update'>Mettre à jour le firmware</a>"
            "<a class='sm' href='/restart'>Redémarrer normalement</a></section>");
   } else {
+    if (!cfg.validated) {
+      c << F("<section style='border:2px solid #FFB547'><h2 class='warn'>Configuration à valider</h2>"
+             "<p>Nouveau firmware installé : vérifiez les réglages ci-dessous, puis cliquez sur "
+             "<b>Enregistrer</b> pour démarrer l'affichage des pages. Les démarrages suivants "
+             "seront automatiques.</p></section>");
+    }
     c << F("<p><a class='sm' href='/update'>Mettre à jour le firmware</a></p>");
   }
 
@@ -426,6 +432,7 @@ static void handleSave() {
   if (server.hasArg("lj")) cfg.brightDay = constrain(server.arg("lj").toInt(), 5, 100);
   if (server.hasArg("ln")) cfg.brightNight = constrain(server.arg("ln").toInt(), 0, 100);
 
+  cfg.validated = 1;   // le premier Enregistrer valide la configuration
   saveConfig();
 
   String msg = apChanged

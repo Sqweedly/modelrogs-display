@@ -2,6 +2,7 @@
 #include <EEPROM.h>
 
 Config cfg;
+static_assert(sizeof(Config) <= EEPROM_SIZE, "Config trop grande pour l'EEPROM");
 
 const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Bitcoin" };
 const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc" };
@@ -39,6 +40,32 @@ struct ConfigV2 {            // MODELROGS Display 2.0.x
   uint16_t supIds[48];
 };
 
+struct ConfigV3 {            // MODELROGS Display 2.1.x (= v4 sans validated/reserve)
+  uint32_t magic;
+  uint16_t version;
+  char wifiSsid[33];
+  char wifiPass[65];
+  char apSsid[33];
+  char gateway[96];
+  char ville[48];
+  uint8_t  pages;
+  uint8_t  pageSec;
+  uint8_t  nightOn;
+  uint16_t nightStart;
+  uint16_t nightEnd;
+  uint8_t  brightDay;
+  uint8_t  brightNight;
+  char pHeure[24];
+  char pMeteo[24];
+  char pDiscord[40];
+  char pSup[300];
+  char pBtc[24];
+};
+
+static const char* const AP_DEFAUT = "MODELROGS Display";
+static const char* const AP_ANCIEN = "MODELROGS Discord";   // nom du firmware Discord
+static const uint8_t     LUMINOSITE_DEFAUT = 60;
+
 static void copyStr(char* dst, size_t size, const char* src) {
   strncpy(dst, src, size - 1);
   dst[size - 1] = '\0';
@@ -46,14 +73,14 @@ static void copyStr(char* dst, size_t size, const char* src) {
 
 static void setDefaults() {
   memset(&cfg, 0, sizeof(cfg));
-  cfg.magic = CONFIG_MAGIC;
+  cfg.magic = PRODUCT_MAGIC;
   cfg.version = CONFIG_VERSION;
-  copyStr(cfg.apSsid, sizeof(cfg.apSsid), "MODELROGS Display");
+  copyStr(cfg.apSsid, sizeof(cfg.apSsid), AP_DEFAUT);
   cfg.pages = (1 << PG_COUNT) - 1;
   cfg.pageSec = 10;
   cfg.nightStart = 23 * 60;
   cfg.nightEnd = 7 * 60;
-  cfg.brightDay = 100;
+  cfg.brightDay = LUMINOSITE_DEFAUT;
   cfg.brightNight = 20;
   copyStr(cfg.pBtc, sizeof(cfg.pBtc), "devise=eur");
 }
@@ -81,13 +108,40 @@ static void sanitize() {
   terminate(cfg.gateway, sizeof(cfg.gateway));
   terminate(cfg.ville, sizeof(cfg.ville));
   for (uint8_t p = 0; p < PG_COUNT; p++) terminate(modParams(p), modParamsSize(p));
-  if (cfg.apSsid[0] == '\0') copyStr(cfg.apSsid, sizeof(cfg.apSsid), "MODELROGS Display");
+  if (cfg.apSsid[0] == '\0') copyStr(cfg.apSsid, sizeof(cfg.apSsid), AP_DEFAUT);
   cfg.pages &= (1 << PG_COUNT) - 1;
   cfg.pageSec = constrain(cfg.pageSec, 5, 120);
   cfg.nightStart %= 1440;
   cfg.nightEnd %= 1440;
   cfg.brightDay = constrain(cfg.brightDay, 5, 100);
   cfg.brightNight = min<uint8_t>(cfg.brightNight, 100);
+}
+
+// Reprise d'une configuration d'un firmware plus ancien : le nom de point
+// d'accès hérité du firmware Discord est remplacé, la luminosité plafonnée.
+static void apresMigration() {
+  if (strcmp(cfg.apSsid, AP_ANCIEN) == 0) copyStr(cfg.apSsid, sizeof(cfg.apSsid), AP_DEFAUT);
+  cfg.brightDay = min<uint8_t>(cfg.brightDay, LUMINOSITE_DEFAUT);
+}
+
+static void copyV3(const ConfigV3& o) {
+  copyStr(cfg.wifiSsid, sizeof(cfg.wifiSsid), o.wifiSsid);
+  copyStr(cfg.wifiPass, sizeof(cfg.wifiPass), o.wifiPass);
+  copyStr(cfg.apSsid, sizeof(cfg.apSsid), o.apSsid);
+  copyStr(cfg.gateway, sizeof(cfg.gateway), o.gateway);
+  copyStr(cfg.ville, sizeof(cfg.ville), o.ville);
+  cfg.pages = o.pages;
+  cfg.pageSec = o.pageSec;
+  cfg.nightOn = o.nightOn;
+  cfg.nightStart = o.nightStart;
+  cfg.nightEnd = o.nightEnd;
+  cfg.brightDay = o.brightDay;
+  cfg.brightNight = o.brightNight;
+  copyStr(cfg.pHeure, sizeof(cfg.pHeure), o.pHeure);
+  copyStr(cfg.pMeteo, sizeof(cfg.pMeteo), o.pMeteo);
+  copyStr(cfg.pDiscord, sizeof(cfg.pDiscord), o.pDiscord);
+  copyStr(cfg.pSup, sizeof(cfg.pSup), o.pSup);
+  copyStr(cfg.pBtc, sizeof(cfg.pBtc), o.pBtc);
 }
 
 void loadConfig() {
@@ -97,16 +151,34 @@ void loadConfig() {
   EEPROM.get(0, magic);
   EEPROM.get(4, version);
 
-  if (magic == CONFIG_MAGIC && version == CONFIG_VERSION) {
+  // --- Même firmware (MODELROGS Display), structure actuelle : tout est conservé,
+  //     y compris la validation.
+  if (magic == PRODUCT_MAGIC && version == CONFIG_VERSION) {
     EEPROM.get(0, cfg);
     sanitize();
-    Serial.println(F("EEPROM : configuration v3 chargee."));
+    Serial.println(F("EEPROM : configuration chargee."));
     return;
   }
 
   setDefaults();
 
-  if (magic == CONFIG_MAGIC && version == 2) {
+  // --- Même firmware, structure future ou inconnue (retour à une version
+  //     plus ancienne) : rien n'est lisible, on repart des valeurs par défaut.
+  //     Les futures versions ajouteront ici leurs migrations (version 4 -> 5...),
+  //     en conservant cfg.validated.
+  if (magic == PRODUCT_MAGIC) {
+    Serial.println(F("EEPROM : structure inconnue -> valeurs par defaut."));
+
+  // --- Display 2.1.x : même firmware, mais sans validation enregistrée.
+  } else if (magic == LEGACY_MAGIC && version == 3) {
+    ConfigV3 old;
+    EEPROM.get(0, old);
+    copyV3(old);
+    apresMigration();
+    Serial.println(F("EEPROM : reprise de la configuration 2.1 (a valider)."));
+
+  // --- Display 2.0.x
+  } else if (magic == LEGACY_MAGIC && version == 2) {
     ConfigV2 old;
     EEPROM.get(0, old);
     copyStr(cfg.wifiSsid, sizeof(cfg.wifiSsid), old.wifiSsid);
@@ -127,29 +199,32 @@ void loadConfig() {
       ids += old.supIds[i];
     }
     if (old.supCount) copyStr(cfg.pSup, sizeof(cfg.pSup), ids.c_str());
-    Serial.println(F("EEPROM : migration v2 -> v3 effectuee."));
-  } else if (magic == CONFIG_MAGIC && version == 1) {
-    // Firmware Discord d'origine : on garde Wi-Fi, point d'accès et luminosité.
+    apresMigration();
+    Serial.println(F("EEPROM : reprise de la configuration 2.0 (a valider)."));
+
+  // --- Autre firmware (MODELROGS Discord) : Wi-Fi et passerelle pré-remplis.
+  } else if (magic == LEGACY_MAGIC && version == 1) {
     ConfigV1 old;
     EEPROM.get(0, old);
     old.wifiSsid[sizeof(old.wifiSsid) - 1] = '\0';
     old.wifiPassword[sizeof(old.wifiPassword) - 1] = '\0';
-    old.apSsid[sizeof(old.apSsid) - 1] = '\0';
     old.discordUrl[sizeof(old.discordUrl) - 1] = '\0';
     copyStr(cfg.wifiSsid, sizeof(cfg.wifiSsid), old.wifiSsid);
     copyStr(cfg.wifiPass, sizeof(cfg.wifiPass), old.wifiPassword);
-    if (old.apSsid[0]) copyStr(cfg.apSsid, sizeof(cfg.apSsid), old.apSsid);
     gatewayFromOldUrl(old.discordUrl);
-    if (old.screenBrightness >= 5 && old.screenBrightness <= 100) cfg.brightDay = old.screenBrightness;
-    Serial.println(F("EEPROM : migration v1 -> v3 effectuee (Wi-Fi conserve)."));
+    Serial.println(F("EEPROM : firmware different (Discord) -> Wi-Fi pre-rempli, a valider."));
+
+  // --- Autre firmware inconnu ou EEPROM vierge.
   } else {
     Serial.println(F("EEPROM : configuration absente -> valeurs par defaut."));
   }
+
+  cfg.validated = 0;   // firmware différent ou jamais validé : validation requise
   saveConfig();
 }
 
 void saveConfig() {
-  cfg.magic = CONFIG_MAGIC;
+  cfg.magic = PRODUCT_MAGIC;
   cfg.version = CONFIG_VERSION;
   sanitize();
   EEPROM.put(0, cfg);

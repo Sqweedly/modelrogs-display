@@ -11,7 +11,7 @@ constexpr uint16_t RGB(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 namespace Col {
-  constexpr uint16_t BG       = RGB(0x0E, 0x11, 0x16);
+  constexpr uint16_t BG       = RGB(0x00, 0x00, 0x00);   // noir pur : meilleur contraste
   constexpr uint16_t CARD     = RGB(0x1A, 0x1F, 0x29);
   constexpr uint16_t TXT      = RGB(0xF2, 0xF4, 0xF8);
   constexpr uint16_t TXT2     = RGB(0xC9, 0xCF, 0xDA);
@@ -42,6 +42,10 @@ namespace Col {
   constexpr uint16_t ROUGE_BG = RGB(0x40, 0x1C, 0x20);
   constexpr uint16_t SOMBRE   = RGB(0x14, 0x14, 0x13);
 }
+
+// Marges : le boîtier masque 3 pixels en haut et en bas de l'écran.
+constexpr int MARGE_HAUT = 3;
+constexpr int MARGE_BAS  = 3;
 
 extern TFT_eSPI tft;
 

@@ -21,6 +21,7 @@ template <class T, class L, class H> T constrain(T v, L lo, H hi) { return v < l
 
 extern uint32_t g_millis;
 inline uint32_t millis() { return g_millis; }
+inline void delay(uint32_t ms) { g_millis += ms; }
 
 class String {
  public:

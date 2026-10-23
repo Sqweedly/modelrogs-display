@@ -11,7 +11,7 @@ using namespace Col;
 // ---------------------------------------------------------------- outils
 
 static void errorPage(const char* title, const String& detail) {
-  drawText(title, 14, 12, F_16, TXT, BG);
+  drawText(title, 14, 15, F_16, TXT, BG);
   card(14, 82, 212, 74, 12, CARD);
   drawText("Données indisponibles", 120, 100, F_13, AMBRE, CARD, TC_DATUM);
   drawText(fitText(detail, F_11, 190), 120, 124, F_11, MUTED, CARD, TC_DATUM);
@@ -35,7 +35,7 @@ void drawSplash(const String& line1, const String& line2, const String& line3) {
   drawText(fitText(line1, F_13, 192), 120, 146, F_13, TXT, CARD, TC_DATUM);
   drawText(fitText(line2, F_11, 192), 120, 168, F_11, MUTED, CARD, TC_DATUM);
   if (line3.length()) drawText(fitText(line3, F_11, 192), 120, 188, F_11, MUTED, CARD, TC_DATUM);
-  drawText("v" FW_VERSION, 120, 226, F_11, DIM, BG, TC_DATUM);
+  drawText("v" FW_VERSION, 120, 221, F_11, DIM, BG, TC_DATUM);
 }
 
 // ----------------------------------------------------------------- Heure
@@ -44,9 +44,9 @@ static int  lastClockMinute = -1;
 static char lastDate[32] = "";
 
 static void drawClockDigits() {
-  tft.fillRect(0, 44, 240, 58, BG);
+  tft.fillRect(0, 47, 240, 58, BG);
   if (!timeValid()) {
-    drawText("--:--", 120, 56, F_32, MUTED, BG, TC_DATUM);
+    drawText("--:--", 120, 59, F_32, MUTED, BG, TC_DATUM);
     lastClockMinute = -1;
     return;
   }
@@ -57,26 +57,26 @@ static void drawClockDigits() {
   snprintf(mm, sizeof(mm), "%02d", minuteOfDay % 60);
   int wH = textW(hh, F_68), wC = textW(":", F_68), wM = textW(mm, F_68);
   int x = 120 - (wH + wC + wM) / 2;
-  drawText(hh, x, 46, F_68, TXT, BG);
-  drawText(":", x + wH, 46, F_68, VIOLET, BG);
-  drawText(mm, x + wH + wC, 46, F_68, TXT, BG);
+  drawText(hh, x, 49, F_68, TXT, BG);
+  drawText(":", x + wH, 49, F_68, VIOLET, BG);
+  drawText(mm, x + wH + wC, 49, F_68, TXT, BG);
   lastClockMinute = minuteOfDay;
 }
 
 static void sunCard(int x, const char* label, const char* value, uint16_t color) {
-  card(x, 146, 100, 46, 12, CARD);
-  halfSun(x + 20, 164, color, CARD);
-  drawText(label, x + 38, 153, F_11, MUTED, CARD);
-  drawText(value, x + 38, 168, F_16, TXT, CARD);
+  card(x, 147, 100, 46, 12, CARD);
+  halfSun(x + 20, 165, color, CARD);
+  drawText(label, x + 38, 154, F_11, MUTED, CARD);
+  drawText(value, x + 38, 169, F_16, TXT, CARD);
 }
 
 void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
   String jour = gTime.jour;
   jour.toUpperCase();
-  drawText(jour, 120, 22, F_13, MUTED, BG, TC_DATUM);
+  drawText(jour, 120, 25, F_13, MUTED, BG, TC_DATUM);
   drawClockDigits();
-  drawText(gTime.date, 120, 112, F_16, TXT2, BG, TC_DATUM);
+  drawText(gTime.date, 120, 114, F_16, TXT2, BG, TC_DATUM);
   if (gTime.lever[0] && gTime.coucher[0]) {
     sunCard(16, "Lever", gTime.lever, AMBRE);
     sunCard(124, "Coucher", gTime.coucher, CORAIL);
@@ -104,32 +104,32 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  drawText(fitText(doc["v"] | "", F_16, 140), 14, 12, F_16, TXT, BG);
-  drawText("Aujourd'hui", 226, 15, F_11, MUTED, BG, TR_DATUM);
+  drawText(fitText(doc["v"] | "", F_16, 140), 14, 15, F_16, TXT, BG);
+  drawText("Aujourd'hui", 226, 18, F_11, MUTED, BG, TR_DATUM);
 
-  weatherIcon(doc["i"] | 2, 54, 78, 1.1f, BG);
+  weatherIcon(doc["i"] | 2, 54, 80, 1.1f, BG);
 
   String temp = String((int)(doc["t"] | 0)) + "°";
-  drawText(temp, 104, 42, F_52, TXT, BG);
-  drawText(fitText(doc["l"] | "", F_13, 124), 106, 98, F_13, TXT2, BG);
+  drawText(temp, 104, 44, F_52, TXT, BG);
+  drawText(fitText(doc["l"] | "", F_13, 124), 106, 100, F_13, TXT2, BG);
   int x = 106;
-  x += drawText(String((int)(doc["mn"] | 0)) + "°", x, 117, F_13, BLEU, BG);
-  x += drawText(" / ", x, 117, F_13, SEP, BG);
-  drawText(String((int)(doc["mx"] | 0)) + "°", x, 117, F_13, AMBRE, BG);
+  x += drawText(String((int)(doc["mn"] | 0)) + "°", x, 119, F_13, BLEU, BG);
+  x += drawText(" / ", x, 119, F_13, SEP, BG);
+  drawText(String((int)(doc["mx"] | 0)) + "°", x, 119, F_13, AMBRE, BG);
 
   uint8_t k = 0;
   for (JsonObject j : doc["j"].as<JsonArray>()) {
     if (k >= 3) break;
     int cx = 14 + k * 73;
-    card(cx, 142, 66, 76, 10, CARD);
+    card(cx, 143, 66, 74, 10, CARD);
     drawText(j["d"] | "", cx + 33, 149, F_11, MUTED, CARD, TC_DATUM);
     weatherIcon(j["i"] | 2, cx + 33, 180, 0.42f, CARD);
     String mx = String((int)(j["mx"] | 0)) + "°";
     String mn = " " + String((int)(j["mn"] | 0)) + "°";
     int w = textW(mx, F_13) + textW(mn, F_13);
     int tx = cx + 33 - w / 2;
-    tx += drawText(mx, tx, 198, F_13, TXT, CARD);
-    drawText(mn, tx, 198, F_13, MUTED2, CARD);
+    tx += drawText(mx, tx, 197, F_13, TXT, CARD);
+    drawText(mn, tx, 197, F_13, MUTED2, CARD);
     k++;
   }
 
@@ -149,22 +149,22 @@ void drawDiscord(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  card(14, 12, 34, 34, 10, BLURPLE);
-  headsetIcon(31, 28, TXT, BLURPLE);
-  drawText("Salon vocal", 56, 13, F_11, MUTED, BG);
-  drawText(fitText(gDisc.canal, F_16, 168), 56, 28, F_16, TXT, BG);
+  card(14, 15, 34, 34, 10, BLURPLE);
+  headsetIcon(31, 31, TXT, BLURPLE);
+  drawText("Salon vocal", 56, 16, F_11, MUTED, BG);
+  drawText(fitText(gDisc.canal, F_16, 168), 56, 31, F_16, TXT, BG);
 
   if (gDisc.n == 0) {
-    tft.fillSmoothCircle(19, 66, 4, DIM, BG);
-    drawText("Personne en ligne", 30, 57, F_18, MUTED, BG);
+    tft.fillSmoothCircle(19, 69, 4, DIM, BG);
+    drawText("Personne en ligne", 30, 60, F_18, MUTED, BG);
   } else {
-    tft.fillSmoothCircle(19, 66, 4, VERT, BG);
-    drawText(String(gDisc.n) + " en ligne", 30, 57, F_18, TXT, BG);
+    tft.fillSmoothCircle(19, 69, 4, VERT, BG);
+    drawText(String(gDisc.n) + " en ligne", 30, 60, F_18, TXT, BG);
   }
 
   uint8_t shown = gDisc.count <= 4 && gDisc.n <= 4 ? gDisc.count : 3;
   for (uint8_t i = 0; i < shown; i++) {
-    int y = 84 + i * 35;
+    int y = 87 + i * 34;
     card(14, y, 212, 30, 10, CARD);
     uint16_t av = AVATAR[i % 5];
     tft.fillSmoothCircle(33, y + 15, 11, av, CARD);
@@ -214,8 +214,8 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  drawText("Supervision", 14, 12, F_16, TXT, BG);
-  drawText(String(gSup.tot) + (gSup.tot > 1 ? " services" : " service"), 14, 32, F_11, MUTED, BG);
+  drawText("Supervision", 14, 15, F_16, TXT, BG);
+  drawText(String(gSup.tot) + (gSup.tot > 1 ? " services" : " service"), 14, 35, F_11, MUTED, BG);
 
   String resume;
   uint16_t pillCol;
@@ -232,13 +232,13 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
     resume = "Tout est OK";
     pillCol = VERT;
   }
-  pill(226, 14, resume, F_11, SOMBRE, pillCol, BG, true);
+  pill(226, 17, resume, F_11, SOMBRE, pillCol, BG, true);
 
   if (!gSup.resume) {
     // Tuiles (jusqu'à 12 services), les problèmes en premier.
     uint8_t n = gSup.count;
     uint8_t rows = (n + 1) / 2;
-    const int top = 56, avail = 164, gap = 6;
+    const int top = 59, avail = 158, gap = 6;
     int h = rows ? min(32, (avail - (rows - 1) * gap) / rows) : 32;
     int r = min(10, h / 2);
     for (uint8_t i = 0; i < n; i++) {
@@ -258,12 +258,12 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
     String small = "/ " + String(gSup.tot) + " OK";
     int wB = textW(big, F_52), wS = textW(small, F_18);
     int x = 120 - (wB + 8 + wS) / 2;
-    drawText(big, x, 104, F_52, cc, BG, L_BASELINE);
-    drawText(small, x + wB + 8, 104, F_18, TXT2, BG, L_BASELINE);
+    drawText(big, x, 106, F_52, cc, BG, L_BASELINE);
+    drawText(small, x + wB + 8, 106, F_18, TXT2, BG, L_BASELINE);
 
     uint8_t shown = min<uint8_t>(gSup.count, 3);
     for (uint8_t i = 0; i < shown; i++) {
-      int y = 116 + i * 30;
+      int y = 117 + i * 30;
       uint8_t st = gSup.st[i];
       uint16_t c = stateColor(st);
       outlinedCard(14, y, 212, 26, 9, c, CARD);
@@ -272,7 +272,7 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
       drawText(stateLabel(st), 218, y + 14, F_11, st == SUP_PANNE ? ROUGE_TX : c, CARD, MR_DATUM);
     }
     uint8_t more = (gSup.count - shown) + gSup.extra;
-    if (more) drawText("+" + String(more) + " autre(s)", 120, 208, F_11, MUTED, BG, TC_DATUM);
+    if (more) drawText("+" + String(more) + " autre(s)", 120, 206, F_11, MUTED, BG, TC_DATUM);
     if (gSup.count == 0) drawText("Tout fonctionne", 120, 148, F_16, VERT, BG, TC_DATUM);
   }
 
@@ -284,9 +284,9 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
 
 void drawAlert() {
   tft.fillScreen(ALERTE);
-  warningIcon(120, 48, TXT, ALERTE);
-  drawText("PANNE", 120, 82, F_32, TXT, ALERTE, TC_DATUM);
-  drawText(fitText(gSup.alName, F_18, 216), 120, 124, F_18, TXT, ALERTE, TC_DATUM);
+  warningIcon(120, 51, TXT, ALERTE);
+  drawText("PANNE", 120, 84, F_32, TXT, ALERTE, TC_DATUM);
+  drawText(fitText(gSup.alName, F_18, 216), 120, 125, F_18, TXT, ALERTE, TC_DATUM);
 
   String depuis;
   if (gSup.alMin == 0) depuis = "Hors ligne depuis moins d'1 min";
@@ -296,12 +296,12 @@ void drawAlert() {
     snprintf(buf, sizeof(buf), "Hors ligne depuis %u h %02u", gSup.alMin / 60, gSup.alMin % 60);
     depuis = buf;
   }
-  drawText(depuis, 120, 156, F_13, TXT, ALERTE, TC_DATUM);
+  drawText(depuis, 120, 155, F_13, TXT, ALERTE, TC_DATUM);
 
-  card(16, 188, 208, 36, 10, ALERTE2, ALERTE);
+  card(16, 183, 208, 36, 10, ALERTE2, ALERTE);
   String bilan = String(gSup.alCount) + (gSup.alCount > 1 ? " services sur " : " service sur ")
                + String(gSup.tot) + " en panne";
-  drawText(bilan, 120, 207, F_13, TXT, ALERTE2, MC_DATUM);
+  drawText(bilan, 120, 202, F_13, TXT, ALERTE2, MC_DATUM);
 }
 
 // --------------------------------------------------------------- Bitcoin
@@ -317,22 +317,22 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
   }
 
   // Pastille « ₿ »
-  tft.fillSmoothCircle(29, 28, 15, BTC, BG);
-  drawText("B", 30, 29, F_18, SOMBRE, BTC, MC_DATUM);
-  tft.fillRect(27, 15, 2, 4, SOMBRE);
-  tft.fillRect(31, 15, 2, 4, SOMBRE);
-  tft.fillRect(27, 38, 2, 4, SOMBRE);
-  tft.fillRect(31, 38, 2, 4, SOMBRE);
-  drawText("Bitcoin", 52, 13, F_16, TXT, BG);
-  drawText("BTC · 7 jours", 52, 32, F_11, MUTED, BG);
+  tft.fillSmoothCircle(29, 31, 15, BTC, BG);
+  drawText("B", 30, 32, F_18, SOMBRE, BTC, MC_DATUM);
+  tft.fillRect(27, 18, 2, 4, SOMBRE);
+  tft.fillRect(31, 18, 2, 4, SOMBRE);
+  tft.fillRect(27, 41, 2, 4, SOMBRE);
+  tft.fillRect(31, 41, 2, 4, SOMBRE);
+  drawText("Bitcoin", 52, 16, F_16, TXT, BG);
+  drawText("BTC · 7 jours", 52, 35, F_11, MUTED, BG);
 
-  drawText(fitText(doc["px"] | "", F_32, 212), 14, 52, F_32, TXT, BG);
+  drawText(fitText(doc["px"] | "", F_32, 212), 14, 54, F_32, TXT, BG);
 
   bool u24 = doc["u24"] | 1, u7 = doc["u7"] | 1;
   String p1 = String("24 h ") + (doc["v24"] | "");
   String p2 = String("7 j ") + (doc["v7"] | "");
-  pill(14, 90, p1, F_11, u24 ? VERT : ROUGE_TX, u24 ? VERT_BG : ROUGE_BG, BG);
-  pill(14 + textW(p1, F_11) + 20, 90, p2, F_11, u7 ? VERT : ROUGE_TX, u7 ? VERT_BG : ROUGE_BG, BG);
+  pill(14, 91, p1, F_11, u24 ? VERT : ROUGE_TX, u24 ? VERT_BG : ROUGE_BG, BG);
+  pill(14 + textW(p1, F_11) + 20, 91, p2, F_11, u7 ? VERT : ROUGE_TX, u7 ? VERT_BG : ROUGE_BG, BG);
 
   // Courbe : points normalisés 0..100 envoyés par la passerelle
   JsonArray pts = doc["pts"].as<JsonArray>();
@@ -368,8 +368,8 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     tft.fillSmoothCircle(X1, ye, 3, line, halo);
   }
 
-  drawText(doc["d0"] | "", 14, 192, F_11, MUTED2, BG);
-  drawText(doc["d1"] | "", 226, 192, F_11, MUTED2, BG, TR_DATUM);
+  drawText(doc["d0"] | "", 14, 190, F_11, MUTED2, BG);
+  drawText(doc["d1"] | "", 226, 190, F_11, MUTED2, BG, TR_DATUM);
 
   staleMark(doc["p"] | 0);
   pageDots(dotIndex, dotCount, BTC);

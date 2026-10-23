@@ -43,7 +43,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Étiquettes (2.1.0, 2.1, 2, latest)
+      - name: Étiquettes de version (x.y.z, x.y, x, latest)
         id: meta
         uses: docker/metadata-action@v5
         with:

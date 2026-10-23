@@ -39,12 +39,15 @@ Aucun secret ne transite par l'afficheur, dont le point d'accès est ouvert.
 
 ---
 
+**Fonctionnement détaillé de la passerelle** : voir [docs/PASSERELLE.md](docs/PASSERELLE.md).
+
 ## Contenu du dépôt
 
 | Chemin | Rôle |
 |---|---|
 | `docker-compose.yml` | Modèle de déploiement de la passerelle (variables d'environnement) |
 | `gateway/` | Code de la passerelle (Python, aiohttp, discord.py) et ses tests |
+| `docs/PASSERELLE.md` | Fonctionnement détaillé de la passerelle |
 | `.github/workflows/image.yml` | Construction et publication automatique de l'image Docker |
 | `firmware/bin/` | Firmware prêt à flasher (`.bin.gz` recommandé) |
 | `firmware/src/`, `firmware/platformio.ini` | Sources du firmware (PlatformIO) |
@@ -73,9 +76,9 @@ L'image est alors disponible : `ghcr.io/sqweedly/modelrogs-gateway:2`.
 
 **Publier une nouvelle version** plus tard :
 ```bash
-git tag v2.1.2 && git push --tags
+git tag v2.2.2 && git push --tags
 ```
-Les étiquettes `2.1.2`, `2.1`, `2` et `latest` sont mises à jour.
+Les étiquettes `2.2.2`, `2.2`, `2` et `latest` sont mises à jour.
 
 ---
 
@@ -144,7 +147,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 1. Connecte ton téléphone ou ton PC au Wi-Fi de l'afficheur. Avec l'ancien firmware, il s'appelle « MODELROGS Discord ».
 2. Ouvre **http://192.168.4.1/update**.
-3. Envoie **`firmware/bin/modelrogs-display-2.2.0.bin.gz`** (341 Ko). L'OTA accepte directement le fichier compressé.
+3. Envoie **`firmware/bin/modelrogs-display-2.2.1.bin.gz`** (341 Ko). L'OTA accepte directement le fichier compressé.
 4. Attends le redémarrage, environ 30 secondes, **sans débrancher**.
 
 **Reprise depuis l'ancien firmware Discord** : le Wi-Fi maison est pré-rempli, et l'adresse de la passerelle est déduite de l'ancienne URL du snapshot (même machine, port 8080). Le point d'accès s'appelle désormais **« MODELROGS Display »**. L'écran demande de valider la configuration (étape 5).

@@ -22,7 +22,7 @@ from .modules import Module, btc, discord_vocal, meteo, supervision
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("passerelle")
 
-VERSION = "2.1.0"
+VERSION = "2.2.1"
 PORT = int(os.environ.get("PORT", "8080"))
 
 CATALOGUE: dict[str, Module] = {m.id: m for m in (

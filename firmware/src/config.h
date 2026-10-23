@@ -5,7 +5,7 @@
 // Configuration persistante (EEPROM émulée en flash)
 // =====================================================
 
-#define FW_VERSION      "2.2.0"
+#define FW_VERSION      "2.2.1"
 #define EEPROM_SIZE     1024
 
 // Identité du firmware dans l'EEPROM (zone que l'OTA ne touche pas).

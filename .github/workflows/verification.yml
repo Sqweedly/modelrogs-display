@@ -1,0 +1,68 @@
+# Vérification à chaque envoi sur main (et sur les pull requests) :
+# tests de la passerelle, test de la configuration du firmware, compilation
+# du firmware. Rien n'est publié. Le firmware compilé reste téléchargeable
+# 7 jours dans la page de l'exécution (rubrique « Artifacts »).
+name: Vérification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tests de la passerelle
+        working-directory: gateway
+        run: |
+          pip install -r requirements.txt
+          python -m tests.test_passerelle
+
+      - name: Test de conservation de la configuration du firmware
+        working-directory: firmware/tools/simulateur
+        run: |
+          g++ -std=gnu++17 -O1 -w -I shim -I ../../src test_config.cpp ../../src/config.cpp -o test_config
+          ./test_config
+
+  firmware:
+    name: Compilation du firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('firmware/platformio.ini') }}
+
+      - name: Compilation (PlatformIO)
+        working-directory: firmware
+        env:
+          MODELROGS_VERSION: dev-${{ github.sha }}
+        run: |
+          pip install platformio==6.1.16
+          pio run
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-dev
+          path: |
+            firmware/.pio/build/smalltv/firmware.bin
+            firmware/.pio/build/smalltv/firmware.bin.gz
+          retention-days: 7

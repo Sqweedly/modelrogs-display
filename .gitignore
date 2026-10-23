@@ -11,3 +11,9 @@ firmware/tools/simulateur/planche.png
 __pycache__/
 *.pyc
 .venv/
+
+# Binaires : produits par GitHub Actions et publiés dans les Releases
+firmware/bin/
+*.bin
+*.bin.gz
+dist/

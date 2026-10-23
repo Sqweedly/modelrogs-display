@@ -1,0 +1,167 @@
+# Publication d'une version, déclenchée par un tag vX.Y.Z :
+#   1. tests (passerelle + configuration du firmware)
+#   2. compilation du firmware (PlatformIO)
+#   3. image Docker multi-architecture -> ghcr.io/sqweedly/modelrogs-gateway
+#   4. Release GitHub avec les fichiers à télécharger
+# Si une étape échoue, rien n'est publié.
+name: Publication
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write    # création de la Release
+  packages: write    # publication de l'image sur ghcr.io
+
+env:
+  IMAGE: ghcr.io/sqweedly/modelrogs-gateway
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tests de la passerelle
+        working-directory: gateway
+        run: |
+          pip install -r requirements.txt
+          python -m tests.test_passerelle
+
+      - name: Test de conservation de la configuration du firmware
+        working-directory: firmware/tools/simulateur
+        run: |
+          g++ -std=gnu++17 -O1 -w -I shim -I ../../src test_config.cpp ../../src/config.cpp -o test_config
+          ./test_config
+
+  firmware:
+    name: Compilation du firmware
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('firmware/platformio.ini') }}
+
+      - name: Compilation (PlatformIO)
+        working-directory: firmware
+        run: |
+          export MODELROGS_VERSION="${GITHUB_REF_NAME#v}"
+          pip install platformio==6.1.16
+          pio run
+          mkdir -p ../dist
+          cp .pio/build/smalltv/firmware.bin    ../dist/modelrogs-display.bin
+          cp .pio/build/smalltv/firmware.bin.gz ../dist/modelrogs-display.bin.gz
+          ls -l ../dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: dist/
+          retention-days: 7
+
+  image:
+    name: Image Docker
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Connexion à ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Étiquettes de version (x.y.z, x.y, x, latest)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Construction multi-architecture et publication
+        uses: docker/build-push-action@v6
+        with:
+          context: ./gateway
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: Release GitHub
+    needs: [firmware, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: dist
+
+      - name: Préparation des fichiers
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          MAJEURE="${VERSION%%.*}"
+          # docker-compose.yml : étiquette de version majeure (ex. :2), pour que
+          # « docker compose pull » suive automatiquement les versions 2.x
+          sed "s|image: ${IMAGE}:.*|image: ${IMAGE}:${MAJEURE}|" docker-compose.yml > dist/docker-compose.yml
+          grep -q "image: ${IMAGE}:${MAJEURE}" dist/docker-compose.yml
+          (cd dist && sha256sum modelrogs-display.bin modelrogs-display.bin.gz docker-compose.yml > SHA256SUMS.txt)
+          cat > notes.md <<EOF
+          ## Installation
+
+          **Firmware** (afficheur SmallTV) : connectez-vous au Wi-Fi de l'afficheur, ouvrez
+          \`http://192.168.4.1/update\` et envoyez **modelrogs-display.bin.gz**.
+
+          **Passerelle** (serveur Docker) : image \`${IMAGE}:${VERSION}\` (également \`:${MAJEURE}\` et \`:latest\`).
+          Mise à jour d'une installation existante : \`docker compose pull && docker compose up -d\`.
+          Nouvelle installation : téléchargez **docker-compose.yml**, renseignez vos modules, puis \`docker compose up -d\`.
+
+          Empreintes SHA-256 : voir **SHA256SUMS.txt**.
+
+          EOF
+          sed -i 's/^          //' notes.md
+          ls -l dist
+
+      - name: Création de la Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FICHIERS="dist/modelrogs-display.bin.gz dist/modelrogs-display.bin dist/docker-compose.yml dist/SHA256SUMS.txt"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            # Release créée à la main dans GitHub (le tag a été créé avec elle) : on la complète
+            gh release upload "$GITHUB_REF_NAME" $FICHIERS --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "MODELROGS Display ${GITHUB_REF_NAME#v}" \
+              --notes-file notes.md \
+              --generate-notes \
+              $FICHIERS
+          fi

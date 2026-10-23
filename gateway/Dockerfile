@@ -10,14 +10,19 @@ RUN pip install --no-cache-dir --no-compile --prefix=/install -r /tmp/requiremen
 # --- Étape 2 : image finale ---------------------------------------------------
 FROM python:3.12-alpine
 
+# Numéro de version, fourni par GitHub Actions à partir du tag (ex. 2.3.0)
+ARG VERSION=dev
+
 LABEL org.opencontainers.image.title="modelrogs-gateway" \
       org.opencontainers.image.description="Passerelle des afficheurs MODELROGS Display (SmallTV ESP8266)" \
-      org.opencontainers.image.source="https://github.com/sqweedly/modelrogs-display"
+      org.opencontainers.image.source="https://github.com/sqweedly/modelrogs-display" \
+      org.opencontainers.image.version="${VERSION}"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     CACHE_DIR=/cache \
-    PORT=8080
+    PORT=8080 \
+    MODELROGS_VERSION=${VERSION}
 
 COPY --from=construction /install /usr/local
 COPY app /app/app

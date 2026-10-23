@@ -43,42 +43,51 @@ Aucun secret ne transite par l'afficheur, dont le point d'accès est ouvert.
 
 ## Contenu du dépôt
 
+Le dépôt ne contient que des **sources**. Les fichiers prêts à l'emploi (firmware, `docker-compose.yml`) sont produits par GitHub et publiés dans les **Releases**.
+
 | Chemin | Rôle |
 |---|---|
 | `docker-compose.yml` | Modèle de déploiement de la passerelle (variables d'environnement) |
 | `gateway/` | Code de la passerelle (Python, aiohttp, discord.py) et ses tests |
-| `docs/PASSERELLE.md` | Fonctionnement détaillé de la passerelle |
-| `.github/workflows/image.yml` | Construction et publication automatique de l'image Docker |
-| `firmware/bin/` | Firmware prêt à flasher (`.bin.gz` recommandé) |
 | `firmware/src/`, `firmware/platformio.ini` | Sources du firmware (PlatformIO) |
-| `firmware/tools/` | Polices, compression du binaire, simulateur d'écrans |
+| `firmware/tools/` | Version, compression du binaire, polices, simulateur et test de configuration |
+| `docs/PASSERELLE.md` | Fonctionnement détaillé de la passerelle |
+| `.github/workflows/verification.yml` | À chaque envoi sur `main` : tests et compilation, sans publication |
+| `.github/workflows/publication.yml` | À chaque tag `vX.Y.Z` : tests, firmware, image Docker et Release |
 
 ---
 
-## Étape 1 — Publier l'image sur GitHub (une seule fois)
+## Étape 1 — Récupérer une version
 
-L'image est construite **par GitHub** pour PC, NAS et Raspberry Pi (amd64, arm64, armv7), puis hébergée sur `ghcr.io`. Il n'y a rien à installer sur ton PC à part Git.
+**Dépôt privé** : les Releases ne sont téléchargeables qu'en étant connecté à GitHub avec le compte Sqweedly. L'image Docker est publique et se télécharge sans identifiants.
 
-1. Sur https://github.com, connecté avec le compte **Sqweedly** : **New repository**.
-   - Nom : **`modelrogs-display`** (ce nom exact relie l'image au dépôt).
-   - Public ou privé, au choix.
-   - **Ne coche rien** : ni README, ni .gitignore, ni licence.
-2. Sur ton PC, dans le dossier `modelrogs` décompressé, qui contient déjà un historique Git prêt :
-   ```bash
-   git remote add origin https://github.com/Sqweedly/modelrogs-display.git
-   git push -u origin main --tags
-   ```
-   Si Git demande un mot de passe, utilise un **jeton d'accès** et non ton mot de passe GitHub. Crée-le dans GitHub → *Settings → Developer settings → Personal access tokens → Fine-grained*, sur le dépôt `modelrogs-display`, avec les permissions **Contents** et **Workflows** en lecture et écriture. Sans « Workflows », GitHub refuse l'envoi du fichier `.github/workflows/image.yml`.
-3. Le tag `v2.1.0` déclenche la construction. Suis-la dans l'onglet **Actions** du dépôt (environ 5 minutes). Elle est terminée quand la coche est verte.
-4. **Rends l'image publique**, une seule fois, pour que ton serveur puisse la télécharger sans identifiants. Sur ton profil GitHub : onglet **Packages** → `modelrogs-gateway` → **Package settings** → **Change visibility** → **Public**.
+Sur la page du dépôt : **Releases** (colonne de droite) → la dernière version. Elle contient :
 
-L'image est alors disponible : `ghcr.io/sqweedly/modelrogs-gateway:2`.
+| Fichier | Usage |
+|---|---|
+| `modelrogs-display.bin.gz` | Firmware à flasher par OTA (recommandé) |
+| `modelrogs-display.bin` | Le même, non compressé |
+| `docker-compose.yml` | Modèle de déploiement de la passerelle |
+| `SHA256SUMS.txt` | Empreintes pour vérifier les fichiers |
 
-**Publier une nouvelle version** plus tard :
+L'image de la passerelle est publiée en même temps : `ghcr.io/sqweedly/modelrogs-gateway`, avec les étiquettes `X.Y.Z`, `X.Y`, `X` et `latest`. Le `docker-compose.yml` utilise l'étiquette majeure (par exemple `:2`) : `docker compose pull` suit automatiquement les versions 2.x.
+
+**Publier une nouvelle version** (après avoir envoyé les modifications sur `main`) :
 ```bash
-git tag v2.2.2 && git push --tags
+git tag v2.3.1
+git push origin v2.3.1
 ```
-Les étiquettes `2.2.2`, `2.2`, `2` et `latest` sont mises à jour.
+Ou dans GitHub : **Releases → Draft a new release → Choose a tag** → saisir `v2.3.1` → **Create new tag** → **Publish release**. Dans ce cas, GitHub complète la Release existante au lieu d'en créer une.
+
+GitHub Actions enchaîne alors, en 10 minutes environ (onglet **Actions**) :
+1. les tests ;
+2. la compilation du firmware ;
+3. l'image Docker multi-architecture ;
+4. la Release avec ses fichiers.
+
+Si une étape échoue, rien n'est publié. Le numéro de version vient uniquement du tag : il est injecté dans le firmware (écran de démarrage, interface) et dans la passerelle (`/health`).
+
+**Quota GitHub Actions** : un dépôt privé dispose de 2 000 minutes par mois avec un compte gratuit. Une publication en consomme environ 15, une vérification environ 5.
 
 ---
 
@@ -103,16 +112,15 @@ Le salon vocal se choisit ensuite **dans l'interface de l'afficheur**, dans une 
 
 ## Étape 3 — Déployer la passerelle sur le serveur
 
-```bash
-mkdir -p ~/modelrogs && cd ~/modelrogs
-curl -fsSLO https://raw.githubusercontent.com/Sqweedly/modelrogs-display/main/docker-compose.yml
-nano docker-compose.yml        # modules + leurs variables (voir ci-dessous)
-chmod 600 docker-compose.yml   # il contient le jeton Discord
-mkdir -p cache && sudo chown 10001:10001 cache
-docker compose up -d
-```
-
-Si le dépôt est privé, le `curl` ne fonctionnera pas : copie simplement `docker-compose.yml` sur le serveur à la main.
+1. Télécharge `docker-compose.yml` depuis la dernière Release (étape 1), puis copie-le sur le serveur (WinSCP, `scp`, gestionnaire de fichiers du NAS).
+2. Sur le serveur :
+   ```bash
+   mkdir -p ~/modelrogs && cd ~/modelrogs     # dossier où tu as copié docker-compose.yml
+   nano docker-compose.yml        # modules + leurs variables (voir ci-dessous)
+   chmod 600 docker-compose.yml   # il contient le jeton Discord
+   mkdir -p cache && sudo chown 10001:10001 cache
+   docker compose up -d
+   ```
 
 **Dans `docker-compose.yml`**, la ligne `MODULES:` liste les modules actifs. Pour chaque module gardé, renseigne son bloc :
 
@@ -147,7 +155,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 1. Connecte ton téléphone ou ton PC au Wi-Fi de l'afficheur. Avec l'ancien firmware, il s'appelle « MODELROGS Discord ».
 2. Ouvre **http://192.168.4.1/update**.
-3. Envoie **`firmware/bin/modelrogs-display-2.2.1.bin.gz`** (341 Ko). L'OTA accepte directement le fichier compressé.
+3. Envoie **`modelrogs-display.bin.gz`** (environ 340 Ko), téléchargé depuis la dernière Release. L'OTA accepte directement le fichier compressé.
 4. Attends le redémarrage, environ 30 secondes, **sans débrancher**.
 
 **Reprise depuis l'ancien firmware Discord** : le Wi-Fi maison est pré-rempli, et l'adresse de la passerelle est déduite de l'ancienne URL du snapshot (même machine, port 8080). Le point d'accès s'appelle désormais **« MODELROGS Display »**. L'écran demande de valider la configuration (étape 5).
@@ -205,7 +213,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 ## Dépannage de l'écran
 
-Ces réglages sont dans `firmware/platformio.ini`. Ils demandent de recompiler le firmware, ou de me demander un binaire corrigé.
+Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Après modification, envoie-la sur `main` puis publie une nouvelle version (étape 1) : GitHub recompile le firmware.
 
 | Symptôme | Correction |
 |---|---|
@@ -214,7 +222,9 @@ Ces réglages sont dans `firmware/platformio.ini`. Ils demandent de recompiler l
 | Image retournée ou décalée | `tft.setRotation(0)` dans `src/ui.cpp` : essayer 2 (180°), 1 ou 3 |
 | Parasites | `-D SPI_FREQUENCY=27000000` |
 
-**Compiler** : `cd firmware && pio run`. Cela produit `.pio/build/smalltv/firmware.bin` et `firmware.bin.gz`. Reprends dans `platformio.ini` les lignes `board` et `board_build.ldscript` de ton ancien projet pour garder le même découpage de la flash.
+**Compiler sur un PC** (facultatif) : `cd firmware && pio run`. Cela produit `.pio/build/smalltv/firmware.bin` et `firmware.bin.gz`, en version « dev ».
+
+**Firmware de test sans publier** : chaque envoi sur `main` compile le firmware. Il est téléchargeable 7 jours dans **Actions → Vérification → l'exécution → Artifacts**.
 
 ---
 
@@ -250,6 +260,7 @@ Ces réglages sont dans `firmware/platformio.ini`. Ils demandent de recompiler l
 Ajouter une nouvelle page demande un module dans la passerelle et un écran dans le firmware.
 
 **Outils**
-- **Tests de la passerelle** : `cd gateway && python -m tests.test_passerelle`. Ils sont aussi lancés par GitHub avant chaque publication.
+- **Tests de la passerelle** : `cd gateway && python -m tests.test_passerelle`. Ils sont lancés par GitHub à chaque envoi et avant chaque publication.
+- **Test de conservation de la configuration du firmware** : `firmware/tools/simulateur/test_config.cpp`, lancé lui aussi par GitHub.
 - **Aperçu des écrans sur PC** : `firmware/tools/simulateur/apercu.sh`.
 - **Polices** : Inter (licence OFL), régénérées par `firmware/tools/make_fonts.py`. Leur jeu de caractères doit rester identique à `CHARSET` dans `gateway/app/text.py`.

@@ -22,7 +22,8 @@ from .modules import Module, btc, discord_vocal, meteo, supervision
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("passerelle")
 
-VERSION = "2.2.1"
+# Version injectée dans l'image par GitHub Actions (tag Git) ; « dev » en local.
+VERSION = os.environ.get("MODELROGS_VERSION", "").strip() or "dev"
 PORT = int(os.environ.get("PORT", "8080"))
 
 CATALOGUE: dict[str, Module] = {m.id: m for m in (

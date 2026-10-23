@@ -5,7 +5,11 @@
 // Configuration persistante (EEPROM émulée en flash)
 // =====================================================
 
-#define FW_VERSION      "2.2.1"
+// Version du firmware : injectée à la compilation depuis le tag Git
+// (tools/version.py). « dev » pour une compilation locale.
+#ifndef FW_VERSION
+#define FW_VERSION      "dev"
+#endif
 #define EEPROM_SIZE     1024
 
 // Identité du firmware dans l'EEPROM (zone que l'OTA ne touche pas).

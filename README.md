@@ -65,7 +65,7 @@ L'image est construite **par GitHub** pour PC, NAS et Raspberry Pi (amd64, arm64
    git remote add origin https://github.com/Sqweedly/modelrogs-display.git
    git push -u origin main --tags
    ```
-   Si Git demande un mot de passe, utilise un **jeton d'accès** et non ton mot de passe GitHub. Crée-le dans GitHub → *Settings → Developer settings → Personal access tokens → Fine-grained*, avec un accès en écriture au contenu du dépôt `modelrogs-display`.
+   Si Git demande un mot de passe, utilise un **jeton d'accès** et non ton mot de passe GitHub. Crée-le dans GitHub → *Settings → Developer settings → Personal access tokens → Fine-grained*, sur le dépôt `modelrogs-display`, avec les permissions **Contents** et **Workflows** en lecture et écriture. Sans « Workflows », GitHub refuse l'envoi du fichier `.github/workflows/image.yml`.
 3. Le tag `v2.1.0` déclenche la construction. Suis-la dans l'onglet **Actions** du dépôt (environ 5 minutes). Elle est terminée quand la coche est verte.
 4. **Rends l'image publique**, une seule fois, pour que ton serveur puisse la télécharger sans identifiants. Sur ton profil GitHub : onglet **Packages** → `modelrogs-gateway` → **Package settings** → **Change visibility** → **Public**.
 
@@ -134,8 +134,9 @@ curl http://localhost:8080/modules                 # modules annoncés à l'affi
 L'image fait environ 65 Mo (Alpine). Le conteneur est durci :
 - utilisateur non root ;
 - système de fichiers en lecture seule, sauf `./cache` ;
-- aucune capacité Linux ;
-- 128 Mo de mémoire au maximum.
+- aucune capacité Linux.
+
+Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer le démarrage sur les systèmes sans contrôleur mémoire des cgroups (Raspberry Pi OS, certains NAS).
 
 ---
 

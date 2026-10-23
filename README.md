@@ -73,9 +73,9 @@ L'image est alors disponible : `ghcr.io/sqweedly/modelrogs-gateway:2`.
 
 **Publier une nouvelle version** plus tard :
 ```bash
-git tag v2.1.1 && git push --tags
+git tag v2.1.2 && git push --tags
 ```
-Les étiquettes `2.1.1`, `2.1`, `2` et `latest` sont mises à jour.
+Les étiquettes `2.1.2`, `2.1`, `2` et `latest` sont mises à jour.
 
 ---
 

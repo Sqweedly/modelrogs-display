@@ -5,6 +5,8 @@
 // - Interface web 192.168.4.1 : Wi-Fi, pages, ville, nuit, luminosités,
 //   choix des services supervisés
 // - OTA /update inchangée (ESP8266HTTPUpdateServer)
+// - Mode secours : après 3 plantages au démarrage, seuls le Wi-Fi,
+//   l'interface web et l'OTA tournent (l'OTA reste toujours joignable)
 // - Pages en rotation : Heure, Météo, Discord, Supervision, Bitcoin
 //   (+ écran d'alerte prioritaire en cas de panne)
 // - Toutes les données viennent de la passerelle Docker (HTTP local)
@@ -42,6 +44,50 @@ static bool     configChanged = false;
 static bool     screenOff = false;
 static uint8_t  lastBrightness = 255;
 static uint32_t drawnDiscVersion = 0, drawnSupVersion = 0;
+
+// ------------------------------------------------------------- mode secours
+//
+// Un compteur en mémoire RTC (conservée lors d'un redémarrage, effacée à la
+// coupure de courant) compte les plantages successifs survenus dans la
+// première minute. À 3, l'afficheur démarre en mode secours : ni pages ni
+// appels à la passerelle, seulement le Wi-Fi, l'interface web et l'OTA.
+// Les 128 premiers octets de la mémoire RTC sont réservés à l'OTA :
+// on utilise le bloc 64 (octet 256).
+
+bool gSafeMode = false;
+
+static const uint32_t RTC_BLOCK   = 64;
+static const uint32_t RTC_MAGIC   = 0x5AFE0D15UL;
+static const uint8_t  SAFE_AFTER  = 3;      // plantages successifs
+static const uint32_t STABLE_MS   = 60000;  // démarrage réussi après 1 minute
+
+struct BootGuard {
+  uint32_t magic;
+  uint32_t crashes;
+};
+
+static void writeGuard(uint32_t crashes) {
+  BootGuard g{ RTC_MAGIC, crashes };
+  ESP.rtcUserMemoryWrite(RTC_BLOCK, (uint32_t*)&g, sizeof(g));
+}
+
+static uint32_t updateGuardAtBoot() {
+  BootGuard g;
+  ESP.rtcUserMemoryRead(RTC_BLOCK, (uint32_t*)&g, sizeof(g));
+  uint32_t reason = ESP.getResetInfoPtr()->reason;
+  bool crashed = reason == REASON_WDT_RST || reason == REASON_EXCEPTION_RST ||
+                 reason == REASON_SOFT_WDT_RST;
+  uint32_t crashes = (g.magic == RTC_MAGIC && crashed) ? g.crashes + 1 : 0;
+  writeGuard(crashes);
+  Serial.printf("Demarrage : raison %u, plantages successifs %u\n", reason, crashes);
+  return crashes;
+}
+
+void clearBootGuardAndRestart() {
+  writeGuard(0);
+  delay(100);
+  ESP.restart();
+}
 
 // ------------------------------------------------------------ rétroéclairage
 
@@ -158,7 +204,21 @@ void setup() {
   analogWriteRange(1023);
   analogWriteFreq(1000);
 
+  gSafeMode = updateGuardAtBoot() >= SAFE_AFTER;
+
   loadConfig();
+
+  if (gSafeMode) {
+    // Le strict minimum, OTA en priorité : pas de polices, pas de passerelle.
+    Serial.println(F("MODE SECOURS : Wi-Fi + interface web + OTA uniquement"));
+    netBegin();
+    webBegin();
+    uiBegin();
+    tft.fillScreen(Col::ALERTE2);   // écran rouge sombre uni = mode secours
+    applyBacklight(30);
+    return;
+  }
+
   uiBegin();
   applyBacklight(cfg.brightDay);
   drawSplash("Démarrage...", "Point d'accès \"" + String(cfg.apSsid) + "\"", "http://192.168.4.1");
@@ -172,6 +232,14 @@ void setup() {
 void loop() {
   webTick();      // DNS captif + interface web + OTA, à chaque tour
   netTick();
+
+  if (gSafeMode) return;   // mode secours : rien d'autre ne tourne
+
+  static bool stable = false;
+  if (!stable && millis() > STABLE_MS) {
+    stable = true;
+    writeGuard(0);         // démarrage réussi : compteur de plantages remis à zéro
+  }
 
   // --- Luminosité / nuit (appliquée dans tous les états)
   uint8_t brightness = nightActive() ? cfg.brightNight : cfg.brightDay;

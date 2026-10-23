@@ -257,6 +257,17 @@ static void handleRoot() {
          "<title>MODELROGS Display</title>")
     << FPSTR(STYLE) << F("</head><body><h1>MODELROGS Display</h1>");
 
+  // L'OTA est proposée en premier : c'est la fonction qui doit toujours rester accessible.
+  if (gSafeMode) {
+    c << F("<section style='border:2px solid #FF6B70'><h2 class='ko'>Mode secours</h2>"
+           "<p>L'afficheur a planté plusieurs fois de suite au démarrage. Seuls le Wi-Fi, "
+           "cette interface et la mise à jour tournent.</p>"
+           "<a class='sm' href='/update'>Mettre à jour le firmware</a>"
+           "<a class='sm' href='/restart'>Redémarrer normalement</a></section>");
+  } else {
+    c << F("<p><a class='sm' href='/update'>Mettre à jour le firmware</a></p>");
+  }
+
   // --- État
   bool sta = staConnected();
   c << F("<section><h2>État</h2><div class='kv'>")
@@ -434,6 +445,17 @@ static void handleSave() {
   schedulerConfigChanged(villeChanged);
 }
 
+static void handleRestart() {
+  server.send(200, F("text/html; charset=utf-8"),
+    String(F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
+             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+             "<meta http-equiv='refresh' content='15;url=/'><title>MODELROGS</title>"))
+    + FPSTR(STYLE) + F("</head><body><section><h2>Redémarrage...</h2>"
+    "<p>Reconnectez-vous au Wi-Fi de l'afficheur si nécessaire.</p></section></body></html>"));
+  delay(200);
+  clearBootGuardAndRestart();
+}
+
 static void handleShow() {
   int p = server.arg("p").toInt();
   if (p >= 0 && p < PG_COUNT) schedulerForce(p);
@@ -459,6 +481,7 @@ void webBegin() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/save", HTTP_POST, handleSave);
   server.on("/show", HTTP_GET, handleShow);
+  server.on("/restart", HTTP_GET, handleRestart);
 
   // OTA : même mécanisme qu'avant (ESP8266HTTPUpdateServer sur /update),
   // enregistré UNE seule fois.

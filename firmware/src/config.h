@@ -5,7 +5,7 @@
 // Configuration persistante (EEPROM émulée en flash)
 // =====================================================
 
-#define FW_VERSION      "2.1.0"
+#define FW_VERSION      "2.1.1"
 #define EEPROM_SIZE     1024
 #define CONFIG_MAGIC    0x4D524447UL   // "MRDG" (identique au firmware Discord)
 #define CONFIG_VERSION  3

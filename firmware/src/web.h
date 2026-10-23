@@ -9,6 +9,8 @@
 void webBegin();
 void webTick();
 
-// Implémentées dans main.cpp (planificateur des pages)
+// Implémentées dans main.cpp
 void schedulerForce(int8_t page);
 void schedulerConfigChanged(bool villeChanged);
+void clearBootGuardAndRestart();   // quitte le mode secours
+extern bool gSafeMode;

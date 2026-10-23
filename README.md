@@ -144,10 +144,18 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 1. Connecte ton téléphone ou ton PC au Wi-Fi de l'afficheur. Avec l'ancien firmware, il s'appelle « MODELROGS Discord ».
 2. Ouvre **http://192.168.4.1/update**.
-3. Envoie **`firmware/bin/modelrogs-display-2.1.0.bin.gz`** (341 Ko). L'OTA accepte directement le fichier compressé.
+3. Envoie **`firmware/bin/modelrogs-display-2.1.1.bin.gz`** (341 Ko). L'OTA accepte directement le fichier compressé.
 4. Attends le redémarrage, environ 30 secondes, **sans débrancher**.
 
 **Configuration conservée** : le Wi-Fi maison, le nom du point d'accès et la luminosité de l'ancien firmware sont repris. L'adresse de la passerelle est déduite de l'ancienne URL du snapshot (même machine, port 8080).
+
+**L'OTA reste toujours accessible** : à l'adresse `/update`, et par le bouton « Mettre à jour le firmware » en haut de l'interface. Elle accepte les fichiers `.bin` et `.bin.gz`. Avec une flash de 4 Mo, la place libre pour la mise à jour suivante est d'environ 2,5 Mo.
+
+**Mode secours** : si le firmware plante 3 fois de suite dans la minute qui suit le démarrage, l'afficheur redémarre en mode secours.
+- L'écran est rouge sombre uni.
+- Seuls le Wi-Fi (point d'accès compris), l'interface web et l'OTA tournent.
+- Tu peux alors flasher un autre firmware, ou cliquer sur « Redémarrer normalement ».
+- Une coupure de courant remet aussi le compteur à zéro.
 
 **Si la place manque**, la page affiche « Not Enough Space » et l'ancien firmware reste intact. La section **État** du nouveau firmware indique la taille de la flash et la place libre pour l'OTA.
 

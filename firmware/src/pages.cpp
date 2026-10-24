@@ -47,7 +47,10 @@ static char lastDate[32] = "";
 // En-tête : jour à gauche, date JJ/MM/AA à droite ; chiffres en 68 px ;
 // la carte météo du jour occupe tout le bas.
 // Chiffres centrés entre l'en-tête et la carte (même espace au-dessus et au-dessous).
-static const int Y_ENTETE = 12, Y_CHIFFRES = 37, H_CHIFFRES = 54, Y_METEO = 98;
+// Tout est aligné sur les bords des chiffres (x 24..216) et centré en hauteur,
+// avec le même espace entre l'en-tête, les chiffres et la carte météo.
+static const int X_G = 24, X_D = 216;
+static const int Y_ENTETE = 14, Y_CHIFFRES = 49, H_CHIFFRES = 54, Y_METEO = 115, H_METEO = 95;
 
 // Date locale JJ/MM/AA calculée à partir de l'horloge (jours depuis 1970 ->
 // année, mois, jour : algorithme « civil_from_days »).
@@ -108,15 +111,15 @@ static void drawClockDigits() {
 static void carteMeteoDuJour() {
   JsonDocument doc;
   if (gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) != 200) return;   // l'horloge reste seule
-  const int h = 217 - Y_METEO, cy = Y_METEO + h / 2;
-  card(14, Y_METEO, 212, h, 14, CARD);
+  const int h = H_METEO, cy = Y_METEO + h / 2;
+  card(X_G, Y_METEO, X_D - X_G, h, 14, CARD);
   // Icône (encre ~64 px) et colonne de droite (~74 px) : même marge à gauche
-  // et à droite de la carte, 30 px entre les deux ; tout centré en hauteur.
-  weatherIcon(doc["i"] | 2, 66, cy + 3, 1.25f, CARD);
+  // et à droite de la carte, 22 px entre les deux ; tout centré en hauteur.
+  weatherIcon(doc["i"] | 2, 70, cy + 3, 1.25f, CARD);
 
   // Colonne de droite : température puis min / max, centrés ensemble sur la
   // hauteur de la carte d'après la hauteur réelle des chiffres.
-  const int cx = 166, ecart = 14;
+  const int cx = 162, ecart = 12;
   GlyphBox gT, gM;
   glyphBox(F_52, '0', gT);
   glyphBox(F_18, '0', gM);
@@ -135,11 +138,11 @@ void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
   String jour = gTime.jour;
   jour.toUpperCase();
-  drawText(jour, 14, Y_ENTETE, F_13, MUTED, BG);
+  drawText(jour, X_G, Y_ENTETE, F_18, TXT2, BG);
   if (timeValid()) {
     char d[12];
     dateCourte(d, sizeof(d));
-    drawText(d, 226, Y_ENTETE, F_13, MUTED, BG, TR_DATUM);
+    drawText(d, X_D, Y_ENTETE, F_18, TXT2, BG, TR_DATUM);
   }
   drawClockDigits();
   carteMeteoDuJour();

@@ -3,7 +3,7 @@
 
 Usage :
     pip install freetype-py
-    python tools/make_fonts.py <dossier contenant Inter-SemiBold.ttf, Inter-Bold.ttf, Inter-ExtraBold.ttf>
+    python tools/make_fonts.py <dossier contenant Inter-ExtraBold.ttf et Inter-Black.ttf>
 
 Produit src/fonts/inter_fonts.h : un tableau PROGMEM par taille, chargé par
 tft.loadFont(...). Le jeu de caractères complet DOIT rester identique à
@@ -29,13 +29,13 @@ CHIFFRES = "0123456789"
 
 # nom, fichier, taille en px, caractères
 POLICES = [
-    ("F11", "Inter-SemiBold.ttf", 11, COMPLET),
-    ("F13", "Inter-SemiBold.ttf", 13, COMPLET),
-    ("F16", "Inter-Bold.ttf", 16, COMPLET),
-    ("F18", "Inter-ExtraBold.ttf", 18, COMPLET),
-    ("F32", "Inter-ExtraBold.ttf", 32, CHIFFRES + "ABCDEFGHIJKLMNOPQRSTUVWXYZ €$.,+-%/:…"),
-    ("F52", "Inter-ExtraBold.ttf", 52, CHIFFRES + "°-/ "),
-    ("F68", "Inter-ExtraBold.ttf", 68, CHIFFRES + ":"),
+    ("F11", "Inter-ExtraBold.ttf", 12, COMPLET),
+    ("F13", "Inter-ExtraBold.ttf", 14, COMPLET),
+    ("F16", "Inter-ExtraBold.ttf", 16, COMPLET),
+    ("F18", "Inter-Black.ttf", 18, COMPLET),
+    ("F32", "Inter-Black.ttf", 32, CHIFFRES + "ABCDEFGHIJKLMNOPQRSTUVWXYZ €$.,+-%/:…"),
+    ("F52", "Inter-Black.ttf", 52, CHIFFRES + "°-/ "),
+    ("F68", "Inter-Black.ttf", 68, CHIFFRES + ":"),
 ]
 
 

@@ -38,7 +38,8 @@ enum ScreenState : uint8_t { S_BOOT, S_VALIDATE, S_SETUP, S_CONNECTING, S_NO_GAT
 static ScreenState screen = S_BOOT;
 static int8_t   curPage = -1;          // -1 : aucune page affichée
 static uint32_t pageSince = 0;
-static bool     alertShown = false;
+static bool     alertShown = false;    // l'écran d'alerte est affiché en ce moment
+static bool     alertActive = false;   // une panne est en cours
 static bool     idleShown = false;
 static int8_t   forcedPage = -1;
 static bool     priorityDiscord = false;
@@ -156,6 +157,15 @@ static void nextPage() {
   }
 }
 
+// Écran d'alerte : affiché une durée de page, en alternance avec la rotation.
+// curPage garde la dernière page normale, pour reprendre la rotation ensuite.
+static void showAlert() {
+  drawAlert();
+  alertShown = true;
+  drawnSupVersion = gSup.version;
+  pageSince = millis();
+}
+
 void schedulerForce(int8_t page) { forcedPage = page; }
 
 void schedulerConfigChanged(bool villeChanged) {
@@ -180,7 +190,7 @@ static void setScreen(ScreenState s) {
   switch (s) {
     case S_VALIDATE:
       drawSplash("Configuration à valider", "1. Wi-Fi \"" + String(cfg.apSsid) + "\"",
-                 "2. http://192.168.4.1 > Enregistrer");
+                 "2. 192.168.4.1 > Enregistrer");
       break;
     case S_SETUP:
       drawSplash("Configuration requise", "1. Wi-Fi \"" + String(cfg.apSsid) + "\"",
@@ -298,50 +308,71 @@ void loop() {
   if (configChanged) {
     configChanged = false;
     alertShown = false;
+    alertActive = false;               // une panne en cours sera réaffichée aussitôt
     if (forcedPage < 0) {
       curPage = (curPage >= 0 ? curPage - 1 : -1);   // reprendre la rotation
       nextPage();
     }
   }
 
-  // --- Alerte supervision : prioritaire jusqu'au retour à la normale
-  if (supAlert) {
-    if (!alertShown || drawnSupVersion != gSup.version) {
-      drawAlert();
-      alertShown = true;
-      drawnSupVersion = gSup.version;
-      curPage = PG_SUP;
-    }
+  const uint32_t dureePage = (uint32_t)cfg.pageSec * 1000UL;
+
+  // --- Alerte supervision : une nouvelle panne s'affiche immédiatement, puis
+  //     l'écran d'alerte alterne avec les pages (1 écran sur 2) jusqu'au retour
+  //     à la normale.
+  if (supAlert && !alertActive) {
+    alertActive = true;
+    showAlert();
     return;
   }
-  if (alertShown) {
-    alertShown = false;
-    nextPage();
-    return;
+  if (!supAlert && alertActive) {
+    alertActive = false;
+    if (alertShown) {
+      alertShown = false;
+      nextPage();
+      return;
+    }
   }
 
-  // --- Demandes ponctuelles
+  // --- Demandes ponctuelles (prioritaires, même pendant une alerte)
   if (forcedPage >= 0) {
     uint8_t p = forcedPage;
     forcedPage = -1;
+    alertShown = false;
     showPage(p);
     return;
   }
   if (priorityDiscord) {
     priorityDiscord = false;
     if (pageAvailable(PG_DISCORD)) {
+      alertShown = false;
       showPage(PG_DISCORD);
       return;
     }
   }
 
-  // --- Rotation
+  // --- Écran d'alerte affiché : mise à jour, puis page suivante après une durée
+  if (alertShown) {
+    if (drawnSupVersion != gSup.version) {   // redessiné sans relancer le minuteur
+      drawAlert();
+      drawnSupVersion = gSup.version;
+    }
+    if (now - pageSince >= dureePage) {
+      alertShown = false;
+      nextPage();
+    }
+    return;
+  }
+
+  // --- Rotation (une alerte en cours s'intercale entre chaque page)
   if (curPage < 0) {
+    if (supAlert && now - pageSince > 5000UL) { showAlert(); return; }
     if (now - pageSince > 5000UL || !idleShown) nextPage();
     return;
   }
-  if (now - pageSince >= (uint32_t)cfg.pageSec * 1000UL) {
-    nextPage();
+  if (now - pageSince >= dureePage) {
+    if (supAlert) showAlert();
+    else nextPage();
     return;
   }
 

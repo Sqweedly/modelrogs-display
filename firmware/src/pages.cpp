@@ -232,7 +232,7 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
     resume = "Tout est OK";
     pillCol = VERT;
   }
-  pill(226, 17, resume, F_11, SOMBRE, pillCol, BG, true);
+  pill(226, 33, resume, F_11, SOMBRE, pillCol, BG, true);   // à droite de « N services »
 
   if (!gSup.resume) {
     // Tuiles (jusqu'à 12 services), les problèmes en premier.

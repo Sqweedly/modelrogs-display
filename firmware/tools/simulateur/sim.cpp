@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
   drawDiscord(2, 5);               save("09_discord_6");
   gatewayDown = true;
   drawMeteo(1, 5);                 save("10_meteo_erreur");
-  drawSplash("Configuration à valider", "1. Wi-Fi \"MODELROGS Display\"", "2. http://192.168.4.1 > Enregistrer");
+  drawSplash("Configuration à valider", "1. Wi-Fi \"MODELROGS Display\"", "2. 192.168.4.1 > Enregistrer");
   save("11_a_valider");
 
   fprintf(stderr, "glyphes absents : %d\n", tft.unknownGlyphs);

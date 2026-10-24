@@ -87,7 +87,7 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
    - si la donnée a moins de 10 minutes, elle est utilisée telle quelle ;
    - sinon, la passerelle fait **un seul appel** CoinGecko `/coins/markets` pour **toutes** les cryptos proposées : prix, variations 24 h et 7 jours, courbe horaire sur 7 jours (168 points), adresse du logo officiel. Quel que soit le choix fait sur l'afficheur, CoinGecko n'est donc appelé qu'une fois toutes les 10 minutes par devise.
 4. **La mise en forme** :
-   - prix formaté à la française, avec une précision adaptée : `57 864 €`, `142,35 €`, `2,1840 €` ;
+   - prix formaté à la française : sans décimale à partir de 1 000, sinon 2 décimales au plus (`57 864 €`, `142,35 €`, `2,18 €`) ;
    - variations sur 24 h et sur 7 jours, avec le signe et une virgule décimale ;
    - réduction de la courbe par moyenne de paquets (60 points pour une crypto, 48 pour deux, 32 pour trois), le dernier point restant exact ;
    - **normalisation de 0 à 100** : l'afficheur n'a plus qu'à les étirer à la hauteur de son graphique ;

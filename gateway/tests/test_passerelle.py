@@ -156,7 +156,7 @@ async def principal() -> int:
             ("/btc?devise=usd&ids=ethereum,ripple", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]
                 and d["c"][0]["px"].endswith("$") and len(d["c"][1]["pts"]) == 48 and d["c"][0]["u7"] == 0),
             ("/btc?ids=bitcoin,ethereum,ripple,dogecoin,inconnu", lambda d: len(d["c"]) == 3
-                and d["c"][2]["px"] == "2,1840 €" and len(d["c"][2]["pts"]) == 32),
+                and d["c"][2]["px"] == "2,18 €" and len(d["c"][2]["pts"]) == 32),
             ("/plex", lambda d: d["ok"] and d["n"] == 0 and d["s"] == []),
             ("/supervision/services", lambda d: d["ok"] and len(d["s"]) == 15 and isinstance(d["s"][0]["id"], str)),
             ("/supervision?ids=2,3,4,5,6,7,8", lambda d: d["md"] == "t" and d["s"][0]["e"] == 1 and d["al"] is None),

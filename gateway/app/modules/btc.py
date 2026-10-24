@@ -51,15 +51,8 @@ def _variation(pct: float | None) -> tuple[str, int]:
 
 
 def _prix(valeur: float, devise: str) -> str:
-    """Précision adaptée : 57 864 € ; 142,35 € ; 2,1840 € ; 0,08214 €."""
-    if valeur >= 1000:
-        dec = 0
-    elif valeur >= 10:
-        dec = 2
-    elif valeur >= 0.1:
-        dec = 4
-    else:
-        dec = 5
+    """57 864 € ; 142,35 € ; 2,18 € ; 0,08 € (2 décimales au plus)."""
+    dec = 0 if valeur >= 1000 else 2
     return f"{nombre_fr(valeur, dec)} {DEVISES[devise]}"
 
 

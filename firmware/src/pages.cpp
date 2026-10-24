@@ -549,18 +549,19 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     tft.drawFastHLine(14, 113, 212, DIM);
 
   } else {
-    // Trois cartes pleine hauteur : logo, prix, symbole + variation 7 j, courbe
+    // Trois bandes, comme la page à 2 cryptos : logo, symbole, variation 7 j
+    // (centrée entre le symbole et le prix), prix à droite, courbe pleine largeur.
     for (uint8_t k = 0; k < 3; k++) {
       JsonObject c = cs[k];
-      int y = 7 + k * 72;
-      card(14, y, 212, 66, 14, CARD);
-      // À gauche : logo, prix, symbole. À droite : courbe 7 j, variation dessous.
-      logoCrypto(c, 24, y + 17, 32, CARD);
-      drawText(c["px"] | "", 66, y + 13, F_18, TXT, CARD);
-      drawText(c["s"] | "", 66, y + 37, F_13, MUTED, CARD);
+      int y = 6 + k * 73;
+      if (k) tft.drawFastHLine(14, y - 4, 212, DIM);
+      logoCrypto(c, 14, y + 1, 24, BG);
+      int finSym = 46 + drawText(c["s"] | "", 46, y + 5, F_16, TXT, BG);
+      int debutPrix = 226 - drawText(c["px"] | "", 226, y + 4, F_18, TXT, BG, TR_DATUM);
       bool u7 = c["u7"] | 1;
-      courbe(c["pts"], 156, 214, y + 9, y + 40, u7 ? VERT : ROUGE, CARD, true, 2.0f, false);
-      drawText(c["v7"] | "", 216, y + 44, F_11, u7 ? VERT : ROUGE_TX, CARD, TR_DATUM);
+      String v = fitText(c["v7"] | "", F_11, max(0, debutPrix - finSym - 8));
+      drawText(v, (finSym + debutPrix) / 2, y + 9, F_11, u7 ? VERT : ROUGE_TX, BG, TC_DATUM);
+      courbe(c["pts"], 14, 220, y + 30, y + 66, u7 ? VERT : ROUGE, BG, true, 2.0f, true);
     }
   }
 

@@ -48,7 +48,6 @@ bool moduleUsable(uint8_t page) {
 }
 
 bool discordConfigured() { return modParam(PG_DISCORD, "salon").length() > 0; }
-bool supConfigured()     { return isdigit((unsigned char)modParam(PG_SUP, "ids")[0]); }
 
 String modulePath(uint8_t page) {
   String path = "/";
@@ -158,13 +157,8 @@ static uint32_t supHash() {
 void pollSup() {
   uint32_t before = supHash();
   gSup.lastPoll = millis();
-  if (!supConfigured()) {
-    gSup.ok = false;
-    gSup.alert = false;
-    if (supHash() != before) gSup.version++;
-    return;
-  }
-
+  // Sans sélection (réglage par défaut), la passerelle renvoie tous les
+  // services de la page de statut Kuma.
   JsonDocument doc;
   int code = gwGet(modulePath(PG_SUP), doc);
   if (code != 200) {

@@ -88,14 +88,21 @@ async def liste_services(session: aiohttp.ClientSession, q: dict) -> dict:
 
 
 async def etat(session: aiohttp.ClientSession, q: dict) -> dict:
-    """État des sondes choisies sur l'afficheur (?ids=3,7,12), prêt à afficher."""
-    choisis = {int(x) for x in q.get("ids", "").split(",") if x.strip().isdigit()}
+    """État des sondes, prêt à afficher.
+
+    ?ids=3,7,12 : sondes choisies sur l'afficheur ;
+    ?ids=* ou ids absent/vide : toutes les sondes de la page de statut Kuma,
+    y compris celles ajoutées plus tard (réglage par défaut).
+    """
+    valeurs = [x.strip() for x in q.get("ids", "").split(",") if x.strip()]
+    tous = not valeurs or "*" in valeurs
+    choisis = {int(x) for x in valeurs if x.isdigit()}
     sondes, perime1 = await _sondes(session)
     battements, perime2 = await _battements(session)
 
     services = []
     for sonde in sondes:
-        if sonde["id"] not in choisis:
+        if not tous and sonde["id"] not in choisis:
             continue
         historique = battements.get(str(sonde["id"])) or []
         statut = historique[-1].get("status") if historique else None
@@ -132,7 +139,10 @@ MODULE = Module(
     id="supervision",
     nom="Supervision",
     requis=["KUMA_URL", "KUMA_STATUS_SLUG"],
+    # « tous » : case « tout ce qu'affiche la page de statut » (valeur « * »),
+    # cochée par défaut ; décochée, on choisit les services un par un.
     params=[{"k": "ids", "l": "Services affichés", "t": "multi",
-             "src": "/supervision/services", "max": MAX_CHOIX}],
+             "src": "/supervision/services", "max": MAX_CHOIX,
+             "tous": "Tous les services de la page de statut Kuma (y compris ceux ajoutés plus tard)"}],
     routes={"/supervision": etat, "/supervision/services": liste_services},
 )

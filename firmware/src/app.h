@@ -73,7 +73,6 @@ extern ModulesState gMods;
 void   fetchModules();
 bool   moduleUsable(uint8_t page);   // page utilisable d'après la passerelle
 bool   discordConfigured();          // salon vocal choisi
-bool   supConfigured();              // au moins un service choisi
 String modulePath(uint8_t page);     // "/<module>?<réglages>"
 
 void syncTime();

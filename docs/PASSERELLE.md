@@ -44,7 +44,7 @@ Chaque module est décrit par une fiche (`gateway/app/modules/`) :
 |---|---|---|
 | `id`, `nom` | identifiant et libellé | `supervision`, « Supervision » |
 | `requis` | variables d'environnement obligatoires | `KUMA_URL`, `KUMA_STATUS_SLUG` |
-| `params` | réglages à proposer dans l'interface de l'afficheur | `ids` : cases à cocher, liste lue sur `/supervision/services`, 48 au maximum |
+| `params` | réglages à proposer dans l'interface de l'afficheur | `ids` : « tous » par défaut, ou cases à cocher (liste lue sur `/supervision/services`, 48 au maximum) |
 | `routes` | adresses HTTP servies | `/supervision`, `/supervision/services` |
 | `demarrer` / `arreter` / `etat` | tâche de fond éventuelle | (Discord uniquement) |
 
@@ -67,7 +67,7 @@ L'afficheur ne connaît ni CoinGecko ni Kuma : il affiche les champs décrits pa
 **Types de champs** :
 - `text` : zone de texte ;
 - `select` : liste déroulante, avec options fixes `o` ou liste dynamique `src` ;
-- `multi` : cases à cocher, avec liste dynamique `src`.
+- `multi` : cases à cocher, avec liste dynamique `src` ; si `tous` est fourni, une case « tout » (valeur `*`, cochée par défaut) remplace la sélection.
 
 **Où vont les réglages :**
 - **les secrets et les accès** (jeton Discord, adresse de Kuma) sont dans le `docker-compose.yml`, côté serveur ;
@@ -145,13 +145,13 @@ Voir le parcours d'une requête (section 4). La devise est un réglage de l'affi
 
 - La passerelle lit l'**API publique de la page de statut Kuma**, la même que celle qui affiche la page dans le navigateur. Elle n'a donc besoin ni d'identifiant ni de mot de passe Kuma.
 - **`/supervision/services`** renvoie toutes les sondes de la page (identifiant et nom), pour les cases à cocher de l'afficheur.
-- **`/supervision?ids=3,7,12`** :
+- **`/supervision?ids=3,7,12`** (ou **`ids=*`**, ou sans `ids` : toutes les sondes de la page, réglage par défaut) :
   1. lit les derniers battements de chaque sonde choisie ;
   2. traduit l'état Kuma en état d'écran : en ligne → OK, hors ligne → panne, en attente → instable, maintenance → maintenance ;
   3. **trie les problèmes en premier** ;
   4. choisit la mise en page : **tuiles** jusqu'à 12 services, **résumé** au-delà (compteur et 3 problèmes au plus) ;
   5. calcule l'**alerte** : la panne la plus ancienne, sa durée en minutes et le nombre total de pannes.
-- Pour ajouter un service à la liste, il suffit de l'ajouter à la page de statut dans Kuma.
+- Pour ajouter un service, il suffit de l'ajouter à la page de statut dans Kuma : avec le réglage par défaut (« Tous les services »), il apparaît sur l'écran sans toucher à l'afficheur.
 
 ### Discord (`/discord?salon=` et `/discord/salons`)
 

@@ -96,7 +96,7 @@ Si une étape échoue, rien n'est publié. Le numéro de version vient uniquemen
 ### Module `supervision` : page de statut Uptime Kuma
 
 1. Dans Kuma : **Status Pages → New Status Page**, avec le slug `modelrogs`.
-2. Ajoute **toutes** les sondes que tu veux pouvoir cocher sur l'afficheur. Pour le NAS, une sonde **Ping** suffit.
+2. Ajoute les sondes à superviser. Par défaut, l'afficheur montre **tout ce qu'affiche cette page** ; tu peux ensuite restreindre la liste dans son interface. Pour le NAS, une sonde **Ping** suffit.
 3. Vérifie que `http://<kuma>:3001/status/modelrogs` s'ouvre.
 
 ### Module `discord` : le bot
@@ -200,7 +200,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - **Général** : adresse de la passerelle (`http://IP_SERVEUR:8080`) et ville.
 - **Pages et modules** : la liste suit les modules de la passerelle.
   - Coche les pages à afficher.
-  - Renseigne les réglages demandés : devise pour le Bitcoin, salon vocal pour Discord, services à cocher pour la supervision (48 au maximum).
+  - Renseigne les réglages demandés : devise pour le Bitcoin, salon vocal pour Discord, services de la supervision : par défaut **tous ceux de la page de statut Kuma**, y compris ceux ajoutés plus tard ; décoche « Tous les services… » pour en choisir 48 au maximum.
   - Un module retiré de `MODULES` apparaît grisé. Un module mal configuré affiche la variable manquante.
 - **Nuit et luminosité** : plage horaire, luminosité de jour et de nuit (0 = écran éteint).
 - **État** :
@@ -266,7 +266,7 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 | `/time?ville=` | Heure locale, lever et coucher du soleil. Toujours disponible : sert aussi à la plage nocturne |
 | `/meteo?ville=` | Météo du jour + 3 jours |
 | `/btc?devise=eur` | Bitcoin sur 7 jours |
-| `/supervision?ids=3,7` | État des services choisis |
+| `/supervision?ids=3,7` | État des services choisis ; `ids=*` ou sans `ids` : tous les services de la page de statut |
 | `/supervision/services` | Liste des sondes Kuma |
 | `/discord?salon=<id>` | Présents dans le salon |
 | `/discord/salons` | Liste des salons vocaux |
@@ -275,7 +275,7 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 **Types de réglages** compris par l'afficheur dans le manifeste :
 - `text` : zone de texte ;
 - `select` : liste déroulante, avec options fixes `o` ou liste dynamique `src` ;
-- `multi` : cases à cocher, avec liste dynamique `src`.
+- `multi` : cases à cocher, avec liste dynamique `src` ; si `tous` est fourni, une case « tout » (valeur `*`, cochée par défaut) remplace la sélection.
 
 Ajouter une nouvelle page demande un module dans la passerelle et un écran dans le firmware.
 

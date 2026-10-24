@@ -72,7 +72,6 @@ static bool nightActive() {
 static bool pageAvailable(uint8_t p) {
   if (!pageEnabled(p) || !moduleUsable(p)) return false;   // désactivée ici ou sur la passerelle
   if (p == PG_DISCORD) return gDisc.ok && gDisc.n > 0;     // masquée si personne
-  if (p == PG_SUP) return supConfigured();
   return true;
 }
 
@@ -256,7 +255,7 @@ void loop() {
       (gSup.lastPoll == 0 || now - gSup.lastPoll > SUP_POLL_MS)) {
     pollSup();
   }
-  bool supAlert = pageEnabled(PG_SUP) && moduleUsable(PG_SUP) && supConfigured() && gSup.alert;
+  bool supAlert = pageEnabled(PG_SUP) && moduleUsable(PG_SUP) && gSup.alert;
 
   // --- Écran éteint la nuit (luminosité de nuit à 0)
   bool off = brightness == 0;

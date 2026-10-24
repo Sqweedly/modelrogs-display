@@ -105,7 +105,11 @@ async def principal() -> int:
             ("/supervision?ids=2,3,4,5,6,7,8", lambda d: d["md"] == "t" and d["s"][0]["e"] == 1 and d["al"] is None),
             ("/supervision?ids=1,2,3,4,5,6,7,8", lambda d: d["al"]["n"] == "NAS" and d["al"]["m"] == 4),
             ("/supervision?ids=" + tous, lambda d: d["md"] == "r" and len(d["s"]) == 3 and d["pa"] == 2),
-            ("/supervision", lambda d: d["tot"] == 0),
+            ("/supervision", lambda d: d["tot"] == 15 and d["md"] == "r" and d["al"]["n"] == "NAS"),
+            ("/supervision?ids=*", lambda d: d["tot"] == 15 and d["pa"] == 2),
+            ("/supervision?ids=%2A", lambda d: d["tot"] == 15),
+            ("/supervision?ids=*,3", lambda d: d["tot"] == 15),
+            ("/modules", lambda d: next(m for m in d["m"] if m["id"] == "supervision")["p"][0]["tous"]),
             ("/discord?salon=1", lambda d: d["ok"] == 0 and "Non configuré" in d["err"]),
         ]
         for chemin, verif in cas:

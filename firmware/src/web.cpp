@@ -104,8 +104,9 @@ static const char STYLE[] PROGMEM =
   "margin-top:5px;background:#11151C;color:var(--txt);border:1px solid #2A3140;border-radius:8px;font-size:15px}"
   "input[type=range]{width:100%}"
   ".chk{display:flex;align-items:center;gap:10px;margin:8px 0;color:var(--txt);font-size:15px}"
-  ".chk input{width:20px;height:20px}.mod>.chk{font-weight:600}"
+  ".chk input{width:20px;height:20px;flex:none}.mod>.chk{font-weight:600}"
   ".grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}"
+  "fieldset{border:0;padding:0;margin:0;min-width:0}fieldset[disabled]{opacity:.4;pointer-events:none}"
   ".row{display:flex;gap:12px}.row>*{flex:1}"
   "button{width:100%;padding:14px;margin-top:8px;border:0;border-radius:10px;background:var(--acc);"
   "color:#0E1116;font-size:16px;font-weight:700}"
@@ -173,8 +174,19 @@ static bool renderField(Chunks& c, uint8_t page, JsonObject param) {
   if (strcmp(type, "multi") == 0) {
     String selected = "," + value + ",";
     String cls = String("m") + page;
+    // Option « tous » (proposée par la passerelle) : valeur « * », active aussi
+    // quand rien n'est encore choisi. La liste est alors grisée et non envoyée.
+    const char* tous = param["tous"] | "";
+    bool tousOn = tous[0] && (!value.length() || selected.indexOf(",*,") >= 0);
+    if (tous[0]) {
+      c << F("<label class='chk'><input type='checkbox' name='") << name << F("' value='*'")
+        << (tousOn ? F(" checked") : F("")) << F(" onchange=\"document.getElementById('f") << cls
+        << F("').disabled=this.checked\">") << esc(tous) << F("</label>");
+    }
+    c << F("<fieldset id='f") << cls << F("'") << (tousOn ? F(" disabled") : F("")) << F(">");
     c << F("<p class='note'>") << (long)options.size() << F(" choix");
     if (param["max"].is<int>()) c << F(" — ") << (long)(param["max"] | 0) << F(" au maximum");
+    if (tous[0]) c << F(". Si aucun n'est coché, tous sont affichés");
     c << F("</p><a class='sm' href='#' onclick=\"document.querySelectorAll('.") << cls
       << F("').forEach(e=>e.checked=true);return false\">Tout cocher</a>"
            "<a class='sm' href='#' onclick=\"document.querySelectorAll('.") << cls
@@ -186,7 +198,7 @@ static bool renderField(Chunks& c, uint8_t page, JsonObject param) {
         << F("' value='") << esc(id) << F("'") << (on ? F(" checked") : F("")) << F(">")
         << esc(o["n"] | id.c_str()) << F("</label>");
     }
-    c << F("</div>");
+    c << F("</div></fieldset>");
     return true;
   }
 
@@ -374,6 +386,7 @@ static void saveModuleParams(uint8_t page) {
 
   String qs;
   for (uint8_t k = 0; k < nk; k++) {
+    if (("," + vals[k] + ",").indexOf(",*,") >= 0) vals[k] = "*";   // « tous » l'emporte
     if (!vals[k].length()) continue;
     if (qs.length()) qs += '&';
     qs += qsEncode(keys[k]) + "=" + qsEncode(vals[k]);

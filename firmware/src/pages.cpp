@@ -230,11 +230,6 @@ static const char* stateLabel(uint8_t st) {
 
 void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
-  if (!supConfigured()) {
-    errorPage("Supervision", "Aucun service sélectionné");
-    pageDots(dotIndex, dotCount, VERT);
-    return;
-  }
   if (!gSup.ok) {
     errorPage("Supervision", gSup.err);
     pageDots(dotIndex, dotCount, VERT);

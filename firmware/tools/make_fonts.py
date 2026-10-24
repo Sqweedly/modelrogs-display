@@ -33,9 +33,9 @@ POLICES = [
     ("F13", "Inter-ExtraBold.ttf", 14, COMPLET),
     ("F16", "Inter-ExtraBold.ttf", 16, COMPLET),
     ("F18", "Inter-Black.ttf", 18, COMPLET),
-    ("F32", "Inter-Black.ttf", 32, CHIFFRES + "ABCDEFGHIJKLMNOPQRSTUVWXYZ €$.,+-%/:…"),
+    ("F32", "Inter-Black.ttf", 32, CHIFFRES + "ABCDEFGHIJKLMNOPQRSTUVWXYZ €$.,+-%/:…°"),
     ("F52", "Inter-Black.ttf", 52, CHIFFRES + "°-/ "),
-    ("F76", "Inter-Black.ttf", 76, CHIFFRES + ":"),
+    ("F68", "Inter-Black.ttf", 68, CHIFFRES + ":"),
 ]
 
 

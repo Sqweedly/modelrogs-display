@@ -44,7 +44,25 @@ static int  lastClockMinute = -1;
 static char lastDate[32] = "";
 
 // Page Heure : occupe toute la hauteur utile (3 px masqués en haut et en bas).
-static const int Y_JOUR = 20, Y_CHIFFRES = 41, H_CHIFFRES = 60, Y_DATE = 111, Y_CARTES = 142;
+// En-tête : jour à gauche, date JJ/MM/AA à droite ; chiffres en 68 px ;
+// la carte météo du jour occupe tout le bas.
+// Chiffres centrés entre l'en-tête et la carte (même espace au-dessus et au-dessous).
+static const int Y_ENTETE = 12, Y_CHIFFRES = 37, H_CHIFFRES = 54, Y_METEO = 98;
+
+// Date locale JJ/MM/AA calculée à partir de l'horloge (jours depuis 1970 ->
+// année, mois, jour : algorithme « civil_from_days »).
+static void dateCourte(char* out, size_t n) {
+  int32_t z = (int32_t)(localEpoch() / 86400UL) + 719468;
+  int32_t era = z / 146097;
+  uint32_t doe = (uint32_t)(z - era * 146097);
+  uint32_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  uint32_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  uint32_t mp = (5 * doy + 2) / 153;
+  uint32_t d = doy - (153 * mp + 2) / 5 + 1;
+  uint32_t m = mp < 10 ? mp + 3 : mp - 9;
+  int32_t y = (int32_t)yoe + era * 400 + (m <= 2);
+  snprintf(out, n, "%02u/%02u/%02d", (unsigned)d, (unsigned)m, (int)(y % 100));
+}
 
 static void drawClockDigits() {
   tft.fillRect(0, Y_CHIFFRES - 2, 240, H_CHIFFRES + 4, BG);
@@ -62,7 +80,7 @@ static void drawClockDigits() {
   // des heures et des minutes, et centré sur la hauteur des chiffres.
   const char ch[5] = { hh[0], hh[1], ':', mm[0], mm[1] };
   GlyphBox g[5];
-  for (int i = 0; i < 5; i++) glyphBox(F_76, (uint8_t)ch[i], g[i]);
+  for (int i = 0; i < 5; i++) glyphBox(F_68, (uint8_t)ch[i], g[i]);
   int hhL = g[0].dx, hhR = g[0].adv + g[1].dx + g[1].w;   // encre des heures (depuis la plume)
   int mmL = g[3].dx, mmR = g[3].adv + g[4].dx + g[4].w;   // encre des minutes
   // Écart encre chiffre <-> « : » : 9 px, réduit pour les heures larges
@@ -76,34 +94,55 @@ static void drawClockDigits() {
   int xM = encre + (hhR - hhL) + ECART + g[2].w + ECART - mmL;
   // Centre vertical : (haut + bas) de l'encre, mesuré depuis la ligne de base
   int dyC = ((g[2].dy * 2 - g[2].h) - (g[0].dy * 2 - g[0].h)) / 2;
-  drawText(String(ch[0]), xH, Y_CHIFFRES, F_76, TXT, BG);
-  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_76, TXT, BG);
-  drawText(":", xC, Y_CHIFFRES + dyC, F_76, VIOLET, BG);
-  drawText(String(ch[3]), xM, Y_CHIFFRES, F_76, TXT, BG);
-  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_76, TXT, BG);
+  drawText(String(ch[0]), xH, Y_CHIFFRES, F_68, TXT, BG);
+  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_68, TXT, BG);
+  drawText(":", xC, Y_CHIFFRES + dyC, F_68, VIOLET, BG);
+  drawText(String(ch[3]), xM, Y_CHIFFRES, F_68, TXT, BG);
+  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_68, TXT, BG);
   lastClockMinute = minuteOfDay;
 }
 
-// Carte lever / coucher : icône et libellé en haut, heure en grand dessous.
-static void sunCard(int x, const char* label, const char* value, uint16_t color) {
-  const int w = 103, h = 75;
-  card(x, Y_CARTES, w, h, 12, CARD);
-  halfSun(x + 18, Y_CARTES + 15, color, CARD);
-  drawText(label, x + 34, Y_CARTES + 10, F_13, MUTED, CARD);
-  drawText(value, x + w / 2, Y_CARTES + 34, F_32, TXT, CARD, TC_DATUM);
+// Carte météo du jour : grande icône à gauche ; à droite, température actuelle
+// et min / max, centrés ensemble dans leur colonne et sur la hauteur de la carte.
+// Pas de libellé : l'icône suffit. Données de /meteo (gardées 15 min par la passerelle).
+static void carteMeteoDuJour() {
+  JsonDocument doc;
+  if (gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) != 200) return;   // l'horloge reste seule
+  const int h = 217 - Y_METEO, cy = Y_METEO + h / 2;
+  card(14, Y_METEO, 212, h, 14, CARD);
+  // Icône (encre ~64 px) et colonne de droite (~74 px) : même marge à gauche
+  // et à droite de la carte, 30 px entre les deux ; tout centré en hauteur.
+  weatherIcon(doc["i"] | 2, 66, cy + 3, 1.25f, CARD);
+
+  // Colonne de droite : température puis min / max, centrés ensemble sur la
+  // hauteur de la carte d'après la hauteur réelle des chiffres.
+  const int cx = 166, ecart = 14;
+  GlyphBox gT, gM;
+  glyphBox(F_52, '0', gT);
+  glyphBox(F_18, '0', gM);
+  int haut = cy - (gT.h + ecart + gM.h) / 2 - 1;          // haut de l'encre de la température
+  drawText(String((int)(doc["t"] | 0)) + "°", cx, haut - (fontAscent(F_52) - gT.dy), F_52, TXT, CARD, TC_DATUM);
+  String a = String((int)(doc["mn"] | 0)) + "°", s = " / ", b = String((int)(doc["mx"] | 0)) + "°";
+  int w = textW(a, F_18) + textW(s, F_18) + textW(b, F_18);
+  int x = cx - w / 2, y = haut + gT.h + ecart - (fontAscent(F_18) - gM.dy);
+  x += drawText(a, x, y, F_18, BLEU, CARD);
+  x += drawText(s, x, y, F_18, SEP, CARD);
+  drawText(b, x, y, F_18, AMBRE, CARD);
+  staleMark(doc["p"] | 0);
 }
 
 void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
   String jour = gTime.jour;
   jour.toUpperCase();
-  drawText(jour, 120, Y_JOUR, F_13, MUTED, BG, TC_DATUM);
-  drawClockDigits();
-  drawText(gTime.date, 120, Y_DATE, F_18, TXT2, BG, TC_DATUM);
-  if (gTime.lever[0] && gTime.coucher[0]) {
-    sunCard(14, "Lever", gTime.lever, AMBRE);
-    sunCard(123, "Coucher", gTime.coucher, CORAIL);
+  drawText(jour, 14, Y_ENTETE, F_13, MUTED, BG);
+  if (timeValid()) {
+    char d[12];
+    dateCourte(d, sizeof(d));
+    drawText(d, 226, Y_ENTETE, F_13, MUTED, BG, TR_DATUM);
   }
+  drawClockDigits();
+  carteMeteoDuJour();
   strncpy(lastDate, gTime.date, sizeof(lastDate) - 1);
   pageDots(dotIndex, dotCount, VIOLET);
 }
@@ -117,6 +156,16 @@ bool clockTick() {
 
 // ----------------------------------------------------------------- Météo
 
+// « 10° / 15° » centré en cx : min (bleu) / max (ambre), même ordre partout.
+static void minMaxCentre(JsonObject j, int cx, int y, FontId f, uint16_t bg) {
+  String a = String((int)(j["mn"] | 0)) + "°", s = "/", b = String((int)(j["mx"] | 0)) + "°";
+  const int e = 3;
+  int w = textW(a, f) + textW(s, f) + textW(b, f) + 2 * e, x = cx - w / 2;
+  x += drawText(a, x, y, f, BLEU, bg) + e;
+  x += drawText(s, x, y, f, SEP, bg) + e;
+  drawText(b, x, y, f, AMBRE, bg);
+}
+
 void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
   JsonDocument doc;
   int code = gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc);
@@ -127,36 +176,24 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  drawText(fitText(doc["v"] | "", F_16, 140), 14, 15, F_16, TXT, BG);
-  drawText("Aujourd'hui", 226, 18, F_11, MUTED, BG, TR_DATUM);
-
-  weatherIcon(doc["i"] | 2, 54, 80, 1.1f, BG);
-
-  String temp = String((int)(doc["t"] | 0)) + "°";
-  drawText(temp, 104, 44, F_52, TXT, BG);
-  drawText(fitText(doc["l"] | "", F_13, 124), 106, 100, F_13, TXT2, BG);
-  int x = 106;
-  x += drawText(String((int)(doc["mn"] | 0)) + "°", x, 119, F_13, BLEU, BG);
-  x += drawText(" / ", x, 119, F_13, SEP, BG);
-  drawText(String((int)(doc["mx"] | 0)) + "°", x, 119, F_13, AMBRE, BG);
-
+  // 5 jours, sans ville ni météo du jour (affichée sur la page Heure) :
+  // les deux prochains jours en grand, les trois suivants dessous.
   uint8_t k = 0;
   for (JsonObject j : doc["j"].as<JsonArray>()) {
-    if (k >= 3) break;
-    int cx = 14 + k * 73;
-    card(cx, 143, 66, 74, 10, CARD);
-    drawText(j["d"] | "", cx + 33, 149, F_11, MUTED, CARD, TC_DATUM);
-    weatherIcon(j["i"] | 2, cx + 33, 180, 0.42f, CARD);
-    // Même ordre et mêmes couleurs que le jour actuel : min (bleu) / max (ambre)
-    String mn = String((int)(j["mn"] | 0)) + "°";
-    String sep = "/";
-    String mx = String((int)(j["mx"] | 0)) + "°";
-    const int esp = 3;
-    int w = textW(mn, F_13) + textW(sep, F_13) + textW(mx, F_13) + 2 * esp;
-    int tx = cx + 33 - w / 2;
-    tx += drawText(mn, tx, 197, F_13, BLEU, CARD) + esp;
-    tx += drawText(sep, tx, 197, F_13, SEP, CARD) + esp;
-    drawText(mx, tx, 197, F_13, AMBRE, CARD);
+    if (k >= 5) break;
+    if (k < 2) {
+      int x = 14 + k * 109, cx = x + 51;
+      card(x, 6, 103, 104, 12, CARD);
+      drawText(j["d"] | "", cx, 13, F_13, MUTED, CARD, TC_DATUM);
+      weatherIcon(j["i"] | 2, cx, 54, 0.92f, CARD);
+      minMaxCentre(j, cx, 87, F_16, CARD);
+    } else {
+      int x = 14 + (k - 2) * 73, cx = x + 33;
+      card(x, 116, 66, 102, 12, CARD);
+      drawText(j["d"] | "", cx, 122, F_11, MUTED, CARD, TC_DATUM);
+      weatherIcon(j["i"] | 2, cx, 160, 0.72f, CARD);
+      minMaxCentre(j, cx, 194, F_13, CARD);
+    }
     k++;
   }
 

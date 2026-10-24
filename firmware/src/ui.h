@@ -54,7 +54,7 @@ constexpr int MARGE_BAS  = 3;
 extern TFT_eSPI tft;
 
 // Polices lissées (Inter) — voir fonts/inter_fonts.h
-enum FontId : uint8_t { F_11, F_13, F_16, F_18, F_32, F_52, F_76 };
+enum FontId : uint8_t { F_11, F_13, F_16, F_18, F_32, F_52, F_68 };
 
 void uiBegin();
 void useFont(FontId f);
@@ -70,6 +70,9 @@ int textW(const String& s, FontId f);
 // de la ligne de base, w/h = taille de l'encre, adv = avance de la plume.
 struct GlyphBox { int dx, dy, w, h, adv; };
 bool glyphBox(FontId f, uint16_t code, GlyphBox& g);
+// Hauteur au-dessus de la ligne de base utilisée par TFT_eSPI pour placer le
+// texte (TL_DATUM : ligne de base = y + fontAscent).
+int fontAscent(FontId f);
 // Tronque avec « … » pour tenir dans maxW pixels.
 String fitText(const String& s, FontId f, int maxW);
 

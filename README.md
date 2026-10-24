@@ -4,8 +4,8 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 
 | Module | Page affichée | À configurer |
 |---|---|---|
-| `heure` | Heure, date, lever et coucher du soleil | — |
-| `meteo` | Météo du jour + 3 jours | — |
+| `heure` | Jour, date (JJ/MM/AA), heure, et la météo du jour (icône, température, min / max) | — |
+| `meteo` | Prévisions sur 5 jours : les 2 prochains en grand, les 3 suivants dessous | — |
 | `crypto` | 1 à 3 cryptos (BTC, ETH, XRP…) avec logos officiels, courbes sur 7 jours | — |
 | `supervision` | Services Uptime Kuma (+ écran d'alerte en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
@@ -274,7 +274,7 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 |---|---|
 | `/modules` | Manifeste : modules actifs, état de configuration, réglages à proposer |
 | `/time?ville=` | Heure locale, lever et coucher du soleil. Toujours disponible : sert aussi à la plage nocturne |
-| `/meteo?ville=` | Météo du jour + 3 jours |
+| `/meteo?ville=` | Météo du jour (page Heure) + 5 jours (page Météo) |
 | `/btc?ids=bitcoin,ethereum&devise=eur` | Cryptos sur 7 jours (3 au plus, Bitcoin par défaut) |
 | `/supervision?ids=3,7` | État des services choisis ; `ids=*` ou sans `ids` : tous les services de la page de statut |
 | `/supervision/services` | Liste des sondes Kuma |

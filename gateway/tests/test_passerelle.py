@@ -45,12 +45,12 @@ def faux_internet() -> web.Application:
     async def prev(r):
         return web.json_response({
             "current": {"temperature_2m": 16.6, "weather_code": 2, "is_day": 1},
-            "daily": {"time": ["2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26"],
-                      "weather_code": [2, 61, 3, 0],
-                      "temperature_2m_max": [19.2, 15.1, 16.0, 20.4],
-                      "temperature_2m_min": [12.1, 10.0, 9.4, 11.0],
-                      "sunrise": ["2026-10-23T08:13", "", "", ""],
-                      "sunset": ["2026-10-23T18:39", "", "", ""]}})
+            "daily": {"time": ["2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28"],
+                      "weather_code": [2, 61, 3, 0, 45, 95],
+                      "temperature_2m_max": [19.2, 15.1, 16.0, 20.4, 14.2, 13.0],
+                      "temperature_2m_min": [12.1, 10.0, 9.4, 11.0, 8.3, 7.1],
+                      "sunrise": ["2026-10-23T08:13", "", "", "", "", ""],
+                      "sunset": ["2026-10-23T18:39", "", "", "", "", ""]}})
 
     async def cg(r):
         assert r.query["vs_currency"] in ("eur", "usd") and r.query["sparkline"] == "true"
@@ -149,7 +149,8 @@ async def principal() -> int:
             ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex"]
                 and next(m for m in d["m"] if m["id"] == "discord")["ok"] == 0),
             ("/time?ville=Lyon", lambda d: d["ok"] and d["lv"] == "08:13" and d["o"] in (3600, 7200)),
-            ("/meteo?ville=Lyon", lambda d: d["ok"] and d["i"] == 1 and len(d["j"]) == 3),
+            ("/meteo?ville=Lyon", lambda d: d["ok"] and d["i"] == 1 and len(d["j"]) == 5
+                and [j["d"] for j in d["j"]] == ["Sam.", "Dim.", "Lun.", "Mar.", "Mer."]),
             ("/btc", lambda d: d["ok"] and len(d["c"]) == 1 and d["c"][0]["s"] == "BTC"
                 and d["c"][0]["px"] == "54 000 €" and len(d["c"][0]["pts"]) == 60 and d["c"][0]["i"]),
             ("/btc?devise=usd&ids=ethereum,ripple", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]

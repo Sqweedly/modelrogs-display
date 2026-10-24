@@ -102,7 +102,7 @@ async def _previsions(session: aiohttp.ClientSession, lieu: dict) -> tuple[dict,
             "current": "temperature_2m,weather_code,is_day",
             "daily": "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset",
             "timezone": lieu["tz"],
-            "forecast_days": 4,
+            "forecast_days": 6,          # aujourd'hui + 5 jours
         })
 
     return await cache.obtenir(f"meteo-{lieu['lat']:.2f}-{lieu['lon']:.2f}", 15 * 60, charger)
@@ -115,7 +115,7 @@ async def meteo(session: aiohttp.ClientSession, q: dict) -> dict:
     actuel, jours = donnees["current"], donnees["daily"]
     icone, libelle = _icone(actuel["weather_code"], bool(actuel.get("is_day", 1)))
     prevision = []
-    for i in range(1, 4):
+    for i in range(1, min(6, len(jours["time"]))):
         date = datetime.fromisoformat(jours["time"][i])
         prevision.append({
             "d": JOURS_COURTS[date.weekday()],

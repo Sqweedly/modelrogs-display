@@ -138,7 +138,7 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
 
 ### Météo (`/meteo?ville=`)
 
-- Elle fait **un seul appel Open-Meteo**, gratuit et sans clé : conditions actuelles et 4 jours de prévisions.
+- Elle fait **un seul appel Open-Meteo**, gratuit et sans clé : conditions actuelles, la journée en cours et 5 jours de prévisions. La page Heure en affiche la météo du jour, la page Météo les 5 jours.
 - Le code météo international (WMO, de 0 à 99) est converti en :
   - un **libellé français** (« Éclaircies », « Averses »…) ;
   - un **code d'icône** de 0 à 8, que l'afficheur dessine. La nuit, le soleil devient une lune.

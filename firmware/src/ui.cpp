@@ -3,7 +3,7 @@
 
 TFT_eSPI tft;
 
-static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F76 };
+static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F68 };
 static int8_t currentFont = -1;
 
 void uiBegin() {
@@ -70,6 +70,18 @@ bool glyphBox(FontId f, uint16_t code, GlyphBox& g) {
     return true;
   }
   return false;
+}
+
+int fontAscent(FontId f) {
+  // Même règle que TFT_eSPI (maxAscent) : plus grand dY des glyphes imprimables
+  const uint8_t* a = FONT_DATA[f];
+  int n = lire32(a), asc = 0;
+  for (int i = 0; i < n; i++) {
+    const uint8_t* r = a + 24 + i * 28;
+    int32_t u = lire32(r);
+    if ((u > 0x20 && u < 0x7F) || u > 0xA0) asc = max<int>(asc, lire32(r + 16));
+  }
+  return asc;
 }
 
 // Raccourcit un texte avec « … » pour tenir dans maxW pixels, sans aucune

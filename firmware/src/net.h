@@ -23,6 +23,15 @@ void netApplyConfig(bool wifiChanged, bool apChanged);
 int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter = nullptr,
           bool interactif = false);
 uint32_t gwRetryInSeconds();   // 0 si aucune temporisation en cours
+
+// Image annoncée par la passerelle (jeton « i » d'une réponse JSON), dessinée
+// en (x, y) au fur et à mesure de sa réception : la passerelle envoie w*h
+// pixels RGB565 bruts, déjà recadrés, arrondis (rayon ; w/2 = cercle) et posés
+// sur la couleur `fond`. `ajuster` : image entière centrée (logo) au lieu d'un
+// recadrage. Mémoire utilisée : une ligne (2*w octets). false si indisponible :
+// l'appelant dessine alors un remplaçant. w et h : 160 au plus.
+bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int rayon,
+             bool ajuster = false);
 const char* gwErrorText(int code);
 
 String urlEncode(const char* s);

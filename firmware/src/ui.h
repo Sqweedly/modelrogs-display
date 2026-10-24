@@ -23,7 +23,10 @@ namespace Col {
 
   constexpr uint16_t VIOLET   = RGB(0x7C, 0x4D, 0xFF);   // page Heure
   constexpr uint16_t AMBRE    = RGB(0xFF, 0xA0, 0x00);   // page Météo / instable
-  constexpr uint16_t BLURPLE  = RGB(0x4A, 0x58, 0xFF);   // page Discord
+  constexpr uint16_t BLURPLE  = RGB(0x58, 0x65, 0xF2);   // page Discord (couleur Discord)
+  constexpr uint16_t PLEX     = RGB(0xFF, 0xC4, 0x00);   // page Plex
+  constexpr uint16_t ETH      = RGB(0x7B, 0x8C, 0xFF);   // accent Ethereum
+  constexpr uint16_t XRP      = RGB(0x00, 0xC2, 0xE8);   // accent XRP
   constexpr uint16_t VERT     = RGB(0x00, 0xE0, 0x6A);   // page Supervision / OK
   constexpr uint16_t BTC      = RGB(0xFF, 0x8C, 0x00);   // page Bitcoin
   constexpr uint16_t ROUGE    = RGB(0xFF, 0x1F, 0x2E);   // panne

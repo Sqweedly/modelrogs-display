@@ -5,6 +5,7 @@ Lancement :  python -m tests.test_passerelle   (depuis le dossier gateway/)
 """
 
 import asyncio
+import io
 import json
 import os
 import sys
@@ -14,9 +15,12 @@ from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
+from PIL import Image, ImageDraw
 
 MAINTENANT = datetime.now(timezone.utc)
 APPELS_GEO: list[str] = []
+PLEX: list[dict] = []
+base_faux = ""
 REQUETES_KUMA: list[dict] = []
 FMT = "%Y-%m-%d %H:%M:%S.000"
 NOMS = ["NAS", "Home Assistant", "Pi-hole", "Nextcloud", "Plex", "Routeur", "Vaultwarden", "Kuma",
@@ -49,11 +53,35 @@ def faux_internet() -> web.Application:
                       "sunset": ["2026-10-23T18:39", "", "", ""]}})
 
     async def cg(r):
-        assert r.query["vs_currency"] in ("eur", "usd")
-        t0 = int((MAINTENANT - timedelta(days=7)).timestamp() * 1000)
-        base = 54000 if r.query["vs_currency"] == "eur" else 62000
-        return web.json_response({"prices": [[t0 + i * 3_600_000, base + i * 23 + (i % 7) * 150]
-                                             for i in range(169)]})
+        assert r.query["vs_currency"] in ("eur", "usd") and r.query["sparkline"] == "true"
+        usd = r.query["vs_currency"] == "usd"
+        bases = {"bitcoin": 54000, "ethereum": 2412, "ripple": 2.184, "dogecoin": 0.08214}
+        sortie = []
+        for cid in r.query["ids"].split(","):
+            if cid not in bases:
+                continue
+            b = bases[cid] * (1.15 if usd else 1)
+            sortie.append({"id": cid, "current_price": b, "image": f"{base_faux}/logo/{cid}.png",
+                           "price_change_percentage_24h_in_currency": -0.8 if cid == "ethereum" else 1.9,
+                           "price_change_percentage_7d_in_currency": -3.1 if cid == "ethereum" else 7.2,
+                           "sparkline_in_7d": {"price": [b * (1 + ((i % 7) - 3) / 100) for i in range(168)]}})
+        return web.json_response(sortie)
+
+    async def logo(r):
+        im = Image.new("RGBA", (250, 250), (0, 0, 0, 0))
+        ImageDraw.Draw(im).ellipse((0, 0, 249, 249), fill=(247, 147, 26, 255))
+        b = io.BytesIO(); im.save(b, "PNG")
+        return web.Response(body=b.getvalue(), content_type="image/png")
+
+    async def affiche(r):
+        assert r.headers.get("X-Plex-Token") == "jeton-plex"
+        im = Image.new("RGB", (600, 900), (90, 30, 140))
+        b = io.BytesIO(); im.save(b, "JPEG")
+        return web.Response(body=b.getvalue(), content_type="image/jpeg")
+
+    async def plex_sessions(r):
+        assert r.headers.get("X-Plex-Token") == "jeton-plex"
+        return web.json_response({"MediaContainer": {"size": len(PLEX), "Metadata": PLEX}})
 
     async def page(r):
         REQUETES_KUMA.append(dict(r.query))
@@ -74,7 +102,10 @@ def faux_internet() -> web.Application:
 
     app.router.add_get("/geo", geo)
     app.router.add_get("/prev", prev)
-    app.router.add_get("/cg", cg)
+    app.router.add_get("/cg/coins/markets", cg)
+    app.router.add_get("/logo/{nom}", logo)
+    app.router.add_get("/plex/library/metadata/{n}/thumb/{t}", affiche)
+    app.router.add_get("/plex/status/sessions", plex_sessions)
     app.router.add_get("/kuma/api/status-page/modelrogs", page)
     app.router.add_get("/kuma/api/status-page/heartbeat/modelrogs", battements)
     return app
@@ -84,12 +115,15 @@ async def principal() -> int:
     faux = TestServer(faux_internet())
     await faux.start_server()
     base = str(faux.make_url(""))
+    global base_faux
+    base_faux = base
     os.environ.update({
         "OPEN_METEO_GEO_URL": base + "/geo", "OPEN_METEO_URL": base + "/prev", "COINGECKO_URL": base + "/cg",
+        "PLEX_URL": base + "/plex", "PLEX_TOKEN": "jeton-plex",
         "KUMA_URL": base + "/kuma", "KUMA_STATUS_SLUG": "modelrogs",
         "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris",
         # Discord demandé mais non configuré : doit être signalé, pas planter
-        "MODULES": "heure,meteo,btc,supervision,discord,inconnu",
+        "MODULES": "heure,meteo,crypto,supervision,discord,plex,inconnu",
     })
     os.environ.pop("DISCORD_TOKEN", None)
     from app.main import creer_app   # importé après la configuration
@@ -99,12 +133,17 @@ async def principal() -> int:
         tous = ",".join(str(i) for i in range(1, 16))
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
-            ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord"]
+            ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex"]
                 and next(m for m in d["m"] if m["id"] == "discord")["ok"] == 0),
             ("/time?ville=Lyon", lambda d: d["ok"] and d["lv"] == "08:13" and d["o"] in (3600, 7200)),
             ("/meteo?ville=Lyon", lambda d: d["ok"] and d["i"] == 1 and len(d["j"]) == 3),
-            ("/btc", lambda d: d["ok"] and d["px"].endswith("€") and len(d["pts"]) == 60),
-            ("/btc?devise=usd", lambda d: d["ok"] and d["px"].endswith("$")),
+            ("/btc", lambda d: d["ok"] and len(d["c"]) == 1 and d["c"][0]["s"] == "BTC"
+                and d["c"][0]["px"] == "54 000 €" and len(d["c"][0]["pts"]) == 60 and d["c"][0]["i"]),
+            ("/btc?devise=usd&ids=ethereum,ripple", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]
+                and d["c"][0]["px"].endswith("$") and len(d["c"][1]["pts"]) == 48 and d["c"][0]["u7"] == 0),
+            ("/btc?ids=bitcoin,ethereum,ripple,dogecoin,inconnu", lambda d: len(d["c"]) == 3
+                and d["c"][2]["px"] == "2,1840 €" and len(d["c"][2]["pts"]) == 32),
+            ("/plex", lambda d: d["ok"] and d["n"] == 0 and d["s"] == []),
             ("/supervision/services", lambda d: d["ok"] and len(d["s"]) == 15 and isinstance(d["s"][0]["id"], str)),
             ("/supervision?ids=2,3,4,5,6,7,8", lambda d: d["md"] == "t" and d["s"][0]["e"] == 1 and d["al"] is None),
             ("/supervision?ids=1,2,3,4,5,6,7,8", lambda d: d["al"]["n"] == "NAS" and d["al"]["m"] == 4),
@@ -123,6 +162,68 @@ async def principal() -> int:
             ok = r.status == 200 and len(texte.encode()) < 2048 and verif(d)
             echecs += not ok
             print(f"{'OK ' if ok else 'ÉCHEC'} {chemin:40s} {len(texte.encode()):5d} o  {texte[:110]}")
+
+        # --- Plex : une lecture (affiche), puis trois (liste, sans affiche)
+        from app.cache import cache as C
+        PLEX.append({"sessionKey": "1", "type": "movie", "title": "Les Gardiens du Phare", "year": 2024,
+                     "thumb": "/library/metadata/10/thumb/1", "duration": 7_080_000, "viewOffset": 2_530_000,
+                     "User": {"title": "Marc"}, "Player": {"state": "playing"}})
+        C._valeurs.pop("plex-sessions", None)
+        d = await (await c.get("/plex")).json()
+        un = d["s"][0] if d["s"] else {}
+        ok = (d["n"] == 1 and d["ev"] == 1 and un["t"] == "Les Gardiens du Phare" and un["st"] == "Film · 2024"
+              and un["pos"] == "42:10" and un["r"] == "reste 1 h 16" and un["pg"] == 357 and un["tc"] == 0 and un["i"])
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Plex, une lecture -> {json.dumps(d, ensure_ascii=False)[:150]}")
+
+        r = await c.get(f"/img?t={un.get('i')}&w=78&h=117&f=000000&r=8")
+        corps = await r.read()
+        px = int.from_bytes(corps[(58 * 78 + 39) * 2:(58 * 78 + 40) * 2], "little")
+        coin = int.from_bytes(corps[0:2], "little")
+        ok = r.status == 200 and len(corps) == 78 * 117 * 2 and px == ((90 & 0xF8) << 8 | (30 & 0xFC) << 3 | 140 >> 3) and coin == 0
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} affiche Plex 78x117 -> {len(corps)} o, centre {px:#06x}, coin arrondi {coin:#06x}")
+
+        PLEX.append({"sessionKey": "2", "type": "episode", "grandparentTitle": "Station Orbis", "title": "Le Retour",
+                     "parentIndex": 2, "index": 5, "grandparentThumb": "/library/metadata/11/thumb/2",
+                     "duration": 2_700_000, "viewOffset": 1_944_000, "User": {"title": "Julie"},
+                     "Player": {"state": "playing"}, "TranscodeSession": {"videoDecision": "transcode"}})
+        PLEX.append({"sessionKey": "3", "type": "track", "title": "Nuit Claire", "grandparentTitle": "Les Ondes",
+                     "duration": 200_000, "viewOffset": 20_000, "User": {"title": "Salon"}, "Player": {"state": "paused"}})
+        C._valeurs.pop("plex-sessions", None)
+        d = await (await c.get("/plex")).json()
+        ok = (d["n"] == 3 and d["ev"] == 3 and d["tc"] == 1 and all(s["i"] == "" for s in d["s"])
+              and d["s"][1]["st"] == "S2 E5 · Le Retour" and d["s"][2]["pa"] == 1 and d["s"][2]["st"] == "Les Ondes")
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Plex, trois lectures -> n={d['n']} ev={d['ev']} tc={d['tc']}")
+        PLEX.clear()
+
+        # --- Discord : états vocaux, durée de présence, avatar
+        from types import SimpleNamespace as N
+        from app.modules import discord_vocal as D
+
+        class Avatar:
+            def replace(self, size, format):
+                return N(url=f"https://cdn.exemple/avatar.{format}?size={size}")
+        vocal = N(self_mute=True, mute=False, self_deaf=False, deaf=False, self_stream=True, self_video=False)
+        m = D._membre(N(display_name="Léa", voice=vocal, display_avatar=Avatar()), time.time() - 4380, time.time())
+        m2 = D._membre(N(display_name="Nico", voice=None, display_avatar=Avatar()), 0, time.time())
+        ok = (m["e"] == D.MUET | D.LIVE and m["d"] == "1 h 13" and m["i"] and m["w"] == 0
+              and m2["d"] == "" and m2["e"] == 0 and D._depuis(30) == "à l'instant" and D._depuis(2880) == "48 min")
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Discord : membre -> {m}")
+
+        # --- Logo crypto : ajusté dans un carré, sur le fond demandé
+        d = await (await c.get("/btc")).json()
+        r = await c.get(f"/img?t={d['c'][0]['i']}&w=30&h=30&f=1C212C&m=a")
+        corps = await r.read()
+        ok = r.status == 200 and len(corps) == 1800 and int.from_bytes(corps[:2], "little") == (0x1C & 0xF8) << 8 | (0x21 & 0xFC) << 3 | 0x2C >> 3
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} logo crypto 30x30 sur fond carte -> {len(corps)} o")
+        r = await c.get("/img?t=inconnu&w=30&h=30")
+        ok = r.status == 404
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} image inconnue -> {r.status}")
 
         # --- Cache : ville inconnue mémorisée, clé normalisée, taille bornée
         from app.cache import cache as C

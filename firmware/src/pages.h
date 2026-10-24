@@ -13,7 +13,9 @@ void drawHeure(uint8_t dotIndex, uint8_t dotCount);
 void drawMeteo(uint8_t dotIndex, uint8_t dotCount);
 void drawDiscord(uint8_t dotIndex, uint8_t dotCount);
 void drawSupervision(uint8_t dotIndex, uint8_t dotCount);
-void drawBtc(uint8_t dotIndex, uint8_t dotCount);
+void drawBtc(uint8_t dotIndex, uint8_t dotCount);    // page Crypto (1 à 3 cryptos)
+void drawPlex(uint8_t dotIndex, uint8_t dotCount);
+void plexProgress();          // Plex affichée : ne redessine que la progression
 void drawAlert();
 
 // Page Heure affichée : redessine seulement les chiffres si la minute a changé.

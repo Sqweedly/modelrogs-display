@@ -201,6 +201,28 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   return gwLastCode = -3;
 }
 
+// Images : converties par genimg.py avec le code de la passerelle (images.py)
+int imagesDemandees = 0, imagesAbsentes = 0;
+bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int rayon, bool ajuster) {
+  if (!jeton || !jeton[0] || gatewayDown) return false;
+  imagesDemandees++;
+  char cmd[512];
+  unsigned r = (fond >> 11) << 3, g = ((fond >> 5) & 0x3F) << 2, b = (fond & 0x1F) << 3;
+  r |= r >> 5; g |= g >> 6; b |= b >> 5;
+  snprintf(cmd, sizeof(cmd), "%s genimg.py %s %d %d %02X%02X%02X %d %s /tmp/sim_img.raw",
+           getenv("PYTHON") ? getenv("PYTHON") : "python3", jeton, w, h, r, g, b, rayon, ajuster ? "a" : "-");
+  if (system(cmd) != 0) { imagesAbsentes++; return false; }
+  std::ifstream f("/tmp/sim_img.raw", std::ios::binary);
+  std::vector<uint16_t> ligne(w);
+  tft.setSwapBytes(true);
+  for (int j = 0; j < h; j++) {
+    if (!f.read((char*)ligne.data(), w * 2)) { tft.setSwapBytes(false); return false; }
+    tft.pushImage(x, y + j, w, 1, ligne.data());
+  }
+  tft.setSwapBytes(false);
+  return true;
+}
+
 static std::string readFile(const std::string& p) {
   std::ifstream f(p);
   std::stringstream ss;
@@ -230,12 +252,13 @@ int main(int argc, char** argv) {
   strcpy(cfg.pDiscord, "salon=42");
   uiBegin();
 
-  fixtures = { {"/time", FX("time")}, {"/meteo", FX("meteo")}, {"/btc", FX("btc")},
-               {"/discord", FX("discord")}, {"/supervision", FX("sup8")} };
+  fixtures = { {"/time", FX("time")}, {"/meteo", FX("meteo")}, {"/btc", FX("crypto1")},
+               {"/discord", FX("discord")}, {"/supervision", FX("sup8")}, {"/plex", FX("plex1")} };
   syncTime();
   g_millis += 5000;
   pollDiscord();
   pollSup();
+  pollPlex();
 
   drawHeure(0, 5);                 save("01_heure");
   drawMeteo(1, 5);                 save("02_meteo");
@@ -247,14 +270,24 @@ int main(int argc, char** argv) {
   drawSupervision(3, 5);           save("06_supervision_resume");
   fixtures["/supervision"] = FX("supalert"); pollSup();
   drawAlert();                     save("07_alerte");
-  drawBtc(4, 5);                   save("08_btc");
+  drawBtc(4, 5);                   save("08_crypto_1");
   fixtures["/discord"] = FX("discord6"); pollDiscord();
-  drawDiscord(2, 5);               save("09_discord_6");
+  drawDiscord(2, 5);               save("09_discord_7");
+  fixtures["/btc"] = FX("crypto2");
+  drawBtc(4, 6);                   save("12_crypto_2");
+  fixtures["/btc"] = FX("crypto3");
+  drawBtc(4, 6);                   save("13_crypto_3");
+  drawPlex(5, 6);                  save("14_plex_1");
+  fixtures["/plex"] = FX("plex3"); pollPlex();
+  drawPlex(5, 6);                  save("15_plex_3");
+  fixtures["/discord"] = FX("discord11"); pollDiscord();
+  drawDiscord(2, 6);               save("16_discord_11");
   gatewayDown = true;
   drawMeteo(1, 5);                 save("10_meteo_erreur");
   drawSplash("Configuration à valider", "1. Wi-Fi \"MODELROGS Display\"", "2. 192.168.4.1 > Enregistrer");
   save("11_a_valider");
 
-  fprintf(stderr, "glyphes absents : %d\n", tft.unknownGlyphs);
+  fprintf(stderr, "glyphes absents : %d, images : %d demandées, %d absentes (remplaçant dessiné)\n",
+          tft.unknownGlyphs, imagesDemandees, imagesAbsentes);
   return tft.unknownGlyphs ? 1 : 0;
 }

@@ -9,8 +9,10 @@
 //   jusqu'au premier Enregistrer ; ensuite, démarrage direct sur les pages
 // - Mode secours : après 3 plantages au démarrage, seuls le Wi-Fi,
 //   l'interface web et l'OTA tournent (l'OTA reste toujours joignable)
-// - Pages en rotation : Heure, Météo, Discord, Supervision, Bitcoin
-//   (+ écran d'alerte prioritaire en cas de panne)
+// - Pages en rotation : Heure, Météo, Discord, Supervision, Crypto, Plex
+//   (+ écran d'alerte prioritaire en cas de panne). Discord et Plex ne
+//   s'affichent que s'il y a quelqu'un / une lecture, et passent devant
+//   dès une arrivée / le début d'une lecture.
 // - Toutes les données viennent de la passerelle Docker (HTTP local)
 // =====================================================
 
@@ -32,6 +34,7 @@ static const uint32_t TIME_SYNC_MS    = 10UL * 60 * 1000;
 static const uint32_t TIME_RETRY_MS   = 30UL * 1000;
 static const uint32_t DISCORD_POLL_MS = 5UL * 1000;
 static const uint32_t SUP_POLL_MS     = 30UL * 1000;
+static const uint32_t PLEX_POLL_MS    = 5UL * 1000;
 static const uint32_t MODULES_MS      = 10UL * 60 * 1000;
 
 enum ScreenState : uint8_t { S_BOOT, S_VALIDATE, S_SETUP, S_CONNECTING, S_NO_GATEWAY, S_PAGES };
@@ -44,10 +47,12 @@ static bool     alertActive = false;   // une panne est en cours
 static bool     idleShown = false;
 static int8_t   forcedPage = -1;
 static bool     priorityDiscord = false;
+static bool     priorityPlex = false;
 static bool     configChanged = false;
 static bool     screenOff = false;
 static uint8_t  lastBrightness = 255;
 static uint32_t drawnDiscVersion = 0, drawnSupVersion = 0;
+static uint32_t drawnPlexVersion = 0, drawnPlexProgres = 0;
 
 // Mode secours, redémarrage préventif et mesures mémoire : voir sante.cpp
 
@@ -72,6 +77,7 @@ static bool nightActive() {
 static bool pageAvailable(uint8_t p) {
   if (!pageEnabled(p) || !moduleUsable(p)) return false;   // désactivée ici ou sur la passerelle
   if (p == PG_DISCORD) return gDisc.ok && gDisc.n > 0;     // masquée si personne
+  if (p == PG_PLEX) return gPlex.ok && gPlex.n > 0;        // masquée sans lecture
   return true;
 }
 
@@ -94,6 +100,11 @@ static void showPage(uint8_t p, bool restartTimer = true) {
     case PG_DISCORD: drawDiscord(idx, cnt); drawnDiscVersion = gDisc.version; break;
     case PG_SUP:     drawSupervision(idx, cnt); drawnSupVersion = gSup.version; break;
     case PG_BTC:     drawBtc(idx, cnt); break;
+    case PG_PLEX:
+      drawPlex(idx, cnt);
+      drawnPlexVersion = gPlex.version;
+      drawnPlexProgres = gPlex.progres;
+      break;
   }
 }
 
@@ -134,6 +145,7 @@ void schedulerConfigChanged(bool villeChanged) {
   }
   gSup.lastPoll = 0;
   gDisc.lastPoll = 0;
+  gPlex.lastPoll = 0;
   gMods.lastFetch = 0;
   lastBrightness = 255;
 }
@@ -255,6 +267,10 @@ void loop() {
       (gSup.lastPoll == 0 || now - gSup.lastPoll > SUP_POLL_MS)) {
     pollSup();
   }
+  if (pageEnabled(PG_PLEX) && moduleUsable(PG_PLEX) &&
+      (gPlex.lastPoll == 0 || now - gPlex.lastPoll > PLEX_POLL_MS)) {
+    if (pollPlex()) priorityPlex = true;
+  }
   bool supAlert = pageEnabled(PG_SUP) && moduleUsable(PG_SUP) && gSup.alert;
 
   // --- Écran éteint la nuit (luminosité de nuit à 0)
@@ -311,6 +327,14 @@ void loop() {
       return;
     }
   }
+  if (priorityPlex) {                      // une lecture vient de commencer
+    priorityPlex = false;
+    if (pageAvailable(PG_PLEX)) {
+      alertShown = false;
+      showPage(PG_PLEX);
+      return;
+    }
+  }
 
   // --- Écran d'alerte affiché : mise à jour, puis page suivante après une durée
   if (alertShown) {
@@ -350,6 +374,15 @@ void loop() {
       break;
     case PG_SUP:
       if (gSup.version != drawnSupVersion) showPage(PG_SUP, false);
+      break;
+    case PG_PLEX:
+      if (gPlex.version != drawnPlexVersion) {
+        if (pageAvailable(PG_PLEX)) showPage(PG_PLEX, false);
+        else nextPage();          // plus aucune lecture
+      } else if (gPlex.progres != drawnPlexProgres) {
+        plexProgress();           // seule la progression a bougé : pas d'affiche retéléchargée
+        drawnPlexProgres = gPlex.progres;
+      }
       break;
   }
 }

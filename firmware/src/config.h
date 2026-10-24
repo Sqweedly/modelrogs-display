@@ -29,7 +29,8 @@ enum PageId : uint8_t {
   PG_METEO,
   PG_DISCORD,
   PG_SUP,
-  PG_BTC,
+  PG_BTC,       // page « Crypto » (identifiant « btc » conservé)
+  PG_PLEX,
   PG_COUNT
 };
 
@@ -62,10 +63,16 @@ struct Config {
   char pMeteo[24];
   char pDiscord[40];
   char pSup[300];
-  char pBtc[24];
+  char pBtc[24];         // réglages Crypto jusqu'en 2.5 (repris dans pCrypto)
 
   uint8_t validated;    // 1 = configuration validée dans l'interface (bouton Enregistrer)
-  uint8_t reserve[63];  // place libre pour de futurs réglages (initialisée à 0)
+
+  // --- Ajouts 2.6, pris dans l'ancienne réserve (63 octets) : même structure,
+  //     pas de migration. ext26 = 1 une fois ces champs initialisés.
+  char    pCrypto[52];  // « ids=bitcoin,ethereum,ripple&devise=eur »
+  char    pPlex[4];     // la page Plex n'a pas de réglage
+  uint8_t ext26;
+  uint8_t reserve[6];   // place libre pour de futurs réglages (initialisée à 0)
 };
 
 extern Config cfg;

@@ -4,7 +4,7 @@ L'afficheur (ESP8266) n'appelle que cette passerelle, en HTTP sur le réseau
 local. Chaque réponse est un JSON court (< 2 Ko) déjà prêt à dessiner.
 En cas d'erreur, la réponse reste un JSON lisible : {"ok": 0, "err": "..."}.
 
-Modules : variable MODULES (ex. "heure,meteo,btc,supervision,discord").
+Modules : variable MODULES (ex. "heure,meteo,crypto,supervision,discord,plex").
 Le manifeste /modules décrit les modules actifs et les réglages que
 l'utilisateur doit renseigner dans l'interface de l'afficheur.
 """
@@ -17,7 +17,8 @@ import aiohttp
 from aiohttp import web
 
 from .cache import SourceIndisponible, cache
-from .modules import Module, btc, discord_vocal, meteo, supervision
+from . import images
+from .modules import Module, btc, discord_vocal, meteo, plex, supervision
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("passerelle")
@@ -27,8 +28,10 @@ VERSION = os.environ.get("MODELROGS_VERSION", "").strip() or "dev"
 PORT = int(os.environ.get("PORT", "8080"))
 
 CATALOGUE: dict[str, Module] = {m.id: m for m in (
-    meteo.MODULE_HEURE, meteo.MODULE_METEO, discord_vocal.MODULE, supervision.MODULE, btc.MODULE,
+    meteo.MODULE_HEURE, meteo.MODULE_METEO, discord_vocal.MODULE, supervision.MODULE, btc.MODULE, plex.MODULE,
 )}
+# Autres noms acceptés dans MODULES
+ALIAS = {"crypto": "btc"}
 
 SESSION = web.AppKey("session", aiohttp.ClientSession)
 ACTIFS = web.AppKey("actifs", list)
@@ -42,6 +45,9 @@ def modules_demandes() -> list[Module]:
     noms = [n.strip().lower() for n in os.environ.get("MODULES", "heure,meteo,btc").split(",") if n.strip()]
     actifs = []
     for nom in noms:
+        nom = ALIAS.get(nom, nom)
+        if nom in CATALOGUE and CATALOGUE[nom] in actifs:
+            continue
         if nom in CATALOGUE:
             actifs.append(CATALOGUE[nom])
         else:
@@ -71,6 +77,11 @@ async def route_heure(request: web.Request) -> web.Response:
     except Exception as exc:  # noqa: BLE001
         log.exception("Erreur /time")
         return _json({"ok": 0, "err": f"Erreur : {type(exc).__name__}"})
+
+
+async def route_image(request: web.Request) -> web.Response:
+    """Pixels RGB565 bruts d'une image annoncée par un module (voir images.py)."""
+    return await images.route_image(request, request.app[SESSION])
 
 
 async def route_modules(request: web.Request) -> web.Response:
@@ -119,6 +130,7 @@ def creer_app() -> web.Application:
     app.router.add_get("/health", route_sante)
     app.router.add_get("/modules", route_modules)
     app.router.add_get("/time", route_heure)
+    app.router.add_get("/img", route_image)
     for m in app[ACTIFS]:
         for chemin, traitement in m.routes.items():
             app.router.add_get(chemin, _route(m, traitement))

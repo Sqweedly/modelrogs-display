@@ -9,21 +9,21 @@ La passerelle est un seul programme Python, lancé dans un conteneur Docker. Ell
                         │  un seul processus Python, port 8080                │
  SmallTV (ESP8266) ───► │  ┌───────────────┐   ┌──────────┐   ┌───────────┐  │ ──► Open-Meteo (HTTPS)
   HTTP, réseau local    │  │ serveur web   │──►│  modules │──►│  cache    │  │ ──► CoinGecko  (HTTPS)
-  GET /meteo, /btc…     │  │ (aiohttp)     │   │          │   │ mémoire + │  │ ──► Uptime Kuma (LAN)
-                        │  └───────────────┘   └────┬─────┘   │ /cache    │  │
+  GET /meteo, /btc,     │  │ (aiohttp)     │   │          │   │ mémoire + │  │ ──► Uptime Kuma (LAN)
+  /img…                 │  └───────────────┘   └────┬─────┘   │ /cache    │  │ ──► Plex (LAN)
                         │                           │         └───────────┘  │
-                        │                    bot Discord ◄───────────────────│──── Discord (WebSocket)
+                        │   images (Pillow) │ bot Discord ◄──────────────────│──── Discord (WebSocket)
                         └─────────────────────────────────────────────────────┘
 ```
 
-**Pourquoi une passerelle :** l'ESP8266 a environ 40 Ko de mémoire libre. Il ne peut pas gérer le HTTPS des API ni lire leurs réponses volumineuses (l'historique Bitcoin fait plusieurs dizaines de Ko), et encore moins tenir une connexion Discord. La passerelle fait ce travail lourd. L'afficheur ne reçoit que l'essentiel : moins de 2 Ko par page, en HTTP sur le réseau local.
+**Pourquoi une passerelle :** l'ESP8266 a environ 40 Ko de mémoire libre. Il ne peut pas gérer le HTTPS des API ni lire leurs réponses volumineuses (l'historique des cryptos fait plusieurs dizaines de Ko), ni décoder des images, et encore moins tenir une connexion Discord. La passerelle fait ce travail lourd. L'afficheur ne reçoit que l'essentiel : moins de 2 Ko par page, en HTTP sur le réseau local.
 
-**Un seul processus, plusieurs tâches en parallèle.** Python fonctionne en mode asynchrone (asyncio) : pendant qu'une requête attend la réponse de CoinGecko, le même processus répond à l'afficheur et reçoit les événements Discord. Il n'y a ni thread ni processus multiples, d'où la faible consommation : environ 50 Mo de mémoire, et un processeur quasiment au repos.
+**Un seul processus, plusieurs tâches en parallèle.** Python fonctionne en mode asynchrone (asyncio) : pendant qu'une requête attend la réponse de CoinGecko, le même processus répond à l'afficheur et reçoit les événements Discord. Il n'y a ni thread ni processus multiples, d'où la faible consommation : environ 50 à 60 Mo de mémoire, et un processeur quasiment au repos.
 
 ## 2. Démarrage du conteneur
 
 1. Docker lance `python -m app`. Le dossier du cache est créé si besoin et donné à l'utilisateur 10001 (ou `PUID`:`PGID`), puis le processus abandonne root.
-2. La passerelle lit la variable **`MODULES`** (par exemple `heure,meteo,btc,supervision,discord`).
+2. La passerelle lit la variable **`MODULES`** (par exemple `heure,meteo,crypto,supervision,discord,plex` ; `btc` est l'ancien nom de `crypto`).
    - Elle ne garde que les modules qu'elle connaît.
    - Un nom inconnu est ignoré, avec un avertissement dans les journaux.
 3. Pour chaque module retenu, elle vérifie ses **variables obligatoires**, par exemple `KUMA_URL` et `KUMA_STATUS_SLUG` pour la supervision.
@@ -54,15 +54,17 @@ Chaque module est décrit par une fiche (`gateway/app/modules/`) :
 - quels champs il doit afficher dans son interface web.
 
 ```json
-{"ok":1,"v":"2.2.1","m":[
-  {"id":"btc","n":"Bitcoin","ok":1,"err":"",
-   "p":[{"k":"devise","l":"Devise","t":"select","d":"eur",
+{"ok":1,"v":"2.6.0","m":[
+  {"id":"btc","n":"Crypto","ok":1,"err":"",
+   "p":[{"k":"ids","l":"Cryptos affichées (3 au maximum)","t":"multi","max":3,"d":"bitcoin",
+         "o":[{"id":"bitcoin","n":"Bitcoin (BTC)"},{"id":"ethereum","n":"Ethereum (ETH)"},…]},
+        {"k":"devise","l":"Devise","t":"select","d":"eur",
          "o":[{"id":"eur","n":"Euro (€)"},{"id":"usd","n":"Dollar ($)"}]}]},
   {"id":"discord","n":"Discord","ok":0,"err":"DISCORD_TOKEN manquant","p":[…]}
 ]}
 ```
 
-L'afficheur ne connaît ni CoinGecko ni Kuma : il affiche les champs décrits par la passerelle, enregistre les choix sous forme d'une courte chaîne (`devise=eur`, `ids=3,7,12`) et la renvoie telle quelle à chaque appel (`/btc?devise=eur`).
+L'afficheur ne connaît ni CoinGecko ni Kuma : il affiche les champs décrits par la passerelle, enregistre les choix sous forme d'une courte chaîne (`ids=bitcoin,ethereum&devise=eur`, `ids=3,7,12`) et la renvoie telle quelle à chaque appel (`/btc?ids=bitcoin,ethereum&devise=eur`).
 
 **Types de champs** :
 - `text` : zone de texte ;
@@ -77,25 +79,27 @@ L'afficheur, dont le point d'accès est ouvert, ne voit donc jamais un secret.
 
 ## 4. Parcours d'une requête
 
-Exemple : affichage de la page Bitcoin.
+Exemple : affichage de la page Crypto avec Bitcoin seul.
 
-1. **L'afficheur appelle** `GET http://IP_SERVEUR:8080/btc?devise=eur`.
-2. **Le serveur web** route la requête vers le module `btc`, après avoir vérifié qu'il est configuré.
-3. **Le cache** est consulté avec la clé `btc-eur` :
+1. **L'afficheur appelle** `GET http://IP_SERVEUR:8080/btc?ids=bitcoin&devise=eur`.
+2. **Le serveur web** route la requête vers le module `btc` (« Crypto »), après avoir vérifié qu'il est configuré.
+3. **Le cache** est consulté avec la clé `crypto-eur` :
    - si la donnée a moins de 10 minutes, elle est utilisée telle quelle ;
-   - sinon, la passerelle appelle CoinGecko (7 jours d'historique, environ 170 points de prix).
+   - sinon, la passerelle fait **un seul appel** CoinGecko `/coins/markets` pour **toutes** les cryptos proposées : prix, variations 24 h et 7 jours, courbe horaire sur 7 jours (168 points), adresse du logo officiel. Quel que soit le choix fait sur l'afficheur, CoinGecko n'est donc appelé qu'une fois toutes les 10 minutes par devise.
 4. **La mise en forme** :
-   - prix formaté à la française : `57 864 €` ;
+   - prix formaté à la française, avec une précision adaptée : `57 864 €`, `142,35 €`, `2,1840 €` ;
    - variations sur 24 h et sur 7 jours, avec le signe et une virgule décimale ;
-   - réduction de la courbe à **60 points**, par moyenne de paquets, le dernier point restant exact ;
+   - réduction de la courbe par moyenne de paquets (60 points pour une crypto, 48 pour deux, 32 pour trois), le dernier point restant exact ;
    - **normalisation de 0 à 100** : l'afficheur n'a plus qu'à les étirer à la hauteur de son graphique ;
+   - logo : l'adresse est enregistrée et remplacée par un **jeton court** (`"i"`), que l'afficheur utilisera sur `/img` (section 6) ;
    - dates de début et de fin (`jeu. 15`, `jeu. 22`).
-5. **La réponse**, environ 290 octets :
+5. **La réponse**, environ 350 octets :
    ```json
-   {"ok":1,"px":"57 864 €","v24":"-0,1 %","u24":0,"v7":"+7,2 %","u7":1,
-    "pts":[0,10,14,…,89],"d0":"jeu. 15","d1":"jeu. 22","p":0}
+   {"ok":1,"c":[{"s":"BTC","n":"Bitcoin","px":"57 864 €","v24":"-0,1 %","u24":0,
+    "v7":"+7,2 %","u7":1,"pts":[0,10,14,…,89],"i":"3f9c0a1b2c4d"}],
+    "d0":"jeu. 15","d1":"jeu. 22","p":0}
    ```
-6. **L'afficheur dessine.** Il n'a fait aucun calcul.
+6. **L'afficheur dessine.** Il n'a fait aucun calcul ; seul le logo est demandé à part, déjà converti.
 
 **Les erreurs se traduisent toujours par du JSON.** Que ce soit un module non configuré, une source injoignable ou un bug, la passerelle répond `{"ok":0,"err":"…"}` avec un code HTTP 200. L'afficheur affiche « Données indisponibles » et le message, au lieu de rester bloqué.
 
@@ -105,9 +109,12 @@ Exemple : affichage de la page Bitcoin.
 |---|---|---|
 | Géocodage d'une ville (coordonnées, fuseau) | 1 an | oui |
 | Météo | 15 min | non |
-| Historique Bitcoin | 10 min | oui |
-| Liste des sondes Kuma | 10 min | non |
+| Cours et courbes des cryptos (toutes à la fois) | 10 min | oui |
+| Liste des sondes Kuma | 1 min | non |
 | États des sondes Kuma | 30 s | non |
+| Lectures Plex | 5 s | non |
+| Images téléchargées (affiches, logos, photos) | 40 dernières | non (mémoire) |
+| Images converties pour l'écran | 120 dernières | non (mémoire) |
 
 - **Pas d'appels en double.** Un verrou par donnée garantit que si plusieurs requêtes arrivent pendant une recharge, une seule va chercher la source ; les autres attendent son résultat.
 - **Repli sur la dernière valeur connue.** Si la source tombe, la passerelle renvoie la dernière donnée avec **`"p":1`** (périmée), et l'afficheur montre un petit point ambre. Sans aucune donnée antérieure, elle répond `ok:0`.
@@ -137,9 +144,14 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
   - un **code d'icône** de 0 à 8, que l'afficheur dessine. La nuit, le soleil devient une lune.
 - Les températures sont arrondies au degré.
 
-### Bitcoin (`/btc?devise=`)
+### Crypto (`/btc?ids=&devise=`)
 
-Voir le parcours d'une requête (section 4). La devise est un réglage de l'afficheur (`eur` ou `usd`). Une clé CoinGecko « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.
+Voir le parcours d'une requête (section 4).
+- **Réglages de l'afficheur** : jusqu'à **3 cryptos** parmi une liste (Bitcoin, Ethereum, XRP, Solana, BNB, Cardano, Dogecoin, TRON, Litecoin, Polkadot), et la devise (`eur` ou `usd`). Sans choix, Bitcoin.
+- **Mise en page** décidée par l'afficheur selon le nombre de cryptos : une grande page, deux moitiés, ou trois lignes avec mini-courbes.
+- **Logos officiels** : ceux que CoinGecko fournit avec les cours, convertis par la passerelle (voir « Images »).
+- Le module garde l'identifiant `btc` (route `/btc`) pour rester compatible ; `crypto` est accepté dans `MODULES`.
+- Une clé CoinGecko « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.
 
 ### Supervision (`/supervision?ids=` et `/supervision/services`)
 
@@ -152,6 +164,7 @@ Voir le parcours d'une requête (section 4). La devise est un réglage de l'affi
   4. choisit la mise en page : **tuiles** jusqu'à 12 services, **résumé** au-delà (compteur et 3 problèmes au plus) ;
   5. calcule l'**alerte** : la panne la plus ancienne, sa durée en minutes et le nombre total de pannes.
 - Pour ajouter un service, il suffit de l'ajouter à la page de statut dans Kuma : avec le réglage par défaut (« Tous les services »), il apparaît sur l'écran sans toucher à l'afficheur.
+- **Délai d'apparition : une minute environ.** Kuma garde lui-même ses réponses de page de statut en cache quelques minutes ; la passerelle ajoute à ses requêtes un paramètre qui change à chaque appel (`?_=<heure>`), ignoré par Kuma, pour toujours obtenir la liste à jour. Elle relit la liste chaque minute.
 
 ### Discord (`/discord?salon=` et `/discord/salons`)
 
@@ -161,9 +174,28 @@ C'est le seul module qui **ne va pas chercher** l'information à chaque appel :
 - Une requête de l'afficheur est donc servie instantanément, sans aucun appel à Discord.
 - Un compteur d'arrivées (`ev`) augmente à chaque entrée. Quand l'afficheur le voit augmenter, il fait passer la page Discord en priorité.
 - Un nouvel arrivant porte le badge « arrivé » pendant 2 minutes.
+- Pour chaque présent : pseudo, **photo de profil** (jeton `i`), **durée de présence** (`d`, vide pour les personnes déjà là au démarrage du bot) et **état** (`e`) : micro coupé (1), casque coupé (2), partage d'écran (4), caméra (8). L'en-tête reçoit le nom et l'**icône du serveur** (`g`, `gi`). Ces informations arrivent avec les événements vocaux : aucun droit supplémentaire.
 - **`/discord/salons`** liste les salons vocaux du serveur pour le menu déroulant de l'afficheur.
 - Si Discord coupe, discord.py **se reconnecte automatiquement**. Entre-temps, les réponses portent `p:1`.
-- **Permissions** : le bot ne lit aucun message, n'écrit rien et ne rejoint pas le vocal. Il lui faut seulement « Voir les salons ». L'option « Server Members Intent » sert à obtenir les pseudos dès le démarrage.
+- **Permissions** : le bot ne lit aucun message, n'écrit rien et ne rejoint pas le vocal. Il lui faut seulement « Voir les salons ». L'option « Server Members Intent » n'est pas nécessaire (`DISCORD_MEMBERS_INTENT: "0"`).
+
+### Plex (`/plex`)
+
+- La passerelle lit `{PLEX_URL}/status/sessions` avec le jeton `PLEX_TOKEN` (compte administrateur), toutes les 5 secondes au plus.
+- Pour chaque lecture : titre (la série pour un épisode), sous-titre (`Film · 2024`, `S2 E5 · Le Retour`, artiste pour une musique), qui regarde, progression (`pg`, de 0 à 1000), position et temps restant, **lecture directe ou transcodage** (`tc`), pause (`pa`).
+- **Une seule lecture** : la réponse porte le jeton de l'**affiche** (`i`) : celle du film, de la série pour un épisode, de l'album pour une musique. Plusieurs lectures : pas d'affiche, 3 lignes au plus.
+- Un compteur de lectures (`ev`) augmente à chaque nouvelle lecture : l'afficheur fait alors passer la page Plex en priorité. Sans lecture, la page est masquée.
+- Seule la progression change d'un appel à l'autre : l'afficheur ne redessine alors que les barres, sans retélécharger l'affiche.
+
+### Images (`/img`)
+
+L'ESP8266 n'a pas la mémoire pour décoder un JPEG ou un PNG confortablement. La passerelle fait donc tout le travail, avec la bibliothèque **Pillow** :
+1. un module enregistre l'adresse d'une image (affiche Plex, logo CoinGecko, photo ou icône Discord) et met un **jeton** de 12 caractères dans sa réponse ;
+2. l'afficheur demande `/img?t=<jeton>&w=78&h=117&f=000000&r=8` : taille exacte, couleur du fond de l'écran sous l'image, rayon des coins (`r` = moitié de la taille pour un cercle), `m=a` pour un logo à garder entier ;
+3. la passerelle télécharge l'image (une fois), la recadre, arrondit les coins avec un bord lissé, la pose sur le fond et renvoie **w × h pixels RGB565 bruts** (2 octets par pixel, ordre de l'ESP) : 18 Ko pour une affiche, 1,8 Ko pour un logo ;
+4. l'afficheur les envoie à l'écran **ligne par ligne au fil de la réception** : il n'utilise qu'une ligne de mémoire (moins de 320 octets), jamais l'image entière.
+
+Une image indisponible renvoie une erreur HTTP ; l'afficheur dessine alors un remplaçant (pastille de couleur avec l'initiale).
 
 ## 7. Mise en forme des textes
 
@@ -187,7 +219,7 @@ Ce jeu de caractères doit rester identique à celui des polices du firmware (`f
 
 | Réglage | Effet |
 |---|---|
-| `environment:` | Modules et accès |
+| `environment:` | Modules et accès (dont `PLEX_URL`, `PLEX_TOKEN`) |
 | `ports: 8080:8080` | Seule porte d'entrée, pour l'afficheur |
 | `volumes: ./cache:/cache` | Dossier de l'hôte (chemin libre à gauche) : seul endroit où le conteneur peut écrire |
 | `cap_add: CHOWN, SETUID, SETGID` | Au démarrage seulement : crée le dossier du cache, lui donne le bon propriétaire, puis quitte root |
@@ -205,7 +237,8 @@ Ce jeu de caractères doit rester identique à celui des polices du firmware (`f
 | Entrant | afficheur → passerelle, port 8080 | HTTP (réseau local) |
 | Sortant | Open-Meteo, CoinGecko | HTTPS |
 | Sortant | Discord | WebSocket sécurisé (HTTPS) |
-| Sortant | Uptime Kuma | HTTP sur le réseau local |
+| Sortant | Uptime Kuma, Plex | HTTP sur le réseau local |
+| Sortant | Images : CDN Discord, CoinGecko | HTTPS |
 
 Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers Internet.
 
@@ -217,7 +250,9 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 | `/time` | toutes les 10 min | Recaler l'horloge interne |
 | `/discord` | toutes les 5 s | Réagir vite aux arrivées (réponse instantanée, depuis la mémoire) |
 | `/supervision` | toutes les 30 s | Alerte rapide en cas de panne |
+| `/plex` | toutes les 5 s | Montrer la page dès le début d'une lecture, suivre la progression |
 | `/meteo`, `/btc` | à chaque affichage de la page | Données en cache côté passerelle |
+| `/img` | à chaque dessin d'une page avec image | Images converties gardées en mémoire par la passerelle |
 
 ## 10. Observer la passerelle
 

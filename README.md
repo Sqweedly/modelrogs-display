@@ -6,9 +6,10 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 |---|---|---|
 | `heure` | Heure, date, lever et coucher du soleil | — |
 | `meteo` | Météo du jour + 3 jours | — |
-| `btc` | Cours du Bitcoin, courbe sur 7 jours | — |
+| `crypto` | 1 à 3 cryptos (BTC, ETH, XRP…) avec logos officiels, courbes sur 7 jours | — |
 | `supervision` | Services Uptime Kuma (+ écran d'alerte en cas de panne) | Kuma dans `docker-compose.yml` |
-| `discord` | Présents dans un salon vocal | Bot dans `docker-compose.yml` |
+| `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
+| `plex` | Lectures en cours, avec l'affiche quand il n'y en a qu'une | Plex dans `docker-compose.yml` |
 
 ```
  Internet (Open-Meteo, CoinGecko, Discord)        Réseau local
@@ -16,7 +17,8 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
               ▼                                     ▼
    ┌──────────────────────────────┐        ┌──────────────────┐
    │ Passerelle Docker (:8080)    │◄───────│  Uptime Kuma     │
-   │ ghcr.io/sqweedly/            │        └──────────────────┘
+   │ ghcr.io/sqweedly/            │        │  Plex            │
+   │                              │        └──────────────────┘
    │   modelrogs-gateway          │
    │ modules choisis dans         │
    │ docker-compose.yml           │
@@ -32,8 +34,8 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 
 **Répartition des réglages**
 
-- **`docker-compose.yml`** (serveur) : modules actifs, **secrets et accès**, c'est-à-dire le jeton Discord et l'adresse de Kuma.
-- **Interface de l'afficheur** : **préférences** (ville, devise, salon vocal, services supervisés, pages, nuit, luminosité).
+- **`docker-compose.yml`** (serveur) : modules actifs, **secrets et accès**, c'est-à-dire les jetons Discord et Plex et les adresses de Kuma et Plex.
+- **Interface de l'afficheur** : **préférences** (ville, cryptos et devise, salon vocal, services supervisés, pages, nuit, luminosité).
 
 Aucun secret ne transite par l'afficheur, dont le point d'accès est ouvert.
 
@@ -102,11 +104,17 @@ Si une étape échoue, rien n'est publié. Le numéro de version vient uniquemen
 ### Module `discord` : le bot
 
 1. https://discord.com/developers/applications → **New Application** → **Bot** → **Reset Token** : copie le jeton.
-2. Sur la page **Bot**, active **Server Members Intent**.
+2. Sur la page **Bot**, l'option **Server Members Intent** n'est **pas** nécessaire (laisse `DISCORD_MEMBERS_INTENT: "0"`).
 3. **OAuth2 → URL Generator** : coche le scope `bot` et la permission **View Channels**. Ouvre l'URL générée et invite le bot sur ton serveur.
 4. Dans Discord, active **Paramètres → Avancés → Mode développeur**, puis fais un clic droit sur ton serveur → **Copier l'identifiant du serveur**.
 
-Le salon vocal se choisit ensuite **dans l'interface de l'afficheur**, dans une liste.
+Le salon vocal se choisit ensuite **dans l'interface de l'afficheur**, dans une liste. L'icône du serveur et les photos de profil s'affichent automatiquement.
+
+### Module `plex` : adresse et jeton
+
+1. `PLEX_URL` : l'adresse du serveur Plex vue depuis le serveur Docker, par exemple `http://192.168.1.10:32400`.
+2. `PLEX_TOKEN` : le jeton d'un compte **administrateur** du serveur. Plex explique comment le trouver dans son aide, article « Finding an authentication token / X-Plex-Token » : en bref, dans l'application web Plex, **⋯ → Obtenir des infos → Afficher le XML** sur un média, puis copier la valeur `X-Plex-Token` à la fin de l'adresse.
+3. Vérifie depuis le serveur Docker : `curl -H "X-Plex-Token: <jeton>" http://192.168.1.10:32400/status/sessions` doit répondre.
 
 ---
 
@@ -117,14 +125,14 @@ Le salon vocal se choisit ensuite **dans l'interface de l'afficheur**, dans une 
    ```bash
    mkdir -p ~/modelrogs && cd ~/modelrogs     # dossier où tu as copié docker-compose.yml
    nano docker-compose.yml        # modules + leurs variables (voir ci-dessous)
-   chmod 600 docker-compose.yml   # il contient le jeton Discord
+   chmod 600 docker-compose.yml   # il contient les jetons Discord et Plex
    docker compose up -d
    ```
 
 **Dans `docker-compose.yml`**, la ligne `MODULES:` liste les modules actifs. Pour chaque module gardé, renseigne son bloc :
 
 ```yaml
-MODULES: heure,meteo,btc,supervision        # discord retiré : son bloc est ignoré
+MODULES: heure,meteo,crypto,supervision     # discord et plex retirés : leurs blocs sont ignorés
 KUMA_URL: http://192.168.1.10:3001
 KUMA_STATUS_SLUG: modelrogs
 ```
@@ -145,7 +153,7 @@ curl http://localhost:8080/modules                 # modules annoncés à l'affi
 
 **Erreur « Permission denied » sur le cache** (versions avant 2.4) : reprends le `docker-compose.yml` actuel, ou lance `sudo chown -R 10001:10001 cache && docker compose restart`. La passerelle fonctionne quand même : seule la conservation du cache après un redémarrage est perdue.
 
-L'image fait environ 65 Mo (Alpine). Le conteneur est durci :
+L'image fait environ 75 Mo (Alpine, avec la bibliothèque d'images Pillow). Le conteneur est durci :
 - passerelle exécutée sans root (root sert seulement, au démarrage, à préparer le dossier du cache) ;
 - système de fichiers en lecture seule, sauf le dossier du cache ;
 - aucune capacité Linux.
@@ -200,7 +208,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - **Général** : adresse de la passerelle (`http://IP_SERVEUR:8080`) et ville.
 - **Pages et modules** : la liste suit les modules de la passerelle.
   - Coche les pages à afficher.
-  - Renseigne les réglages demandés : devise pour le Bitcoin, salon vocal pour Discord, services de la supervision : par défaut **tous ceux de la page de statut Kuma**, y compris ceux ajoutés plus tard ; décoche « Tous les services… » pour en choisir 48 au maximum.
+  - Renseigne les réglages demandés : cryptos (3 au maximum) et devise pour Crypto, salon vocal pour Discord, services de la supervision : par défaut **tous ceux de la page de statut Kuma**, y compris ceux ajoutés plus tard ; décoche « Tous les services… » pour en choisir 48 au maximum.
   - Un module retiré de `MODULES` apparaît grisé. Un module mal configuré affiche la variable manquante.
 - **Nuit et luminosité** : plage horaire, luminosité de jour et de nuit (0 = écran éteint).
 - **État** :
@@ -213,7 +221,9 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 **Comportement**
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
-- Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée.
+- Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. Jusqu'à 4 personnes : une carte chacune (photo, durée de présence, micro ou casque coupé, LIVE, caméra) ; au-delà, une grille de photos.
+- Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : affiche, titre, qui regarde, lecture directe ou transcodage, progression. Plusieurs : liste de 3 lignes.
+- Crypto : la mise en page suit le nombre de cryptos choisies (1 : grande page ; 2 : deux moitiés ; 3 : trois lignes).
 - Supervision : tuiles jusqu'à 12 services, au-delà un compteur et la liste des problèmes.
 - Une panne affiche l'écran d'alerte rouge immédiatement, puis l'alerte alterne avec les pages (un écran sur deux) jusqu'au retour à la normale.
 - Un point ambre en haut à droite signale une donnée ancienne (source injoignable).
@@ -251,25 +261,27 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 ## Sécurité
 
 - **Afficheur** : point d'accès ouvert, OTA et interface sans mot de passe (choix assumé, réseau domestique). Aucun secret n'y est stocké.
-- **`docker-compose.yml`** : il contient le jeton Discord une fois rempli. Applique `chmod 600` et **ne le remets jamais dans le dépôt GitHub**.
+- **`docker-compose.yml`** : il contient les jetons Discord et Plex une fois rempli. Applique `chmod 600` et **ne le remets jamais dans le dépôt GitHub**.
 - **Passerelle** : HTTP sans authentification, à n'exposer que sur le réseau local.
 
 ---
 
 ## Pour aller plus loin
 
-**API de la passerelle** (appelée par l'afficheur, JSON de moins de 2 Ko)
+**API de la passerelle** (appelée par l'afficheur, JSON de moins de 2 Ko, sauf `/img`)
 
 | Route | Rôle |
 |---|---|
 | `/modules` | Manifeste : modules actifs, état de configuration, réglages à proposer |
 | `/time?ville=` | Heure locale, lever et coucher du soleil. Toujours disponible : sert aussi à la plage nocturne |
 | `/meteo?ville=` | Météo du jour + 3 jours |
-| `/btc?devise=eur` | Bitcoin sur 7 jours |
+| `/btc?ids=bitcoin,ethereum&devise=eur` | Cryptos sur 7 jours (3 au plus, Bitcoin par défaut) |
 | `/supervision?ids=3,7` | État des services choisis ; `ids=*` ou sans `ids` : tous les services de la page de statut |
 | `/supervision/services` | Liste des sondes Kuma |
 | `/discord?salon=<id>` | Présents dans le salon |
 | `/discord/salons` | Liste des salons vocaux |
+| `/plex` | Lectures Plex en cours |
+| `/img?t=<jeton>&w=&h=&f=&r=` | Image (affiche, logo, photo) en pixels RGB565 bruts, prête à afficher |
 | `/health` | État de la passerelle et de chaque module |
 
 **Types de réglages** compris par l'afficheur dans le manifeste :

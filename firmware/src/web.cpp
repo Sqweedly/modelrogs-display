@@ -187,15 +187,27 @@ static bool renderField(Chunks& c, uint8_t page, JsonObject param) {
     c << F("<p class='note'>") << (long)options.size() << F(" choix");
     if (param["max"].is<int>()) c << F(" — ") << (long)(param["max"] | 0) << F(" au maximum");
     if (tous[0]) c << F(". Si aucun n'est coché, tous sont affichés");
-    c << F("</p><a class='sm' href='#' onclick=\"document.querySelectorAll('.") << cls
-      << F("').forEach(e=>e.checked=true);return false\">Tout cocher</a>"
-           "<a class='sm' href='#' onclick=\"document.querySelectorAll('.") << cls
+    // Plafond (« max ») : une case de plus est refusée ; « Tout cocher » masqué
+    // quand il dépasserait le plafond.
+    long maxi = param["max"] | 0;
+    bool plafond = maxi > 0 && (long)options.size() > maxi;
+    c << F("</p>");
+    if (!plafond) {
+      c << F("<a class='sm' href='#' onclick=\"document.querySelectorAll('.") << cls
+        << F("').forEach(e=>e.checked=true);return false\">Tout cocher</a>");
+    }
+    c << F("<a class='sm' href='#' onclick=\"document.querySelectorAll('.") << cls
       << F("').forEach(e=>e.checked=false);return false\">Tout décocher</a><div class='grid' style='margin-top:8px'>");
+    String limite;
+    if (plafond) {
+      limite = String(F(" onchange=\"if(document.querySelectorAll('.")) + cls + F(":checked').length>") +
+               maxi + F(")this.checked=false\"");
+    }
     for (JsonObject o : options) {
       String id = (const char*)(o["id"] | "");
       bool on = selected.indexOf("," + id + ",") >= 0;
       c << F("<label class='chk'><input class='") << cls << F("' type='checkbox' name='") << name
-        << F("' value='") << esc(id) << F("'") << (on ? F(" checked") : F("")) << F(">")
+        << F("' value='") << esc(id) << F("'") << (on ? F(" checked") : F("")) << limite << F(">")
         << esc(o["n"] | id.c_str()) << F("</label>");
     }
     c << F("</div></fieldset>");
@@ -255,7 +267,9 @@ static void renderModules(Chunks& c) {
   c << F("<label>Durée d'affichage de chaque page (secondes)</label>"
          "<input type='number' name='duree' min='5' max='120' value='") << (long)cfg.pageSec
     << F("'><p class='note'>Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête "
-         "à chaque arrivée. Une panne en supervision affiche l'écran d'alerte jusqu'au retour à la normale.</p></section>");
+         "à chaque arrivée. Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture "
+         "commence. Une panne en supervision affiche l'écran d'alerte, en alternance avec les pages, "
+         "jusqu'au retour à la normale.</p></section>");
 }
 
 // --------------------------------------------------------------- page « / »

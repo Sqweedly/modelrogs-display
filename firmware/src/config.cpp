@@ -3,9 +3,12 @@
 
 Config cfg;
 static_assert(sizeof(Config) <= EEPROM_SIZE, "Config trop grande pour l'EEPROM");
+// Les ajouts 2.6 occupent exactement l'ancienne réserve : la structure (version 4) ne change pas.
+static_assert(offsetof(Config, reserve) + sizeof(Config::reserve) - offsetof(Config, pCrypto) == 63,
+              "les ajouts doivent tenir dans l'ancienne réserve de 63 octets");
 
-const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Bitcoin" };
-const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc" };
+const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Crypto", "Plex" };
+const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc", "plex" };
 
 // --- Anciennes structures, lues une seule fois lors de la mise à jour ------
 
@@ -82,7 +85,21 @@ static void setDefaults() {
   cfg.nightEnd = 7 * 60;
   cfg.brightDay = LUMINOSITE_DEFAUT;
   cfg.brightNight = 20;
-  copyStr(cfg.pBtc, sizeof(cfg.pBtc), "devise=eur");
+  copyStr(cfg.pCrypto, sizeof(cfg.pCrypto), "devise=eur");
+  cfg.ext26 = 1;
+}
+
+// Première mise en route d'un firmware 2.6 sur une configuration plus ancienne :
+// réglages Crypto repris de pBtc, page Plex activée (affichée seulement pendant
+// une lecture, et si le module est actif sur la passerelle). Renvoie true si
+// la configuration a changé.
+static bool initExt26() {
+  if (cfg.ext26 == 1) return false;
+  memset(cfg.pCrypto, 0, sizeof(cfg.pCrypto) + sizeof(cfg.pPlex) + sizeof(cfg.reserve) + 1);
+  copyStr(cfg.pCrypto, sizeof(cfg.pCrypto), cfg.pBtc[0] ? cfg.pBtc : "devise=eur");
+  cfg.pages |= 1 << PG_PLEX;
+  cfg.ext26 = 1;
+  return true;
 }
 
 // http://192.168.1.44:5090/snapshot -> http://192.168.1.44:8080
@@ -155,8 +172,10 @@ void loadConfig() {
   //     y compris la validation.
   if (magic == PRODUCT_MAGIC && version == CONFIG_VERSION) {
     EEPROM.get(0, cfg);
+    bool maj = initExt26();
     sanitize();
     Serial.println(F("EEPROM : configuration chargee."));
+    if (maj) saveConfig();   // la validation est conservée
     return;
   }
 
@@ -219,6 +238,8 @@ void loadConfig() {
     Serial.println(F("EEPROM : configuration absente -> valeurs par defaut."));
   }
 
+  cfg.ext26 = 0;       // reprise des réglages Crypto (pBtc) d'une configuration migrée
+  initExt26();
   cfg.validated = 0;   // firmware différent ou jamais validé : validation requise
   saveConfig();
 }
@@ -242,7 +263,8 @@ char* modParams(uint8_t page) {
     case PG_METEO:   return cfg.pMeteo;
     case PG_DISCORD: return cfg.pDiscord;
     case PG_SUP:     return cfg.pSup;
-    default:         return cfg.pBtc;
+    case PG_PLEX:    return cfg.pPlex;
+    default:         return cfg.pCrypto;
   }
 }
 
@@ -252,7 +274,8 @@ size_t modParamsSize(uint8_t page) {
     case PG_METEO:   return sizeof(cfg.pMeteo);
     case PG_DISCORD: return sizeof(cfg.pDiscord);
     case PG_SUP:     return sizeof(cfg.pSup);
-    default:         return sizeof(cfg.pBtc);
+    case PG_PLEX:    return sizeof(cfg.pPlex);
+    default:         return sizeof(cfg.pCrypto);
   }
 }
 

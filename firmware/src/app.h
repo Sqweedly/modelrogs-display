@@ -8,6 +8,8 @@
 #define MAX_DISC_NAMES  8
 #define MAX_SUP_ITEMS   12
 #define NAME_BYTES      44   // 14 caractères UTF-8 + « … »
+#define IMG_TOKEN       13   // jeton d'image de la passerelle (12 caractères)
+#define MAX_PLEX        3
 
 struct TimeState {
   bool     valid = false;
@@ -32,8 +34,39 @@ struct DiscordState {
   uint8_t  count = 0;        // noms reçus (<= MAX_DISC_NAMES)
   char     err[48] = "";
   char     canal[NAME_BYTES] = "";
+  char     serveur[NAME_BYTES] = "";
+  char     icone[IMG_TOKEN] = "";                // icône du serveur
   char     names[MAX_DISC_NAMES][NAME_BYTES];
   bool     isNew[MAX_DISC_NAMES];
+  char     depuis[MAX_DISC_NAMES][16];           // « 1 h 12 », « 48 min », « » si inconnu
+  uint8_t  etat[MAX_DISC_NAMES];                 // DISC_MUET | DISC_SOURD | DISC_LIVE | DISC_CAMERA
+  char     avatar[MAX_DISC_NAMES][IMG_TOKEN];
+};
+
+enum : uint8_t { DISC_MUET = 1, DISC_SOURD = 2, DISC_LIVE = 4, DISC_CAMERA = 8 };
+
+// Lectures Plex en cours (page visible seulement pendant une lecture)
+struct PlexState {
+  bool     ok = false;
+  bool     stale = false;
+  bool     evKnown = false;
+  uint32_t ev = 0;           // compteur de nouvelles lectures (passerelle)
+  uint32_t version = 0;      // change quand le contenu (titres, affiche...) change
+  uint32_t progres = 0;      // change quand seule la progression change
+  uint32_t lastPoll = 0;
+  uint8_t  n = 0;            // lectures en cours
+  uint8_t  tc = 0;           // dont transcodages
+  uint8_t  count = 0;        // lignes reçues (<= MAX_PLEX)
+  struct Ligne {
+    char     titre[72];
+    char     sous[72];
+    char     user[NAME_BYTES];
+    char     pos[10];
+    char     reste[18];
+    char     affiche[IMG_TOKEN];
+    uint16_t pg;             // progression 0..1000
+    bool     tc, pause;
+  } l[MAX_PLEX];
 };
 
 enum SupEtat : uint8_t { SUP_OK = 0, SUP_INSTABLE = 1, SUP_PANNE = 2, SUP_MAINT = 3 };
@@ -68,6 +101,7 @@ struct ModulesState {
 extern TimeState    gTime;
 extern DiscordState gDisc;
 extern SupState     gSup;
+extern PlexState    gPlex;
 extern ModulesState gMods;
 
 void   fetchModules();
@@ -78,6 +112,7 @@ String modulePath(uint8_t page);     // "/<module>?<réglages>"
 void syncTime();
 bool pollDiscord();          // true si quelqu'un vient d'arriver
 void pollSup();
+bool pollPlex();             // true si une lecture vient de commencer
 
 bool     timeValid();
 uint32_t localEpoch();       // secondes locales depuis 1970

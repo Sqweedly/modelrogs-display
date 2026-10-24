@@ -7,6 +7,7 @@
 TimeState    gTime;
 DiscordState gDisc;
 SupState     gSup;
+PlexState    gPlex;
 ModulesState gMods;
 
 static void copyStr(char* dst, size_t size, const char* src) {
@@ -117,23 +118,35 @@ bool pollDiscord() {
     return false;
   }
 
-  uint32_t before = hashStr(2166136261UL, gDisc.canal) ^ gDisc.n;
-  for (uint8_t i = 0; i < gDisc.count; i++) before = hashStr(before, gDisc.names[i]) + gDisc.isNew[i];
+  // Empreinte de ce qui est affiché, hors durées de présence (elles changent
+  // chaque minute : mises à jour au prochain passage de la page).
+  auto empreinte = [&]() {
+    uint32_t h = hashStr(hashStr(2166136261UL, gDisc.canal), gDisc.serveur) ^ gDisc.n;
+    h = hashStr(h, gDisc.icone);
+    for (uint8_t i = 0; i < gDisc.count; i++)
+      h = hashStr(hashStr(h, gDisc.names[i]), gDisc.avatar[i]) + gDisc.isNew[i] * 3 + gDisc.etat[i] * 7;
+    return h;
+  };
+  uint32_t before = empreinte();
 
   gDisc.ok = true;
   gDisc.stale = doc["p"] | 0;
   gDisc.n = doc["n"] | 0;
   copyStr(gDisc.canal, sizeof(gDisc.canal), doc["c"] | "");
+  copyStr(gDisc.serveur, sizeof(gDisc.serveur), doc["g"] | "");
+  copyStr(gDisc.icone, sizeof(gDisc.icone), doc["gi"] | "");
   gDisc.count = 0;
   for (JsonObject m : doc["m"].as<JsonArray>()) {
     if (gDisc.count >= MAX_DISC_NAMES) break;
-    copyStr(gDisc.names[gDisc.count], NAME_BYTES, m["n"] | "?");
-    gDisc.isNew[gDisc.count] = (m["w"] | 0) != 0;
-    gDisc.count++;
+    uint8_t i = gDisc.count++;
+    copyStr(gDisc.names[i], NAME_BYTES, m["n"] | "?");
+    gDisc.isNew[i] = (m["w"] | 0) != 0;
+    copyStr(gDisc.depuis[i], sizeof(gDisc.depuis[i]), m["d"] | "");
+    gDisc.etat[i] = m["e"] | 0;
+    copyStr(gDisc.avatar[i], IMG_TOKEN, m["i"] | "");
   }
 
-  uint32_t after = hashStr(2166136261UL, gDisc.canal) ^ gDisc.n;
-  for (uint8_t i = 0; i < gDisc.count; i++) after = hashStr(after, gDisc.names[i]) + gDisc.isNew[i];
+  uint32_t after = empreinte();
   if (after != before || gDisc.ok != wasOk || gDisc.stale != wasStale) gDisc.version++;
 
   uint32_t ev = doc["ev"] | 0UL;
@@ -196,4 +209,67 @@ void pollSup() {
     gSup.alCount = al["k"] | 1;
   }
   if (supHash() != before) gSup.version++;
+}
+
+// ----------------------------------------------------------------- Plex
+
+bool pollPlex() {
+  gPlex.lastPoll = millis();
+  bool wasOk = gPlex.ok, wasStale = gPlex.stale;
+  uint8_t avant = gPlex.n;
+  JsonDocument doc;
+  int code = gwGet(modulePath(PG_PLEX), doc);
+  if (code != 200) {
+    // Plex injoignable : la page disparaît (elle n'a de sens que pendant une lecture)
+    if (code == -5 || !gPlex.ok) {
+      gPlex.ok = false;
+      gPlex.n = 0;
+    } else {
+      gPlex.stale = true;
+    }
+    if (gPlex.ok != wasOk || gPlex.stale != wasStale || gPlex.n != avant) gPlex.version++;
+    return false;
+  }
+
+  auto empreinte = [&]() {
+    uint32_t h = 2166136261UL ^ (gPlex.n * 31 + gPlex.tc);
+    for (uint8_t i = 0; i < gPlex.count; i++) {
+      const PlexState::Ligne& l = gPlex.l[i];
+      h = hashStr(hashStr(hashStr(hashStr(h, l.titre), l.sous), l.user), l.affiche) + l.tc * 3 + l.pause * 5;
+    }
+    return h;
+  };
+  uint32_t avantH = empreinte();
+  uint32_t avantP = 0;
+  for (uint8_t i = 0; i < gPlex.count; i++) avantP = hashStr(avantP * 31 + gPlex.l[i].pg, gPlex.l[i].pos);
+
+  gPlex.ok = true;
+  gPlex.stale = doc["p"] | 0;
+  gPlex.n = doc["n"] | 0;
+  gPlex.tc = doc["tc"] | 0;
+  gPlex.count = 0;
+  for (JsonObject s : doc["s"].as<JsonArray>()) {
+    if (gPlex.count >= MAX_PLEX) break;
+    PlexState::Ligne& l = gPlex.l[gPlex.count++];
+    copyStr(l.titre, sizeof(l.titre), s["t"] | "");
+    copyStr(l.sous, sizeof(l.sous), s["st"] | "");
+    copyStr(l.user, sizeof(l.user), s["u"] | "");
+    copyStr(l.pos, sizeof(l.pos), s["pos"] | "");
+    copyStr(l.reste, sizeof(l.reste), s["r"] | "");
+    copyStr(l.affiche, sizeof(l.affiche), s["i"] | "");
+    l.pg = min<int>(1000, s["pg"] | 0);
+    l.tc = (s["tc"] | 0) != 0;
+    l.pause = (s["pa"] | 0) != 0;
+  }
+
+  uint32_t apresP = 0;
+  for (uint8_t i = 0; i < gPlex.count; i++) apresP = hashStr(apresP * 31 + gPlex.l[i].pg, gPlex.l[i].pos);
+  if (empreinte() != avantH || gPlex.ok != wasOk || gPlex.stale != wasStale) gPlex.version++;
+  else if (apresP != avantP) gPlex.progres++;
+
+  uint32_t ev = doc["ev"] | 0UL;
+  bool debut = gPlex.evKnown && ev > gPlex.ev && gPlex.n > 0;
+  gPlex.ev = ev;
+  gPlex.evKnown = true;
+  return debut;
 }

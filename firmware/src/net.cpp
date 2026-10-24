@@ -1,5 +1,6 @@
 #include "net.h"
 #include "config.h"
+#include "ui.h"
 
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
@@ -135,6 +136,41 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
   gwLastCode = code;
   if (code == 200) gwLastOkMs = millis();
   return code;
+}
+
+bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int rayon, bool ajuster) {
+  if (!jeton || !jeton[0] || w <= 0 || h <= 0 || w > 160 || h > 160) return false;
+  if (!staConnected() || cfg.gateway[0] == '\0' || gwRetryInSeconds() > 0) return false;
+
+  // RGB565 -> RRGGBB (couleur exacte du fond sous les coins arrondis)
+  uint8_t r = (fond >> 11) << 3, g = ((fond >> 5) & 0x3F) << 2, b = (fond & 0x1F) << 3;
+  r |= r >> 5; g |= g >> 6; b |= b >> 5;
+  char path[96];
+  snprintf(path, sizeof(path), "/img?t=%s&w=%d&h=%d&f=%02X%02X%02X&r=%d%s",
+           jeton, w, h, r, g, b, rayon, ajuster ? "&m=a" : "");
+
+  WiFiClient client;
+  HTTPClient http;
+  bool ok = false;
+  if (http.begin(client, String(cfg.gateway) + path)) {
+    http.setTimeout(2500);
+    http.useHTTP10(true);
+    http.setReuse(false);
+    if (http.GET() == HTTP_CODE_OK && http.getSize() == w * h * 2) {
+      WiFiClient& flux = http.getStream();
+      uint16_t ligne[160];
+      tft.setSwapBytes(true);        // pixels reçus dans l'ordre natif de l'ESP
+      ok = true;
+      for (int j = 0; j < h; j++) {
+        if (flux.readBytes((uint8_t*)ligne, w * 2) != (size_t)(w * 2)) { ok = false; break; }
+        tft.pushImage(x, y + j, w, 1, ligne);
+        if ((j & 15) == 15) yield();
+      }
+      tft.setSwapBytes(false);
+    }
+    http.end();
+  }
+  return ok;
 }
 
 const char* gwErrorText(int code) {

@@ -26,7 +26,8 @@ int main() {
   b.brightNight = 10; strcpy(b.pSup, "ids=3,7,12"); strcpy(b.pDiscord, "salon=42"); strcpy(b.pBtc, "devise=usd");
   ecrire(b); loadConfig();
   CHECK(!cfg.validated, "2.1 -> a valider (jamais valide)");
-  CHECK(!strcmp(cfg.ville, "Lyon") && cfg.pages == 0x1B && cfg.pageSec == 15, "2.1 -> pages, duree, ville conservees");
+  CHECK(!strcmp(cfg.ville, "Lyon") && cfg.pages == (0x1B | 1 << PG_PLEX) && cfg.pageSec == 15, "2.1 -> pages, duree, ville conservees (+ Plex)");
+  CHECK(!strcmp(cfg.pCrypto, "devise=usd"), "2.1 -> reglages Crypto repris");
   CHECK(!strcmp(cfg.pSup, "ids=3,7,12") && !strcmp(cfg.pDiscord, "salon=42") && !strcmp(cfg.pBtc, "devise=usd"), "2.1 -> reglages des modules conserves");
   CHECK(!strcmp(cfg.apSsid, "MODELROGS Display") && cfg.brightDay == 60, "2.1 -> AP renomme, luminosite plafonnee");
 
@@ -37,9 +38,19 @@ int main() {
   CHECK(!strcmp(cfg.apSsid, "Mon afficheur") && cfg.brightDay == 80, "meme firmware -> reglages personnels conserves");
   CHECK(!strcmp(cfg.pSup, "ids=3,7,12"), "meme firmware -> services conserves");
 
+  // 3b. Configuration 2.5 (version 4, sans les ajouts 2.6) validee
+  cfg.ext26 = 0; memset(cfg.pCrypto, 0, sizeof(cfg.pCrypto)); cfg.pages = 0x1F; strcpy(cfg.pBtc, "devise=usd");
+  cfg.validated = 1; EEPROM.put(0, cfg); EEPROM.commit();
+  loadConfig();
+  CHECK(cfg.validated == 1 && cfg.ext26 == 1, "2.5 -> 2.6 : validation conservee");
+  CHECK(!strcmp(cfg.pCrypto, "devise=usd") && (cfg.pages & 1 << PG_PLEX) && (cfg.pages & 0x1F) == 0x1F, "2.5 -> 2.6 : Crypto repris, page Plex ajoutee");
+  strcpy(cfg.pCrypto, "ids=bitcoin,ethereum,ripple&devise=eur"); saveConfig(); loadConfig();
+  CHECK(!strcmp(cfg.pCrypto, "ids=bitcoin,ethereum,ripple&devise=eur"), "2.6 -> 3 cryptos conservees");
+
   // 4. Firmware inconnu / EEPROM vierge
   memset(EEPROM.data, 0xFF, sizeof(EEPROM.data)); loadConfig();
   CHECK(!cfg.validated && !strcmp(cfg.apSsid, "MODELROGS Display") && cfg.wifiSsid[0] == 0, "vierge -> valeurs par defaut, a valider");
+  CHECK(cfg.pages == (1 << PG_COUNT) - 1 && !strcmp(cfg.pCrypto, "devise=eur"), "vierge -> toutes les pages, Crypto en euro");
   printf("\ntaille Config = %u octets / %d\n", (unsigned)sizeof(Config), EEPROM_SIZE);
   return fails;
 }

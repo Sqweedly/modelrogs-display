@@ -3,12 +3,12 @@
 #
 #   1. Copier ce fichier sur le serveur, dans un dossier dédié
 #   2. Choisir les modules (MODULES) et renseigner leurs blocs
-#   3. chmod 600 docker-compose.yml     (il peut contenir le jeton Discord)
+#   3. chmod 600 docker-compose.yml     (il contient les jetons Discord et Plex)
 #   4. docker compose up -d
 #
 # Les réglages personnels (ville, devise, salon vocal, services
 # supervisés) se font ensuite dans l'interface de l'afficheur.
-# NE JAMAIS publier ce fichier une fois le jeton Discord renseigné.
+# NE JAMAIS publier ce fichier une fois les jetons renseignés.
 # =====================================================================
 
 services:
@@ -34,9 +34,10 @@ services:
 
       # ---------------------------------------------------------------
       # MODULES ACTIFS — retirer un nom désactive le module.
-      # Disponibles : heure, meteo, btc, supervision, discord
+      # Disponibles : heure, meteo, crypto, supervision, discord, plex
+      # (« btc », l'ancien nom de crypto, reste accepté)
       # ---------------------------------------------------------------
-      MODULES: heure,meteo,btc,supervision,discord
+      MODULES: heure,meteo,crypto,supervision,discord,plex
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
       # Page de statut regroupant TOUTES les sondes cochables depuis l'afficheur
@@ -55,7 +56,14 @@ services:
       # sur la page du bot ; sinon Discord refuse la connexion.
       DISCORD_MEMBERS_INTENT: "0"
 
-      # --- Module « btc » (facultatif) --------------------------------
+      # --- Module « plex » ---------------------------------------------
+      # Adresse du serveur Plex vue depuis la passerelle, et jeton X-Plex-Token
+      # d'un compte administrateur (support Plex : « Finding an authentication token »).
+      PLEX_URL: http://192.168.1.10:32400
+      PLEX_TOKEN: "colle-ici-le-jeton-plex"
+
+      # --- Module « crypto » (facultatif) -----------------------------
+      # Les cryptos (3 au plus) et la devise se choisissent sur l'afficheur.
       # COINGECKO_KEY: ""           # clé « Demo » si l'API refuse les requêtes anonymes
 
     # Durcissement

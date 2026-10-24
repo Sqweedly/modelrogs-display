@@ -26,6 +26,14 @@ class TFT_eSPI {
   void fillScreen(uint32_t c) { for (auto& p : fb) p = c; }
   void fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t c);
   void drawFastVLine(int32_t x, int32_t y, int32_t h, uint32_t c) { fillRect(x, y, 1, h, c); }
+  void drawFastHLine(int32_t x, int32_t y, int32_t w, uint32_t c) { fillRect(x, y, w, 1, c); }
+  void setSwapBytes(bool s) { swap = s; }
+  void pushImage(int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* d) {
+    for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) {
+      uint16_t c = d[j * w + i];
+      px(x + i, y + j, swap ? c : (uint16_t)((c >> 8) | (c << 8)));
+    }
+  }
   void fillCircle(int32_t x, int32_t y, int32_t r, uint32_t c);
   void fillTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint32_t c);
   void fillSmoothCircle(int32_t x, int32_t y, int32_t r, uint32_t color, uint32_t bg = 0x00FFFFFF);
@@ -51,5 +59,6 @@ class TFT_eSPI {
   int maxAscent = 0, maxDescent = 0, yAdvance = 0, spaceWidth = 0, ascent = 0, descent = 0;
   uint16_t tfg = 0xFFFF, tbg = 0;
   uint8_t datum = 0;
+  bool swap = false;
   const G* find(uint16_t u) const;
 };

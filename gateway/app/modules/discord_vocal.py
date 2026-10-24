@@ -14,6 +14,7 @@ import time
 import aiohttp
 import discord
 
+from .. import images
 from ..text import ecran
 from . import Module
 
@@ -162,16 +163,56 @@ class Bot:
             return {"ok": 0, "err": "Salon introuvable"}
 
         maintenant = time.time()
-        tries = sorted(self.salons[salon_id].values(), key=lambda m: m[1])
+        arrivees = self.salons[salon_id]
+        membres = sorted(salon.members, key=lambda m: (arrivees.get(m.id, ("", 0.0))[1], m.display_name.lower()))
+        serveur = self._serveur()
         return {
             "ok": 1,
+            "g": ecran(serveur.name if serveur else "", 18),
+            "gi": images.enregistrer(_icone(serveur.icon) if serveur and serveur.icon else ""),
             "c": ecran(salon.name, 18),
-            "n": len(tries),
-            "m": [{"n": ecran(nom, 14), "w": int(0 < arrivee and maintenant - arrivee < NOUVEAU_S)}
-                  for nom, arrivee in tries[:MAX_MEMBRES]],
+            "n": len(membres),
+            "m": [_membre(m, arrivees.get(m.id, ("", 0.0))[1], maintenant) for m in membres[:MAX_MEMBRES]],
             "ev": self.evenements.get(salon_id, 0),
             "p": int(not self.connecte),
         }
+
+
+# États vocaux (champ « e », bits combinables)
+MUET, SOURD, LIVE, CAMERA = 1, 2, 4, 8
+
+
+def _icone(asset) -> str:
+    """Image Discord (avatar, icône de serveur) en PNG 128 px."""
+    return str(asset.replace(size=128, format="png").url)
+
+
+def _depuis(secondes: float) -> str:
+    """Durée de présence : « à l'instant », « 48 min », « 1 h 12 »."""
+    minutes = int(secondes // 60)
+    if minutes < 1:
+        return "à l'instant"
+    if minutes < 60:
+        return f"{minutes} min"
+    return f"{minutes // 60} h {minutes % 60:02d}"
+
+
+def _membre(m, arrivee: float, maintenant: float) -> dict:
+    vocal = m.voice
+    etat = 0
+    if vocal:
+        etat |= MUET if (vocal.self_mute or vocal.mute) else 0
+        etat |= SOURD if (vocal.self_deaf or vocal.deaf) else 0
+        etat |= LIVE if vocal.self_stream else 0
+        etat |= CAMERA if vocal.self_video else 0
+    return {
+        "n": ecran(m.display_name, 14),
+        "w": int(0 < arrivee and maintenant - arrivee < NOUVEAU_S),
+        # Heure d'arrivée inconnue pour les présents au démarrage du bot : pas de durée
+        "d": _depuis(maintenant - arrivee) if arrivee else "",
+        "e": etat,
+        "i": images.enregistrer(_icone(m.display_avatar)),
+    }
 
 
 bot = Bot()

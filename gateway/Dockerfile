@@ -3,7 +3,10 @@
 # --- Étape 1 : installation des bibliothèques --------------------------------
 FROM python:3.12-alpine AS construction
 COPY requirements.txt /tmp/
-# Paquets précompilés pour Alpine (amd64, arm64, armv7) : aucun compilateur requis.
+# Paquets précompilés pour Alpine en amd64 et arm64. En armv7, Pillow (images)
+# n'en a pas : il est compilé ici, d'où les outils de construction (absents
+# de l'image finale).
+RUN apk add --no-cache build-base jpeg-dev zlib-dev
 RUN pip install --no-cache-dir --no-compile --prefix=/install -r /tmp/requirements.txt \
  && find /install -depth \( -name "__pycache__" -o -name "tests" -o -name "*.pyi" \) -exec rm -rf {} +
 
@@ -24,6 +27,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080 \
     MODELROGS_VERSION=${VERSION}
 
+# libjpeg : nécessaire à Pillow quand il a été compilé (armv7)
+RUN apk add --no-cache libjpeg-turbo zlib
 COPY --from=construction /install /usr/local
 COPY app /app/app
 

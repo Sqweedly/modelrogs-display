@@ -12,7 +12,8 @@
 // - Pages en rotation : Heure, Météo, Discord, Supervision, Crypto, Plex
 //   (+ écran d'alerte prioritaire en cas de panne). Discord et Plex ne
 //   s'affichent que s'il y a quelqu'un / une lecture, et passent devant
-//   dès une arrivée / le début d'une lecture.
+//   dès une arrivée / le début d'une lecture. Supervision ne s'affiche
+//   qu'en cas de problème (panne, instable, Kuma injoignable).
 // - Toutes les données viennent de la passerelle Docker (HTTP local)
 // =====================================================
 
@@ -78,6 +79,9 @@ static bool pageAvailable(uint8_t p) {
   if (!pageEnabled(p) || !moduleUsable(p)) return false;   // désactivée ici ou sur la passerelle
   if (p == PG_DISCORD) return gDisc.ok && gDisc.n > 0;     // masquée si personne
   if (p == PG_PLEX) return gPlex.ok && gPlex.n > 0;        // masquée sans lecture
+  // Supervision masquée quand tout va bien : visible s'il y a une panne, un
+  // service instable, ou si Kuma / la passerelle ne répond pas.
+  if (p == PG_SUP) return !gSup.ok || gSup.pa > 0 || gSup.in > 0;
   return true;
 }
 
@@ -373,7 +377,10 @@ void loop() {
       }
       break;
     case PG_SUP:
-      if (gSup.version != drawnSupVersion) showPage(PG_SUP, false);
+      if (gSup.version != drawnSupVersion) {
+        if (pageAvailable(PG_SUP)) showPage(PG_SUP, false);
+        else nextPage();          // tout est revenu à la normale
+      }
       break;
     case PG_PLEX:
       if (gPlex.version != drawnPlexVersion) {

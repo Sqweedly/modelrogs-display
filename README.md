@@ -224,7 +224,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. Jusqu'à 4 personnes : une carte chacune (photo, durée de présence, micro ou casque coupé, LIVE, caméra) ; au-delà, une grille de photos.
 - Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : affiche, titre, qui regarde, lecture directe ou transcodage, progression. Plusieurs : liste de 3 lignes.
 - Crypto : la mise en page suit le nombre de cryptos choisies (1 : grande page ; 2 : deux moitiés ; 3 : trois lignes).
-- Supervision : tuiles jusqu'à 12 services, au-delà un compteur et la liste des problèmes.
+- Supervision : **n'apparaît qu'en cas de problème** (panne, service instable, Kuma injoignable) ; tout va bien = page masquée. Tuiles jusqu'à 12 services, au-delà un compteur et la liste des problèmes. Une maintenance seule ne fait pas apparaître la page.
 - Une panne affiche l'écran d'alerte rouge immédiatement, puis l'alerte alterne avec les pages (un écran sur deux) jusqu'au retour à la normale.
 - Un point ambre en haut à droite signale une donnée ancienne (source injoignable).
 

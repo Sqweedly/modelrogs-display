@@ -268,7 +268,8 @@ static void renderModules(Chunks& c) {
          "<input type='number' name='duree' min='5' max='120' value='") << (long)cfg.pageSec
     << F("'><p class='note'>Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête "
          "à chaque arrivée. Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture "
-         "commence. Une panne en supervision affiche l'écran d'alerte, en alternance avec les pages, "
+         "commence. Supervision n'apparaît qu'en cas de problème (panne, service instable, Kuma injoignable). "
+         "Une panne affiche aussi l'écran d'alerte, en alternance avec les pages, "
          "jusqu'au retour à la normale.</p></section>");
 }
 

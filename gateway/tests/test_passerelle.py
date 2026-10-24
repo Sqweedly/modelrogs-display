@@ -74,10 +74,23 @@ def faux_internet() -> web.Application:
         return web.Response(body=b.getvalue(), content_type="image/png")
 
     async def affiche(r):
+        # Envoi en plusieurs morceaux espacés, comme un vrai serveur Plex :
+        # la passerelle doit lire l'image jusqu'au bout.
         assert r.headers.get("X-Plex-Token") == "jeton-plex"
         im = Image.new("RGB", (600, 900), (90, 30, 140))
-        b = io.BytesIO(); im.save(b, "JPEG")
-        return web.Response(body=b.getvalue(), content_type="image/jpeg")
+        grain = Image.effect_noise((600, 300), 60).convert("RGB")   # rend le fichier volumineux
+        im.paste(grain, (0, 0))                                      # (haut de l'affiche seulement)
+        b = io.BytesIO(); im.save(b, "JPEG", quality=95)
+        donnees = b.getvalue()
+        assert len(donnees) > 3 * 4096
+        reponse = web.StreamResponse()
+        reponse.content_type = "image/jpeg"
+        await reponse.prepare(r)
+        for i in range(0, len(donnees), 4096):
+            await reponse.write(donnees[i:i + 4096])
+            await asyncio.sleep(0.005)
+        await reponse.write_eof()
+        return reponse
 
     async def plex_sessions(r):
         assert r.headers.get("X-Plex-Token") == "jeton-plex"

@@ -66,11 +66,17 @@ async def _original(session: aiohttp.ClientSession, jeton: str) -> bytes:
         async with verrou:
             if jeton in _originaux:
                 return _originaux[jeton]
+            # Lecture jusqu'à la fin du fichier : un serveur réel envoie l'image en
+            # plusieurs morceaux (content.read(n) ne rendrait que le premier).
+            morceaux, taille = [], 0
             async with session.get(url, headers=entetes) as reponse:
                 reponse.raise_for_status()
-                donnees = await reponse.content.read(TAILLE_MAX_SOURCE + 1)
-            if len(donnees) > TAILLE_MAX_SOURCE:
-                raise ValueError("image trop lourde")
+                async for morceau in reponse.content.iter_chunked(64 * 1024):
+                    taille += len(morceau)
+                    if taille > TAILLE_MAX_SOURCE:
+                        raise ValueError("image trop lourde")
+                    morceaux.append(morceau)
+            donnees = b"".join(morceaux)
             _ranger(_originaux, jeton, donnees, MAX_ORIGINAUX)
             return donnees
     finally:

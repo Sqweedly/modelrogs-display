@@ -148,6 +148,14 @@ jobs:
 
           EOF
           sed -i 's/^          //' notes.md
+          # Nouveautés de cette version, reprises de CHANGELOG.md (section « ## [x.y.z] »)
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 {f = 1; next} f && (/^## \[/ || /^---$/) {exit} f' \
+            CHANGELOG.md > nouveautes.md
+          if [ -s nouveautes.md ]; then
+            { echo "## Nouveautés"; cat nouveautes.md; echo; echo "Historique complet : CHANGELOG.md"; } >> notes.md
+          else
+            echo "::warning::Aucune section [$VERSION] dans CHANGELOG.md"
+          fi
           ls -l dist
 
       - name: Création de la Release

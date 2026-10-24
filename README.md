@@ -43,6 +43,8 @@ Aucun secret ne transite par l'afficheur, dont le point d'accès est ouvert.
 
 **Fonctionnement détaillé de la passerelle** : voir [docs/PASSERELLE.md](docs/PASSERELLE.md).
 
+**Nouveautés de chaque version** : voir [CHANGELOG.md](CHANGELOG.md).
+
 ## Contenu du dépôt
 
 Le dépôt ne contient que des **sources**. Les fichiers prêts à l'emploi (firmware, `docker-compose.yml`) sont produits par GitHub et publiés dans les **Releases**.
@@ -54,6 +56,7 @@ Le dépôt ne contient que des **sources**. Les fichiers prêts à l'emploi (fir
 | `firmware/src/`, `firmware/platformio.ini` | Sources du firmware (PlatformIO) |
 | `firmware/tools/` | Version, compression du binaire, polices, simulateur et test de configuration |
 | `docs/PASSERELLE.md` | Fonctionnement détaillé de la passerelle |
+| `CHANGELOG.md` | Journal des versions ; la section de chaque version est reprise dans les notes de sa Release |
 | `.github/workflows/verification.yml` | À chaque envoi sur `main` : tests et compilation, sans publication |
 | `.github/workflows/publication.yml` | À chaque tag `vX.Y.Z` : tests, firmware, image Docker et Release |
 
@@ -74,12 +77,16 @@ Sur la page du dépôt : **Releases** (colonne de droite) → la dernière versi
 
 L'image de la passerelle est publiée en même temps : `ghcr.io/sqweedly/modelrogs-gateway`, avec les étiquettes `X.Y.Z`, `X.Y`, `X` et `latest`. Le `docker-compose.yml` utilise l'étiquette majeure (par exemple `:2`) : `docker compose pull` suit automatiquement les versions 2.x.
 
-**Publier une nouvelle version** (après avoir envoyé les modifications sur `main`) :
-```bash
-git tag v2.3.1
-git push origin v2.3.1
-```
-Ou dans GitHub : **Releases → Draft a new release → Choose a tag** → saisir `v2.3.1` → **Create new tag** → **Publish release**. Dans ce cas, GitHub complète la Release existante au lieu d'en créer une.
+**Publier une nouvelle version** :
+1. ajoute une section `## [2.7.1] — date` en tête de `CHANGELOG.md` (ajouts, modifications, corrections, consignes de mise à jour) ;
+2. envoie les modifications sur `main`, puis crée le tag :
+   ```bash
+   git tag v2.7.1
+   git push origin v2.7.1
+   ```
+Ou dans GitHub : **Releases → Draft a new release → Choose a tag** → saisir `v2.7.1` → **Create new tag** → **Publish release**. Dans ce cas, GitHub complète la Release existante au lieu d'en créer une.
+
+Les notes de la Release reprennent automatiquement la section de la version dans `CHANGELOG.md` (un avertissement s'affiche dans **Actions** si elle manque).
 
 GitHub Actions enchaîne alors, en 10 minutes environ (onglet **Actions**) :
 1. les tests ;

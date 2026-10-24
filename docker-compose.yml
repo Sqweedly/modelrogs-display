@@ -50,7 +50,10 @@ services:
       # Le salon vocal se choisit dans l'interface de l'afficheur.
       DISCORD_TOKEN: "colle-ici-le-jeton-du-bot"
       DISCORD_GUILD_ID: "123456789012345678"
-      DISCORD_MEMBERS_INTENT: "1"   # 1 si « Server Members Intent » est activé sur le bot
+      # Accès privilégié « Server Members » : inutile pour l'écran (les pseudos
+      # arrivent avec les événements vocaux). "1" seulement si l'option est cochée
+      # sur la page du bot ; sinon Discord refuse la connexion.
+      DISCORD_MEMBERS_INTENT: "0"
 
       # --- Module « btc » (facultatif) --------------------------------
       # COINGECKO_KEY: ""           # clé « Demo » si l'API refuse les requêtes anonymes

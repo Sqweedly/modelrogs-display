@@ -244,22 +244,28 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
   drawText("Supervision", 14, 15, F_16, TXT, BG);
   drawText(String(gSup.tot) + (gSup.tot > 1 ? " services" : " service"), 14, 35, F_11, MUTED, BG);
 
-  String resume;
+  // Bulle de synthèse en haut à droite, alignée sur le titre (comme en 2.3).
+  // Si le texte complet toucherait « Supervision », seul le problème est gardé.
+  String resume, court;
   uint16_t pillCol;
   if (gSup.pa > 0) {
-    resume = String(gSup.pa) + " en panne";
+    resume = court = String(gSup.pa) + " en panne";
     pillCol = ROUGE;
   } else if (gSup.in > 0) {
-    resume = String(gSup.okn) + " OK · " + String(gSup.in) + " instable";
+    court = String(gSup.in) + " instable";
+    resume = String(gSup.okn) + " OK · " + court;
     pillCol = AMBRE;
   } else if (gSup.ma > 0) {
-    resume = String(gSup.okn) + " OK · " + String(gSup.ma) + " maint.";
+    court = String(gSup.ma) + " maint.";
+    resume = String(gSup.okn) + " OK · " + court;
     pillCol = BLEU;
   } else {
-    resume = "Tout est OK";
+    resume = court = "Tout est OK";
     pillCol = VERT;
   }
-  pill(226, 33, resume, F_11, SOMBRE, pillCol, BG, true);   // à droite de « N services »
+  const int finTitre = 14 + textW("Supervision", F_16) + 8;
+  if (226 - (textW(resume, F_11) + 14) < finTitre) resume = court;
+  pill(226, 15, resume, F_11, SOMBRE, pillCol, BG, true);
 
   if (!gSup.resume) {
     // Tuiles (jusqu'à 12 services), les problèmes en premier.

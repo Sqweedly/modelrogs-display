@@ -526,43 +526,41 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
   uint8_t n = min<size_t>(cs.size(), 3);
   uint16_t accent = accentCrypto(cs[0]["s"] | "");
 
+  // Ni titre, ni date, ni durée : la place sert aux prix et aux courbes (7 jours).
   if (n <= 1) {
     JsonObject c = cs[0];
-    logoCrypto(c, 14, 16, 30, BG);
-    drawText(fitText(c["n"] | "", F_16, 170), 52, 16, F_16, TXT, BG);
-    drawText(String(c["s"] | "") + " · 7 jours", 52, 35, F_11, MUTED, BG);
-    drawText(fitText(c["px"] | "", F_32, 212), 14, 54, F_32, TXT, BG);
-    variations(c, 14, 91, BG);
-    courbe(c["pts"], 14, 220, 116, 204, (c["u7"] | 1) ? VERT : ROUGE, BG, true, 2.5f, true);
-    drawText(doc["d0"] | "", 14, 206, F_11, MUTED2, BG);
-    drawText(doc["d1"] | "", 226, 206, F_11, MUTED2, BG, TR_DATUM);
+    logoCrypto(c, 14, 14, 34, BG);
+    drawText(fitText(c["n"] | "", F_18, 168), 58, 14, F_18, TXT, BG);
+    drawText(c["s"] | "", 58, 35, F_13, MUTED, BG);
+    drawText(fitText(c["px"] | "", F_32, 212), 14, 60, F_32, TXT, BG);
+    variations(c, 14, 98, BG);
+    courbe(c["pts"], 14, 220, 126, 218, (c["u7"] | 1) ? VERT : ROUGE, BG, true, 2.5f, true);
 
   } else if (n == 2) {
     for (uint8_t k = 0; k < 2; k++) {
       JsonObject c = cs[k];
-      int y = k ? 118 : 10;
-      logoCrypto(c, 14, y + 2, 24, BG);
-      int wPrix = drawText(c["px"] | "", 226, y + 4, F_18, TXT, BG, TR_DATUM);
-      drawText(fitText(c["n"] | "", F_13, 212 - 30 - wPrix - 8), 44, y + 7, F_13, TXT, BG);
-      variations(c, 14, y + 33, BG);
-      courbe(c["pts"], 14, 220, y + 58, y + 96, (c["u7"] | 1) ? VERT : ROUGE, BG, true, 2.0f, true);
+      int y = k ? 117 : 6;
+      logoCrypto(c, 14, y + 2, 28, BG);
+      int wPrix = drawText(c["px"] | "", 226, y + 6, F_18, TXT, BG, TR_DATUM);
+      drawText(fitText(c["n"] | "", F_16, 212 - 36 - wPrix - 8), 50, y + 7, F_16, TXT, BG);
+      variations(c, 14, y + 38, BG);
+      courbe(c["pts"], 14, 220, y + 62, y + 104, (c["u7"] | 1) ? VERT : ROUGE, BG, true, 2.0f, true);
     }
     tft.drawFastHLine(14, 113, 212, DIM);
 
   } else {
-    drawText("Cryptos", 14, 15, F_16, TXT, BG);
-    drawText("7 jours", 14, 35, F_11, MUTED, BG);
-    drawText(doc["d1"] | "", 226, 18, F_11, MUTED2, BG, TR_DATUM);
+    // Trois cartes pleine hauteur : logo, prix, symbole + variation 7 j, courbe
     for (uint8_t k = 0; k < 3; k++) {
       JsonObject c = cs[k];
-      int y = 58 + k * 54;
-      card(14, y, 212, 48, 12, CARD);
-      logoCrypto(c, 22, y + 12, 24, CARD);
-      drawText(c["px"] | "", 54, y + 7, F_18, TXT, CARD);
-      int w = drawText(c["s"] | "", 54, y + 29, F_11, MUTED, CARD);
+      int y = 7 + k * 72;
+      card(14, y, 212, 66, 14, CARD);
+      // À gauche : logo, prix, symbole. À droite : courbe 7 j, variation dessous.
+      logoCrypto(c, 24, y + 17, 32, CARD);
+      drawText(c["px"] | "", 66, y + 13, F_18, TXT, CARD);
+      drawText(c["s"] | "", 66, y + 37, F_13, MUTED, CARD);
       bool u7 = c["u7"] | 1;
-      drawText(c["v7"] | "", 54 + w + 8, y + 29, F_11, u7 ? VERT : ROUGE_TX, CARD);
-      courbe(c["pts"], 150, 214, y + 9, y + 41, u7 ? VERT : ROUGE, CARD, false, 2.0f, false);
+      courbe(c["pts"], 156, 214, y + 9, y + 40, u7 ? VERT : ROUGE, CARD, true, 2.0f, false);
+      drawText(c["v7"] | "", 216, y + 44, F_11, u7 ? VERT : ROUGE_TX, CARD, TR_DATUM);
     }
   }
 

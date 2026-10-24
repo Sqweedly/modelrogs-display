@@ -6,6 +6,7 @@ veut pouvoir cocher depuis l'interface de l'afficheur.
 """
 
 import os
+import time
 from datetime import datetime, timezone
 
 import aiohttp
@@ -26,34 +27,47 @@ MAX_PROBLEMES = 3    # lignes de problèmes en mode résumé (= ce que l'écran 
 MAX_CHOIX = 48       # services cochables sur l'afficheur
 
 
+# Liste des sondes relue chaque minute : une sonde ajoutée ou retirée de la page
+# de statut apparaît (ou disparaît) sur l'écran et dans l'interface en ~1 min.
+TTL_SONDES = 60
+TTL_BATTEMENTS = 30
+
+
 def _kuma() -> tuple[str, str]:
     return os.environ.get("KUMA_URL", "").rstrip("/"), os.environ.get("KUMA_STATUS_SLUG", "")
 
 
+def _frais() -> dict:
+    """Paramètre ignoré par Kuma mais qui change l'adresse : Kuma garde ses
+    réponses de page de statut en cache plusieurs minutes, par adresse ; on
+    obtient ainsi une liste à jour (au plus une requête par période de cache)."""
+    return {"_": int(time.time())}
+
+
 async def _sondes(session: aiohttp.ClientSession) -> tuple[list[dict], bool]:
-    """Sondes de la page de statut : [{id, nom}] (cache 10 min)."""
+    """Sondes de la page de statut : [{id, nom}] (cache TTL_SONDES)."""
     url, slug = _kuma()
 
     async def charger() -> list[dict]:
-        donnees = await get_json(session, f"{url}/api/status-page/{slug}")
+        donnees = await get_json(session, f"{url}/api/status-page/{slug}", _frais())
         vues: dict[int, str] = {}
         for groupe in donnees.get("publicGroupList", []):
             for sonde in groupe.get("monitorList", []):
                 vues.setdefault(int(sonde["id"]), sonde.get("name", f"#{sonde['id']}"))
         return [{"id": i, "nom": n} for i, n in vues.items()]
 
-    return await cache.obtenir("kuma-sondes", 10 * 60, charger)
+    return await cache.obtenir("kuma-sondes", TTL_SONDES, charger)
 
 
 async def _battements(session: aiohttp.ClientSession) -> tuple[dict, bool]:
-    """Derniers battements par sonde (cache 30 s)."""
+    """Derniers battements par sonde (cache TTL_BATTEMENTS)."""
     url, slug = _kuma()
 
     async def charger() -> dict:
-        donnees = await get_json(session, f"{url}/api/status-page/heartbeat/{slug}")
+        donnees = await get_json(session, f"{url}/api/status-page/heartbeat/{slug}", _frais())
         return donnees.get("heartbeatList", {})
 
-    return await cache.obtenir("kuma-battements", 30, charger)
+    return await cache.obtenir("kuma-battements", TTL_BATTEMENTS, charger)
 
 
 def _date_kuma(texte: str) -> datetime | None:

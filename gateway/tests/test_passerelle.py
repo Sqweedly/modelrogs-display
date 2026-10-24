@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
@@ -16,6 +17,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 MAINTENANT = datetime.now(timezone.utc)
 APPELS_GEO: list[str] = []
+REQUETES_KUMA: list[dict] = []
 FMT = "%Y-%m-%d %H:%M:%S.000"
 NOMS = ["NAS", "Home Assistant", "Pi-hole", "Nextcloud", "Plex", "Routeur", "Vaultwarden", "Kuma",
         "Jellyfin", "Grafana", "Gitea", "Paperless", "Immich", "Frigate", "Mosquitto 🦟"]
@@ -54,10 +56,12 @@ def faux_internet() -> web.Application:
                                              for i in range(169)]})
 
     async def page(r):
+        REQUETES_KUMA.append(dict(r.query))
         mons = [{"id": i, "name": n} for i, n in enumerate(NOMS, start=1)]
         return web.json_response({"publicGroupList": [{"monitorList": mons[:8]}, {"monitorList": mons[8:]}]})
 
     async def battements(r):
+        REQUETES_KUMA.append(dict(r.query))
         hb = {}
         for i in range(1, len(NOMS) + 1):
             if i == 1:   # NAS en panne depuis 4 minutes
@@ -123,6 +127,19 @@ async def principal() -> int:
         # --- Cache : ville inconnue mémorisée, clé normalisée, taille bornée
         from app.cache import cache as C
         from app.cache import CACHE_DIR
+
+        # --- Sonde ajoutée dans Kuma : visible dès l'expiration du cache (1 min)
+        from app.modules import supervision as S
+        NOMS.append("Nouvelle sonde")
+        C._valeurs["kuma-sondes"] = (time.time() - S.TTL_SONDES - 1, C._valeurs["kuma-sondes"][1])
+        liste = await (await c.get("/supervision/services")).json()
+        etat = await (await c.get("/supervision")).json()
+        ok = (S.TTL_SONDES <= 60 and any(s["n"] == "Nouvelle sonde" for s in liste["s"])
+              and etat["tot"] == 16 and all(q.get("_") for q in REQUETES_KUMA))
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} sonde ajoutée dans Kuma -> {len(liste['s'])} services listés, "
+              f"tot={etat['tot']}, Kuma interrogé sans son cache")
+        NOMS.pop()
 
         APPELS_GEO.clear()
         reponses = [await (await c.get("/meteo?ville=Atlantide")).json() for _ in range(5)]

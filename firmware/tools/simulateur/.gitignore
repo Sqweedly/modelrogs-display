@@ -2,3 +2,5 @@ out/
 sim
 test_config
 planche.png
+test_fit
+sim_lib.o

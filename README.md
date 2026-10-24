@@ -118,7 +118,6 @@ Le salon vocal se choisit ensuite **dans l'interface de l'afficheur**, dans une 
    mkdir -p ~/modelrogs && cd ~/modelrogs     # dossier où tu as copié docker-compose.yml
    nano docker-compose.yml        # modules + leurs variables (voir ci-dessous)
    chmod 600 docker-compose.yml   # il contient le jeton Discord
-   mkdir -p cache && sudo chown 10001:10001 cache
    docker compose up -d
    ```
 
@@ -142,9 +141,13 @@ curl http://localhost:8080/modules                 # modules annoncés à l'affi
 
 **Mettre à jour la passerelle** : `docker compose pull && docker compose up -d`.
 
+**Dossier du cache** : la ligne `volumes:` indique où la passerelle écrit son cache sur l'hôte (`./cache:/cache` = sous-dossier `cache` à côté du `docker-compose.yml`). Remplace la partie gauche par le chemin de ton choix, par exemple `/volume1/docker/modelrogs/cache:/cache`. Rien à créer à la main : au démarrage, le conteneur crée le dossier si besoin et lui donne le bon propriétaire (utilisateur 10001, ou `PUID`/`PGID` si tu les renseignes), puis abandonne définitivement root avant de lancer la passerelle. C'est la seule raison des lignes `cap_add: CHOWN, SETUID, SETGID`.
+
+**Erreur « Permission denied » sur le cache** (versions avant 2.4) : reprends le `docker-compose.yml` actuel, ou lance `sudo chown -R 10001:10001 cache && docker compose restart`. La passerelle fonctionne quand même : seule la conservation du cache après un redémarrage est perdue.
+
 L'image fait environ 65 Mo (Alpine). Le conteneur est durci :
-- utilisateur non root ;
-- système de fichiers en lecture seule, sauf `./cache` ;
+- passerelle exécutée sans root (root sert seulement, au démarrage, à préparer le dossier du cache) ;
+- système de fichiers en lecture seule, sauf le dossier du cache ;
 - aucune capacité Linux.
 
 Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer le démarrage sur les systèmes sans contrôleur mémoire des cgroups (Raspberry Pi OS, certains NAS).
@@ -200,14 +203,31 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
   - Renseigne les réglages demandés : devise pour le Bitcoin, salon vocal pour Discord, services à cocher pour la supervision (48 au maximum).
   - Un module retiré de `MODULES` apparaît grisé. Un module mal configuré affiche la variable manquante.
 - **Nuit et luminosité** : plage horaire, luminosité de jour et de nuit (0 = écran éteint).
-- **État** : Wi-Fi, version de la passerelle, mémoire, flash et place libre pour l'OTA. Boutons « Afficher maintenant ».
+- **État** :
+  - Wi-Fi, version de la passerelle (avec le délai avant le prochain essai si elle ne répond pas) ;
+  - mémoire libre et plus grand bloc libre, avec leur minimum depuis le démarrage, et fragmentation ;
+  - cause du dernier démarrage (mise sous tension, redémarrage planifié, urgence, mise à jour, plantage) ;
+  - nombre de redémarrages préventifs depuis la mise sous tension ;
+  - flash et place libre pour l'OTA ;
+  - boutons « Afficher maintenant ».
 
 **Comportement**
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
 - Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée.
 - Supervision : tuiles jusqu'à 12 services, au-delà un compteur et la liste des problèmes.
-- Une panne affiche l'écran d'alerte rouge jusqu'au retour à la normale.
+- Une panne affiche l'écran d'alerte rouge immédiatement, puis l'alerte alterne avec les pages (un écran sur deux) jusqu'au retour à la normale.
 - Un point ambre en haut à droite signale une donnée ancienne (source injoignable).
+
+**Fonctionnement en continu**
+
+- **Redémarrage préventif chaque nuit à 2 h 15** (heure locale fournie par la passerelle) :
+  - la radio Wi-Fi est arrêtée, puis l'ESP redémarre, ce qui réinitialise toute sa mémoire de travail ;
+  - si la plage nocturne est active, l'écran reste à la luminosité de nuit pendant le redémarrage ;
+  - un seul redémarrage par nuit ;
+  - si l'heure est inconnue (passerelle injoignable), redémarrage après 25 h de fonctionnement.
+- **Redémarrage d'urgence** si la mémoire reste trop morcelée pendant une minute (plus grand bloc libre sous 4 Ko). C'est un filet de sécurité qui ne devrait jamais servir.
+- **Passerelle injoignable** : les appels sont espacés (5 s, 15 s, 30 s, puis 60 s) pour que l'afficheur et son interface restent réactifs. Le rythme normal reprend dès qu'elle répond.
+- Un redémarrage logiciel ne coupe pas l'alimentation. Pour une vraie coupure électrique, il faut une prise connectée programmée.
 
 ---
 

@@ -19,10 +19,17 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./cache:/cache            # géocodage et historique BTC conservés
+      # Dossier de l'hôte où la passerelle écrit son cache (géocodage, historique
+      # BTC). Chemin libre à gauche du « : », par ex. /volume1/docker/modelrogs/cache.
+      # Il est créé au besoin et reçoit automatiquement les bons droits au démarrage.
+      - ./cache:/cache
 
     environment:
       TZ: Europe/Paris            # fuseau par défaut (si la ville est introuvable)
+      # Propriétaire des fichiers du cache sur l'hôte (10001 par défaut).
+      # Mettre son propre compte (commande « id » sur l'hôte) pour les lire facilement.
+      # PUID: "1000"
+      # PGID: "1000"
       VILLE_DEFAUT: Paris         # si l'afficheur n'envoie pas de ville
 
       # ---------------------------------------------------------------
@@ -54,6 +61,10 @@ services:
       - /tmp
     cap_drop:
       - ALL
+    cap_add:                      # uniquement pour préparer le dossier du cache au
+      - CHOWN                     # démarrage, puis quitter root : la passerelle tourne
+      - SETUID                    # ensuite sans aucun privilège
+      - SETGID
     security_opt:
       - no-new-privileges:true
     # Plafond mémoire (la passerelle consomme ~50 Mo). Désactivé par défaut :

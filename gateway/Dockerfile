@@ -31,7 +31,9 @@ RUN adduser -D -H -u 10001 -s /sbin/nologin modelrogs \
  && mkdir -p /cache && chown 10001:10001 /cache
 
 WORKDIR /app
-USER 10001:10001
+# Pas de « USER » ici : le conteneur démarre en root uniquement pour préparer
+# le dossier du cache (création + propriétaire), puis app/__main__.py passe
+# définitivement sur l'utilisateur 10001 (ou PUID:PGID) avant de lancer la passerelle.
 EXPOSE 8080
 VOLUME ["/cache"]
 

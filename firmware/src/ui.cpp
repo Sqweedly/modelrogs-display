@@ -3,7 +3,7 @@
 
 TFT_eSPI tft;
 
-static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F68 };
+static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F76 };
 static int8_t currentFont = -1;
 
 void uiBegin() {
@@ -54,22 +54,60 @@ int textW(const String& s, FontId f) {
   return tft.textWidth(s);
 }
 
-static void dropLastUtf8(String& s) {
-  int n = s.length();
-  while (n > 0 && (s[n - 1] & 0xC0) == 0x80) n--;   // octets de continuation
-  if (n > 0) n--;
-  s.remove(n);
+static int32_t lire32(const uint8_t* p) {
+  return (int32_t)(((uint32_t)pgm_read_byte(p) << 24) | ((uint32_t)pgm_read_byte(p + 1) << 16) |
+                   ((uint32_t)pgm_read_byte(p + 2) << 8) | pgm_read_byte(p + 3));
 }
 
-String fitText(const String& s, FontId f, int maxW) {
-  if (textW(s, f) <= maxW) return s;
-  String t = s;
-  while (t.length() > 0) {
-    dropLastUtf8(t);
-    t.trim();
-    if (textW(t + "…", f) <= maxW) return t + "…";
+bool glyphBox(FontId f, uint16_t code, GlyphBox& g) {
+  const uint8_t* a = FONT_DATA[f];
+  int n = lire32(a);
+  for (int i = 0; i < n; i++) {
+    const uint8_t* r = a + 24 + i * 28;
+    if (lire32(r) != code) continue;
+    g.h = lire32(r + 4); g.w = lire32(r + 8); g.adv = lire32(r + 12);
+    g.dy = lire32(r + 16); g.dx = lire32(r + 20);
+    return true;
   }
-  return "";
+  return false;
+}
+
+// Raccourcit un texte avec « … » pour tenir dans maxW pixels, sans aucune
+// réservation de mémoire : essais dans un tampon fixe sur la pile, longueur
+// trouvée par dichotomie (la largeur croît avec le nombre de caractères).
+String fitText(const String& s, FontId f, int maxW) {
+  useFont(f);
+  const char* src = s.c_str();
+  if (tft.textWidth(src) <= maxW) return s;
+
+  static const char ELLIPSE[] = "\xE2\x80\xA6";   // « … » en UTF-8
+  char buf[72];
+  int n = min<int>(s.length(), sizeof(buf) - sizeof(ELLIPSE));
+
+  // Prépare dans buf le préfixe de longueur `cut` (sans espaces finaux) + « … ».
+  auto essai = [&](int cut) -> int {
+    while (cut > 0 && (src[cut] & 0xC0) == 0x80) cut--;   // début d'un caractère UTF-8
+    int fin = cut;
+    while (fin > 0 && src[fin - 1] == ' ') fin--;
+    memcpy(buf, src, fin);
+    memcpy(buf + fin, ELLIPSE, sizeof(ELLIPSE));          // copie aussi le \0 final
+    return cut;
+  };
+
+  int bas = 0, haut = n, meilleur = -1;   // 0 caractère = « … » seul
+  while (bas <= haut) {
+    int milieu = (bas + haut) / 2;
+    int cut = essai(milieu);
+    if (tft.textWidth(buf) <= maxW) {
+      meilleur = cut;
+      bas = milieu + 1;
+    } else {
+      haut = milieu - 1;
+    }
+  }
+  if (meilleur < 0) return "";
+  essai(meilleur);
+  return String(buf);
 }
 
 void card(int x, int y, int w, int h, int r, uint16_t color, uint16_t bg) {

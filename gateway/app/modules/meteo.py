@@ -1,12 +1,13 @@
 """Météo, heure locale et lever/coucher du soleil via Open-Meteo (gratuit, sans clé)."""
 
 import os
+import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import aiohttp
 
-from ..cache import cache
+from ..cache import SourceIndisponible, cache
 from ..http import get_json
 from ..text import JOURS, JOURS_COURTS, MOIS, ecran
 from . import Module
@@ -45,20 +46,51 @@ def _icone(code: int, jour: bool = True) -> tuple[int, str]:
     return icone, libelle
 
 
+class VilleInconnue(ValueError):
+    """La ville demandée n'existe pas pour le service de géocodage."""
+
+
+# Villes introuvables, mémorisées 1 h pour ne pas réinterroger l'API à chaque
+# appel de l'afficheur (faute de frappe dans le réglage, par exemple).
+INCONNUE_TTL = 3600
+INCONNUES_MAX = 200
+_inconnues: dict[str, float] = {}
+
+
+def normaliser_ville(ville: str) -> str:
+    """« Lyon », «  lyon » et « LYON » désignent la même entrée de cache."""
+    return " ".join((ville or "").split()).casefold()[:64]
+
+
 async def geocoder(session: aiohttp.ClientSession, ville: str) -> dict:
-    """Ville -> {nom, lat, lon, tz}. Conservé indéfiniment (cache disque)."""
-    ville = (ville or VILLE_DEFAUT).strip()
+    """Ville -> {nom, lat, lon, tz}. Conservé 1 an (cache disque)."""
+    ville = " ".join((ville or "").split()) or VILLE_DEFAUT
+    cle = normaliser_ville(ville)
+
+    depuis = _inconnues.get(cle)
+    if depuis is not None:
+        if time.time() - depuis < INCONNUE_TTL:
+            raise VilleInconnue(ville)
+        del _inconnues[cle]
 
     async def charger() -> dict:
         donnees = await get_json(session, GEOCODAGE, {"name": ville, "count": 1, "language": "fr"})
         resultats = donnees.get("results") or []
         if not resultats:
-            raise ValueError(f"ville introuvable : {ville}")
+            raise VilleInconnue(ville)
         res = resultats[0]
         return {"nom": res.get("name", ville), "lat": res["latitude"], "lon": res["longitude"],
                 "tz": res.get("timezone") or TZ_DEFAUT}
 
-    lieu, _ = await cache.obtenir(f"geo-{ville.lower()}", 365 * 86400, charger, persistant=True)
+    try:
+        lieu, _ = await cache.obtenir(f"geo-{cle}", 365 * 86400, charger, persistant=True)
+    except SourceIndisponible as exc:
+        if isinstance(exc.__cause__, VilleInconnue):
+            if len(_inconnues) >= INCONNUES_MAX:
+                _inconnues.pop(next(iter(_inconnues)))   # la plus ancienne
+            _inconnues[cle] = time.time()
+            raise VilleInconnue(ville) from None
+        raise
     return lieu
 
 

@@ -15,6 +15,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 MAINTENANT = datetime.now(timezone.utc)
+APPELS_GEO: list[str] = []
 FMT = "%Y-%m-%d %H:%M:%S.000"
 NOMS = ["NAS", "Home Assistant", "Pi-hole", "Nextcloud", "Plex", "Routeur", "Vaultwarden", "Kuma",
         "Jellyfin", "Grafana", "Gitea", "Paperless", "Immich", "Frigate", "Mosquitto 🦟"]
@@ -24,6 +25,14 @@ def faux_internet() -> web.Application:
     app = web.Application()
 
     async def geo(r):
+        APPELS_GEO.append(r.query["name"])
+        nom = r.query["name"]
+        if nom.lower().startswith("atlantide"):          # ville inexistante
+            return web.json_response({"generationtime_ms": 0.1})
+        if nom.lower().startswith("ville"):              # villes de test du plafond
+            n = int(nom[5:])
+            return web.json_response({"results": [{"name": nom, "latitude": 40 + n / 100, "longitude": 2 + n / 100,
+                                                   "timezone": "Europe/Paris"}]})
         return web.json_response({"results": [{"name": "Lyon", "latitude": 45.75, "longitude": 4.85,
                                                "timezone": "Europe/Paris"}]})
 
@@ -107,9 +116,36 @@ async def principal() -> int:
             echecs += not ok
             print(f"{'OK ' if ok else 'ÉCHEC'} {chemin:40s} {len(texte.encode()):5d} o  {texte[:110]}")
 
+        # --- Cache : ville inconnue mémorisée, clé normalisée, taille bornée
+        from app.cache import cache as C
+        from app.cache import CACHE_DIR
+
+        APPELS_GEO.clear()
+        reponses = [await (await c.get("/meteo?ville=Atlantide")).json() for _ in range(5)]
+        ok = all(r == {"ok": 0, "err": "Ville introuvable"} for r in reponses) and len(APPELS_GEO) == 1
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} ville inconnue x5 -> {len(APPELS_GEO)} appel(s) de géocodage")
+
+        APPELS_GEO.clear()
+        for v in ("  LYON ", "lyon", "Lyon", "lYoN"):
+            await c.get("/meteo?ville=" + v)
+        ok = len(APPELS_GEO) == 0
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} « LYON », « lyon »… -> même entrée ({len(APPELS_GEO)} appel)")
+
+        C.max_entrees = 20
+        for i in range(60):
+            await c.get(f"/time?ville=ville{i}")
+        fichiers = len(list(CACHE_DIR.glob("*.json")))
+        ok = len(C) <= 20 and fichiers <= 20 and len(C._verrous) <= 20
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} 60 villes, plafond 20 -> {len(C)} entrées, "
+              f"{fichiers} fichiers, {len(C._verrous)} verrous")
+
+        C.max_entrees = 200
         # Repli : Kuma tombe -> dernière valeur connue avec p=1
-        from app.cache import cache
-        cache._valeurs["kuma-battements"] = (0, cache._valeurs["kuma-battements"][1])
+        await c.get("/supervision?ids=1,2")   # réalimente le cache Kuma (évincé par le test de plafond)
+        C._valeurs["kuma-battements"] = (0, C._valeurs["kuma-battements"][1])
         await faux.close()
         d = await (await c.get("/supervision?ids=1,2")).json()
         ok = d["ok"] == 1 and d["p"] == 1

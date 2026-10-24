@@ -16,7 +16,7 @@ import os
 import aiohttp
 from aiohttp import web
 
-from .cache import SourceIndisponible
+from .cache import SourceIndisponible, cache
 from .modules import Module, btc, discord_vocal, meteo, supervision
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
@@ -55,6 +55,8 @@ def _route(module: Module, traitement):
             return _json({"ok": 0, "err": f"Non configuré : {erreur}"})
         try:
             return _json(await traitement(request.app[SESSION], dict(request.query)))
+        except meteo.VilleInconnue:
+            return _json({"ok": 0, "err": "Ville introuvable"})
         except SourceIndisponible:
             return _json({"ok": 0, "err": "Source indisponible"})
         except Exception as exc:  # noqa: BLE001 — l'afficheur doit toujours recevoir un JSON
@@ -88,6 +90,7 @@ async def route_sante(request: web.Request) -> web.Response:
 
 
 async def demarrage(app: web.Application) -> None:
+    cache.nettoyer_disque()
     app[SESSION] = aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=8),
         headers={"User-Agent": f"MODELROGS-Display/{VERSION}"},

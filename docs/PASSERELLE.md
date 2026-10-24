@@ -22,7 +22,7 @@ La passerelle est un seul programme Python, lancé dans un conteneur Docker. Ell
 
 ## 2. Démarrage du conteneur
 
-1. Docker lance `python -m app` avec l'utilisateur 10001, non root.
+1. Docker lance `python -m app`. Le dossier du cache est créé si besoin et donné à l'utilisateur 10001 (ou `PUID`:`PGID`), puis le processus abandonne root.
 2. La passerelle lit la variable **`MODULES`** (par exemple `heure,meteo,btc,supervision,discord`).
    - Elle ne garde que les modules qu'elle connaît.
    - Un nom inconnu est ignoré, avec un avertissement dans les journaux.
@@ -101,7 +101,7 @@ Exemple : affichage de la page Bitcoin.
 
 ## 5. Le cache
 
-| Donnée | Durée de validité | Conservée sur disque (`./cache`) |
+| Donnée | Durée de validité | Conservée sur disque (dossier du cache) |
 |---|---|---|
 | Géocodage d'une ville (coordonnées, fuseau) | 1 an | oui |
 | Météo | 15 min | non |
@@ -111,7 +111,9 @@ Exemple : affichage de la page Bitcoin.
 
 - **Pas d'appels en double.** Un verrou par donnée garantit que si plusieurs requêtes arrivent pendant une recharge, une seule va chercher la source ; les autres attendent son résultat.
 - **Repli sur la dernière valeur connue.** Si la source tombe, la passerelle renvoie la dernière donnée avec **`"p":1`** (périmée), et l'afficheur montre un petit point ambre. Sans aucune donnée antérieure, elle répond `ok:0`.
-- **Persistance sur disque.** Grâce au volume `./cache`, un redémarrage du conteneur n'oblige pas à tout redemander.
+- **Persistance sur disque.** Grâce au dossier de l'hôte monté sur `/cache`, un redémarrage du conteneur n'oblige pas à tout redemander.
+- **Taille bornée.** Le cache contient au plus 200 entrées (variable `CACHE_MAX_ENTREES`). Au-delà, les moins récemment utilisées sont supprimées, en mémoire comme sur disque. Au démarrage, les fichiers de plus d'un an ou en surnombre sont effacés.
+- **Villes.** La clé est normalisée : « Lyon », « lyon » et «  LYON  » partagent la même entrée. Une ville introuvable est mémorisée 1 heure : l'afficheur reçoit « Ville introuvable » sans nouvel appel à Open-Meteo.
 
 Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, CoinGecko n'est appelé qu'une fois toutes les 10 minutes, quel que soit le nombre d'écrans.
 
@@ -187,9 +189,11 @@ Ce jeu de caractères doit rester identique à celui des polices du firmware (`f
 |---|---|
 | `environment:` | Modules et accès |
 | `ports: 8080:8080` | Seule porte d'entrée, pour l'afficheur |
-| `volumes: ./cache:/cache` | Seul endroit où le conteneur peut écrire |
+| `volumes: ./cache:/cache` | Dossier de l'hôte (chemin libre à gauche) : seul endroit où le conteneur peut écrire |
+| `cap_add: CHOWN, SETUID, SETGID` | Au démarrage seulement : crée le dossier du cache, lui donne le bon propriétaire, puis quitte root |
+| `PUID` / `PGID` (facultatif) | Propriétaire des fichiers du cache sur l'hôte (10001 par défaut) |
 | `read_only: true` + `tmpfs: /tmp` | Système de fichiers en lecture seule |
-| `cap_drop: ALL`, `no-new-privileges` | Aucun privilège système, même en cas de faille |
+| `cap_drop: ALL`, `no-new-privileges` | Aucun autre privilège ; une fois root quitté, la passerelle n'en a plus aucun |
 | `restart: unless-stopped` | Redémarre seul après une panne ou un redémarrage du serveur |
 | `HEALTHCHECK` (dans l'image) | Interroge `/health` chaque minute : Docker affiche `healthy` ou `unhealthy` |
 | `logging` | Journaux limités à 3 × 5 Mo |

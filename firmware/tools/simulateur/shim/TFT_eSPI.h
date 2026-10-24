@@ -39,6 +39,7 @@ class TFT_eSPI {
   void setTextDatum(uint8_t d) { datum = d; }
   int16_t drawString(const String& s, int32_t x, int32_t y);
   int16_t textWidth(const String& s);
+  int16_t textWidth(const char* s) { return textWidth(String(s)); }
   int unknownGlyphs = 0;   // glyphes absents rencontrés (doivent rester à 0)
 
  private:

@@ -190,7 +190,7 @@ bool gatewayDown = false;
 String urlEncode(const char* s) { return String(s); }
 const char* gwErrorText(int code) { return code == -3 ? "Passerelle injoignable" : "Erreur"; }
 
-int gwGet(const String& path, JsonDocument& doc, JsonDocument*) {
+int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   if (gatewayDown) return gwLastCode = -3;
   for (auto& [prefix, json] : fixtures) {
     if (path.s.rfind(prefix, 0) == 0) {

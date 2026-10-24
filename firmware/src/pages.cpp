@@ -43,10 +43,13 @@ void drawSplash(const String& line1, const String& line2, const String& line3) {
 static int  lastClockMinute = -1;
 static char lastDate[32] = "";
 
+// Page Heure : occupe toute la hauteur utile (3 px masqués en haut et en bas).
+static const int Y_JOUR = 20, Y_CHIFFRES = 41, H_CHIFFRES = 60, Y_DATE = 111, Y_CARTES = 142;
+
 static void drawClockDigits() {
-  tft.fillRect(0, 47, 240, 58, BG);
+  tft.fillRect(0, Y_CHIFFRES - 2, 240, H_CHIFFRES + 4, BG);
   if (!timeValid()) {
-    drawText("--:--", 120, 59, F_32, MUTED, BG, TC_DATUM);
+    drawText("--:--", 120, Y_CHIFFRES + 14, F_32, MUTED, BG, TC_DATUM);
     lastClockMinute = -1;
     return;
   }
@@ -55,31 +58,51 @@ static void drawClockDigits() {
   char hh[3], mm[3];
   snprintf(hh, sizeof(hh), "%02d", minuteOfDay / 60);
   snprintf(mm, sizeof(mm), "%02d", minuteOfDay % 60);
-  int wH = textW(hh, F_68), wC = textW(":", F_68), wM = textW(mm, F_68);
-  int x = 120 - (wH + wC + wM) / 2;
-  drawText(hh, x, 49, F_68, TXT, BG);
-  drawText(":", x + wH, 49, F_68, VIOLET, BG);
-  drawText(mm, x + wH + wC, 49, F_68, TXT, BG);
+  // Chaque chiffre est placé d'après son encre réelle : « : » à égale distance
+  // des heures et des minutes, et centré sur la hauteur des chiffres.
+  const char ch[5] = { hh[0], hh[1], ':', mm[0], mm[1] };
+  GlyphBox g[5];
+  for (int i = 0; i < 5; i++) glyphBox(F_76, (uint8_t)ch[i], g[i]);
+  int hhL = g[0].dx, hhR = g[0].adv + g[1].dx + g[1].w;   // encre des heures (depuis la plume)
+  int mmL = g[3].dx, mmR = g[3].adv + g[4].dx + g[4].w;   // encre des minutes
+  // Écart encre chiffre <-> « : » : 9 px, réduit pour les heures larges
+  // (« 00:00 ») afin que l'ensemble tienne dans 232 px (plume jamais à x = 0).
+  int ECART = (232 - (hhR - hhL) - (mmR - mmL) - g[2].w) / 2;
+  ECART = ECART > 9 ? 9 : (ECART < 3 ? 3 : ECART);
+  int total = (hhR - hhL) + ECART + g[2].w + ECART + (mmR - mmL);
+  int encre = 120 - total / 2;                            // bord gauche de l'encre
+  int xH = encre - hhL;
+  int xC = encre + (hhR - hhL) + ECART - g[2].dx;
+  int xM = encre + (hhR - hhL) + ECART + g[2].w + ECART - mmL;
+  // Centre vertical : (haut + bas) de l'encre, mesuré depuis la ligne de base
+  int dyC = ((g[2].dy * 2 - g[2].h) - (g[0].dy * 2 - g[0].h)) / 2;
+  drawText(String(ch[0]), xH, Y_CHIFFRES, F_76, TXT, BG);
+  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_76, TXT, BG);
+  drawText(":", xC, Y_CHIFFRES + dyC, F_76, VIOLET, BG);
+  drawText(String(ch[3]), xM, Y_CHIFFRES, F_76, TXT, BG);
+  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_76, TXT, BG);
   lastClockMinute = minuteOfDay;
 }
 
+// Carte lever / coucher : icône et libellé en haut, heure en grand dessous.
 static void sunCard(int x, const char* label, const char* value, uint16_t color) {
-  card(x, 147, 100, 46, 12, CARD);
-  halfSun(x + 20, 165, color, CARD);
-  drawText(label, x + 38, 154, F_11, MUTED, CARD);
-  drawText(value, x + 38, 169, F_16, TXT, CARD);
+  const int w = 103, h = 75;
+  card(x, Y_CARTES, w, h, 12, CARD);
+  halfSun(x + 18, Y_CARTES + 15, color, CARD);
+  drawText(label, x + 34, Y_CARTES + 10, F_13, MUTED, CARD);
+  drawText(value, x + w / 2, Y_CARTES + 34, F_32, TXT, CARD, TC_DATUM);
 }
 
 void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
   String jour = gTime.jour;
   jour.toUpperCase();
-  drawText(jour, 120, 25, F_13, MUTED, BG, TC_DATUM);
+  drawText(jour, 120, Y_JOUR, F_13, MUTED, BG, TC_DATUM);
   drawClockDigits();
-  drawText(gTime.date, 120, 114, F_16, TXT2, BG, TC_DATUM);
+  drawText(gTime.date, 120, Y_DATE, F_18, TXT2, BG, TC_DATUM);
   if (gTime.lever[0] && gTime.coucher[0]) {
-    sunCard(16, "Lever", gTime.lever, AMBRE);
-    sunCard(124, "Coucher", gTime.coucher, CORAIL);
+    sunCard(14, "Lever", gTime.lever, AMBRE);
+    sunCard(123, "Coucher", gTime.coucher, CORAIL);
   }
   strncpy(lastDate, gTime.date, sizeof(lastDate) - 1);
   pageDots(dotIndex, dotCount, VIOLET);
@@ -124,12 +147,16 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
     card(cx, 143, 66, 74, 10, CARD);
     drawText(j["d"] | "", cx + 33, 149, F_11, MUTED, CARD, TC_DATUM);
     weatherIcon(j["i"] | 2, cx + 33, 180, 0.42f, CARD);
+    // Même ordre et mêmes couleurs que le jour actuel : min (bleu) / max (ambre)
+    String mn = String((int)(j["mn"] | 0)) + "°";
+    String sep = "/";
     String mx = String((int)(j["mx"] | 0)) + "°";
-    String mn = " " + String((int)(j["mn"] | 0)) + "°";
-    int w = textW(mx, F_13) + textW(mn, F_13);
+    const int esp = 3;
+    int w = textW(mn, F_13) + textW(sep, F_13) + textW(mx, F_13) + 2 * esp;
     int tx = cx + 33 - w / 2;
-    tx += drawText(mx, tx, 197, F_13, TXT, CARD);
-    drawText(mn, tx, 197, F_13, MUTED2, CARD);
+    tx += drawText(mn, tx, 197, F_13, BLEU, CARD) + esp;
+    tx += drawText(sep, tx, 197, F_13, SEP, CARD) + esp;
+    drawText(mx, tx, 197, F_13, AMBRE, CARD);
     k++;
   }
 
@@ -340,12 +367,13 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
   if (n >= 2) {
     uint8_t v[60];
     for (uint8_t i = 0; i < n; i++) v[i] = constrain((int)pts[i], 0, 100);
-    const int X0 = 16, X1 = 222, TOP = 116, BOT = 186;
+    const int X0 = 14, X1 = 220, TOP = 116, BOT = 204;   // courbe sur toute la largeur
+    const float BASE = 200, ECH = 0.84f;   // 0 -> y=200, 100 -> y=116
     uint16_t line = u7 ? VERT : ROUGE;
     auto yAt = [&](float idx) {
       uint8_t i = min<int>((int)idx, n - 2);
       float f = idx - i;
-      float a = 182 - v[i] * 0.6f, b = 182 - v[i + 1] * 0.6f;
+      float a = BASE - v[i] * ECH, b = BASE - v[i + 1] * ECH;
       return a + (b - a) * f;
     };
     // Aire sous la courbe : dégradé vertical (opaque en haut, transparent en bas)
@@ -360,16 +388,16 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     for (uint8_t i = 0; i + 1 < n; i++) {
       float xa = X0 + (float)i * (X1 - X0) / (n - 1);
       float xb = X0 + (float)(i + 1) * (X1 - X0) / (n - 1);
-      tft.drawWideLine(xa, 182 - v[i] * 0.6f, xb, 182 - v[i + 1] * 0.6f, 2.5f, line, BG);
+      tft.drawWideLine(xa, BASE - v[i] * ECH, xb, BASE - v[i + 1] * ECH, 2.5f, line, BG);
     }
-    int ye = (int)lroundf(182 - v[n - 1] * 0.6f);
+    int ye = (int)lroundf(BASE - v[n - 1] * ECH);
     uint16_t halo = tft.alphaBlend(64, line, BG);
     tft.fillSmoothCircle(X1, ye, 6, halo, BG);
     tft.fillSmoothCircle(X1, ye, 3, line, halo);
   }
 
-  drawText(doc["d0"] | "", 14, 190, F_11, MUTED2, BG);
-  drawText(doc["d1"] | "", 226, 190, F_11, MUTED2, BG, TR_DATUM);
+  drawText(doc["d0"] | "", 14, 206, F_11, MUTED2, BG);
+  drawText(doc["d1"] | "", 226, 206, F_11, MUTED2, BG, TR_DATUM);
 
   staleMark(doc["p"] | 0);
   pageDots(dotIndex, dotCount, BTC);

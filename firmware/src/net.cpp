@@ -80,12 +80,23 @@ String urlEncode(const char* s) {
   return out;
 }
 
-int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter) {
+static uint8_t  gwFails = 0;      // échecs de connexion consécutifs
+static uint32_t gwRetryAt = 0;    // millis() à partir duquel on réessaie
+static const uint16_t GW_PAUSES_S[] = { 5, 15, 30, 60 };
+
+uint32_t gwRetryInSeconds() {
+  int32_t reste = (int32_t)(gwRetryAt - millis());
+  return (gwFails && reste > 0) ? (reste + 999) / 1000 : 0;
+}
+
+int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool interactif) {
   int code;
   if (!staConnected()) {
     code = -1;
   } else if (cfg.gateway[0] == '\0') {
     code = -2;
+  } else if (!interactif && gwRetryInSeconds() > 0) {
+    return -3;   // temporisation en cours : pas de tentative, réponse immédiate
   } else {
     WiFiClient client;
     HTTPClient http;
@@ -112,6 +123,14 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter) {
       }
       http.end();
     }
+  }
+  // Passerelle injoignable ou en erreur serveur : on espace les tentatives.
+  if (code == -3 || code >= 500) {
+    if (gwFails < 255) gwFails++;
+    uint8_t i = min<uint8_t>(gwFails, sizeof(GW_PAUSES_S) / sizeof(GW_PAUSES_S[0])) - 1;
+    gwRetryAt = millis() + GW_PAUSES_S[i] * 1000UL;
+  } else if (code != -1 && code != -2) {
+    gwFails = 0;   // la passerelle a répondu : rythme normal
   }
   gwLastCode = code;
   if (code == 200) gwLastOkMs = millis();

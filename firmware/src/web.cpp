@@ -2,6 +2,7 @@
 #include "app.h"
 #include "config.h"
 #include "net.h"
+#include "sante.h"
 
 #include <ArduinoJson.h>
 #include <DNSServer.h>
@@ -124,7 +125,7 @@ static int fetchList(const char* src, JsonDocument& list) {
   filter["err"] = true;
   filter["s"][0]["id"] = true;
   filter["s"][0]["n"] = true;
-  return gwGet(src, list, &filter);
+  return gwGet(src, list, &filter, true);
 }
 
 // Affiche un champ ; false si impossible (liste injoignable, type inconnu) :
@@ -198,7 +199,7 @@ static void renderModules(Chunks& c) {
   c.flush();
 
   JsonDocument man;
-  int code = gwGet("/modules", man);
+  int code = gwGet("/modules", man, nullptr, true);
   if (code != 200) {
     c << F("<p class='warn'>Modules de la passerelle inconnus : ") << gwErrorText(code)
       << F(".</p><p class='note'>Les réglages des modules sont conservés. L'afficheur doit être "
@@ -284,10 +285,16 @@ static void handleRoot() {
     << gwErrorText(gwLastCode);
   if (gMods.known) c << F(" — version ") << esc(gMods.version);
   if (gwLastOkMs) c << F(" (dernière réponse il y a ") << (long)((millis() - gwLastOkMs) / 1000) << F(" s)");
+  if (gwRetryInSeconds()) c << F(" — nouvel essai dans ") << (long)gwRetryInSeconds() << F(" s");
   c << F("</span>");
   if (timeValid()) c << F("<b>Heure</b><span>") << hhmm(localMinuteOfDay()) << F("</span>");
-  c << F("<b>Mémoire libre</b><span>") << (long)ESP.getFreeHeap() << F(" o (fragmentation ")
-    << (long)ESP.getHeapFragmentation() << F(" %)</span>")
+  c << F("<b>Mémoire libre</b><span>") << (long)ESP.getFreeHeap() << F(" o — minimum depuis le démarrage ")
+    << (long)santeMinTasLibre() << F(" o</span>")
+    << F("<b>Plus grand bloc libre</b><span>") << (long)ESP.getMaxFreeBlockSize() << F(" o — minimum ")
+    << (long)santeMinBlocLibre() << F(" o (fragmentation ") << (long)ESP.getHeapFragmentation() << F(" %)</span>")
+    << F("<b>Dernier démarrage</b><span>") << santeCauseDemarrage() << F("</span>")
+    << F("<b>Redémarrage préventif</b><span>chaque nuit à 2 h 15 — ") << (long)santeRedemarragesPlanifies()
+    << F(" depuis la mise sous tension</span>")
     << F("<b>Flash</b><span>") << (long)(ESP.getFlashChipRealSize() / 1048576) << F(" Mo — firmware ")
     << (long)(ESP.getSketchSize() / 1024) << F(" Ko — place libre pour l'OTA ")
     << (long)(ESP.getFreeSketchSpace() / 1024) << F(" Ko</span>")
@@ -460,7 +467,7 @@ static void handleRestart() {
     + FPSTR(STYLE) + F("</head><body><section><h2>Redémarrage...</h2>"
     "<p>Reconnectez-vous au Wi-Fi de l'afficheur si nécessaire.</p></section></body></html>"));
   delay(200);
-  clearBootGuardAndRestart();
+  santeRedemarrer(CAUSE_INTERFACE);
 }
 
 static void handleShow() {

@@ -43,21 +43,25 @@ void drawSplash(const String& line1, const String& line2, const String& line3) {
 static int  lastClockMinute = -1;
 static char lastDate[32] = "";
 
-// Page Heure : occupe toute la hauteur utile (3 px masqués en haut et en bas).
-// Page Heure, en deux blocs qui occupent toute la hauteur utile (y 3..222) :
-//  - en haut, « date + heure » : jour à gauche et date à droite, puis l'heure
-//    en 72 px, qui domine ;
-//  - en bas, « météo » : icône ajustée à son empreinte et température en
-//    grand, min / max dessous.
-// Les espaces entre le haut de l'écran, l'en-tête, l'heure, la météo et les
-// points de pagination sont égaux (ESPACE). Marges latérales de 14 px.
-static const int X_G = 14, X_D = 226;
-// Hauteurs d'encre : en-tête 16 px (barre de la date comprise), chiffres
-// 54 px, zone météo 98 px ; les 4 espaces (haut, en-tête/heure, heure/météo,
-// météo/points) font 13 à 15 px.
-static const int Y_ENTETE = 12;                        // texte de l'en-tête (encre y 16..31)
-static const int Y_CHIFFRES = 45, H_CHIFFRES = 56;    // texte des chiffres (encre y 45..98)
-static const int Y_METEO = 112, H_METEO = 98;         // zone météo (y 112..209)
+// Page Heure : en-tête (jour à gauche, date JJ/MM/AA à droite, alignés sur
+// les bords des chiffres x 24..216), heure en 68 px, météo du jour en bas.
+// Bloc météo posé en bas de l'écran (bas de l'encre en y 214, juste au-dessus
+// des points) : icône ajustée à son empreinte, centrée en x 72 ; température
+// et min / max centrés en x 168 et sur la hauteur réelle de l'icône.
+// L'heure est centrée entre l'en-tête et le haut du bloc météo.
+static const int X_G = 24, X_D = 216;
+static const int Y_ENTETE = 14, FIN_ENTETE = 34;      // encre de l'en-tête : y 18..33
+static const int METEO_BAS = 215;                      // bas (exclu) de l'encre météo
+static const int ICONE_X = 24, ICONE_W = 96, ICONE_H = 80, TEMP_CX = 168, ECART_TMM = 12;
+static const int SANS_METEO = 222;                     // haut des points de pagination
+static int yChiffres = 0;                              // haut de l'encre des chiffres
+
+// Place l'heure au centre de l'espace entre l'en-tête et `haut`.
+static void placerChiffres(int haut) {
+  GlyphBox g;
+  glyphBox(F_68, '0', g);
+  yChiffres = FIN_ENTETE + (haut - FIN_ENTETE - g.h + 1) / 2;
+}
 
 // Date locale JJ/MM/AA calculée à partir de l'horloge (jours depuis 1970 ->
 // année, mois, jour : algorithme « civil_from_days »).
@@ -75,9 +79,12 @@ static void dateCourte(char* out, size_t n) {
 }
 
 static void drawClockDigits() {
-  tft.fillRect(0, Y_CHIFFRES - 2, 240, H_CHIFFRES + 4, BG);
+  GlyphBox g0;
+  glyphBox(F_68, '0', g0);
+  const int Y_CHIFFRES = yChiffres - (fontAscent(F_68) - g0.dy);   // ligne de texte
+  tft.fillRect(0, yChiffres - 3, 240, g0.h + 6, BG);
   if (!timeValid()) {
-    drawText("--:--", 120, Y_CHIFFRES + 14, F_32, MUTED, BG, TC_DATUM);
+    drawText("--:--", 120, yChiffres + 10, F_32, MUTED, BG, TC_DATUM);
     lastClockMinute = -1;
     return;
   }
@@ -90,12 +97,12 @@ static void drawClockDigits() {
   // des heures et des minutes, et centré sur la hauteur des chiffres.
   const char ch[5] = { hh[0], hh[1], ':', mm[0], mm[1] };
   GlyphBox g[5];
-  for (int i = 0; i < 5; i++) glyphBox(F_72, (uint8_t)ch[i], g[i]);
+  for (int i = 0; i < 5; i++) glyphBox(F_68, (uint8_t)ch[i], g[i]);
   int hhL = g[0].dx, hhR = g[0].adv + g[1].dx + g[1].w;   // encre des heures (depuis la plume)
   int mmL = g[3].dx, mmR = g[3].adv + g[4].dx + g[4].w;   // encre des minutes
   // Écart encre chiffre <-> « : » : 9 px, réduit pour les heures larges
-  // (« 00:00 ») afin que l'ensemble tienne dans 216 px (12 px de marge de chaque côté).
-  int ECART = (216 - (hhR - hhL) - (mmR - mmL) - g[2].w) / 2;
+  // (« 00:00 ») afin que l'ensemble tienne dans 232 px.
+  int ECART = (232 - (hhR - hhL) - (mmR - mmL) - g[2].w) / 2;
   ECART = ECART > 9 ? 9 : (ECART < 3 ? 3 : ECART);
   int total = (hhR - hhL) + ECART + g[2].w + ECART + (mmR - mmL);
   int encre = 120 - total / 2;                            // bord gauche de l'encre
@@ -104,43 +111,51 @@ static void drawClockDigits() {
   int xM = encre + (hhR - hhL) + ECART + g[2].w + ECART - mmL;
   // Centre vertical : (haut + bas) de l'encre, mesuré depuis la ligne de base
   int dyC = ((g[2].dy * 2 - g[2].h) - (g[0].dy * 2 - g[0].h)) / 2;
-  drawText(String(ch[0]), xH, Y_CHIFFRES, F_72, TXT, BG);
-  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_72, TXT, BG);
-  drawText(":", xC, Y_CHIFFRES + dyC, F_72, VIOLET, BG);
-  drawText(String(ch[3]), xM, Y_CHIFFRES, F_72, TXT, BG);
-  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_72, TXT, BG);
+  drawText(String(ch[0]), xH, Y_CHIFFRES, F_68, TXT, BG);
+  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_68, TXT, BG);
+  drawText(":", xC, Y_CHIFFRES + dyC, F_68, VIOLET, BG);
+  drawText(String(ch[3]), xM, Y_CHIFFRES, F_68, TXT, BG);
+  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_68, TXT, BG);
   lastClockMinute = minuteOfDay;
 }
 
-// Météo du jour : à gauche l'icône, agrandie au maximum selon son empreinte
-// réelle et centrée dans sa zone ; à droite la température en 52 px et le
-// min / max, centrés ensemble dans leur colonne et sur la hauteur de la zone.
-static void carteMeteoDuJour() {
-  JsonDocument doc;
-  if (gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) != 200) return;   // l'horloge reste seule
-  const int cy = Y_METEO + H_METEO / 2, ecart = 12, gapIT = 16;
+// Météo du jour (sans carte ni libellé : l'icône suffit). Renvoie le haut de
+// l'encre du bloc, ou SANS_METEO si la passerelle ne répond pas.
+static int carteMeteoDuJour(JsonDocument& doc, bool ok) {
+  if (!ok) return SANS_METEO;
   uint8_t code = doc["i"] | 2;
   String t = String((int)(doc["t"] | 0)) + "°";
   String a = String((int)(doc["mn"] | 0)) + "°", s = " / ", b = String((int)(doc["mx"] | 0)) + "°";
   int wMM = textW(a, F_18) + textW(s, F_18) + textW(b, F_18);
-  int wT = max(textW(t, F_52), wMM);                       // largeur de la colonne de texte
-  // Icône : la plus grande qui laisse la place au texte (zone de 104 x H_METEO au plus)
-  int iw, ih;
-  weatherIconScale(code, min(104, 212 - gapIT - wT), H_METEO, &iw, &ih);
-  // Icône + texte centrés ensemble sur l'écran, d'après leurs largeurs réelles
-  int x0 = 120 - (iw + gapIT + wT) / 2;
-  weatherIconFit(code, x0, Y_METEO, iw, H_METEO, BG);
-  const int cx = x0 + iw + gapIT + wT / 2;
-  GlyphBox gT, gM;
+  int wT = max(textW(t, F_52), wMM);
+  // Hauteurs d'encre réelles : chiffres du 52 px ; min / max avec la barre « / »,
+  // qui monte et descend plus que les chiffres.
+  GlyphBox gT, gM, gS;
   glyphBox(F_52, '0', gT);
   glyphBox(F_18, '0', gM);
-  int haut = cy - (gT.h + ecart + gM.h) / 2 - 1;           // haut de l'encre de la température
-  drawText(t, cx, haut - (fontAscent(F_52) - gT.dy), F_52, TXT, BG, TC_DATUM);
-  int x = cx - wMM / 2, y = haut + gT.h + ecart - (fontAscent(F_18) - gM.dy);
+  glyphBox(F_18, '/', gS);
+  const int mHaut = max(gM.dy, gS.dy);                                   // au-dessus de la ligne de base
+  const int mBas = max(gM.h - gM.dy, gS.h - gS.dy);                      // au-dessous
+  const int hTexte = gT.h + ECART_TMM + mHaut + mBas;
+  // Colonne de texte collée au bord droit (x 216), 96 px au moins ; l'icône prend le reste
+  const int colW = max(wT, 2 * (X_D - TEMP_CX));
+  const int cx = X_D - colW / 2;
+  const int icW = min(ICONE_W, X_D - wT - 16 - ICONE_X);   // 96 px (centre x 72) sauf texte large
+  int iw, ih;
+  weatherIconScale(code, icW, ICONE_H, &iw, &ih);
+  const int hBloc = max(ih, hTexte);
+  const int haut = METEO_BAS - hBloc;
+  // Centre commun de l'icône et du texte (en demi-pixels pour rester exact)
+  const int cy2 = 2 * haut + hBloc;
+  weatherIconFit(code, ICONE_X, (cy2 - ICONE_H) / 2, icW, ICONE_H, BG);
+  int hautT = (cy2 - hTexte) / 2;                           // haut de l'encre de la température
+  drawText(t, cx, hautT - (fontAscent(F_52) - gT.dy), F_52, TXT, BG, TC_DATUM);
+  int x = cx - wMM / 2, y = hautT + gT.h + ECART_TMM + mHaut - gM.dy - (fontAscent(F_18) - gM.dy);
   x += drawText(a, x, y, F_18, BLEU, BG);
   x += drawText(s, x, y, F_18, SEP, BG);
   drawText(b, x, y, F_18, AMBRE, BG);
   staleMark(doc["p"] | 0);
+  return haut;
 }
 
 void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
@@ -153,8 +168,10 @@ void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
     dateCourte(d, sizeof(d));
     drawText(d, X_D, Y_ENTETE, F_18, TXT2, BG, TR_DATUM);
   }
+  JsonDocument doc;
+  bool ok = gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) == 200;   // sinon l'horloge reste seule
+  placerChiffres(carteMeteoDuJour(doc, ok));
   drawClockDigits();
-  carteMeteoDuJour();
   strncpy(lastDate, gTime.date, sizeof(lastDate) - 1);
   pageDots(dotIndex, dotCount, VIOLET);
 }

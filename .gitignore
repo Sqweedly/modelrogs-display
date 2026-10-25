@@ -17,3 +17,7 @@ firmware/bin/
 *.bin
 *.bin.gz
 dist/
+firmware/tools/simulateur/banc/
+firmware/tools/simulateur/test_config
+firmware/tools/simulateur/test_fit
+firmware/tools/simulateur/sim_lib.o

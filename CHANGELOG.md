@@ -22,10 +22,11 @@ Pages Heure, Météo et Crypto redessinées, pages Crypto sur 30 jours.
 - **Variation sur 30 jours** en plus des variations 24 h et 7 jours.
 
 ### Modifié
-- **Heure** : deux blocs qui occupent tout l'écran, avec des espaces égaux (environ 13 px).
-  - En haut, « date + heure » : jour à gauche, date JJ/MM/AA à droite (en gras, calculée par l'afficheur), puis l'heure en 72 px, qui domine.
-  - En bas, « météo du jour » à la place du lever et du coucher du soleil, sans carte : icône et température actuelle en grand, min / max dessous, sans libellé.
-  - L'icône est agrandie selon son empreinte réelle (un soleil rond n'occupe pas la même place qu'un nuage avec pluie), puis l'icône et la température sont centrées ensemble sur l'écran.
+- **Heure**
+  - En-tête : jour à gauche, date JJ/MM/AA à droite (en gras, calculée par l'afficheur), alignés sur les bords de l'heure.
+  - **Météo du jour** à la place du lever et du coucher du soleil, sans carte ni libellé, posée en bas de l'écran : icône à gauche, température actuelle en grand et min / max à droite.
+  - L'icône est agrandie selon son empreinte réelle (un soleil rond n'occupe pas la même place qu'un nuage avec pluie) ; la température et le min / max sont centrés sur sa hauteur. Avec une température longue (« -12° »), l'icône rétrécit un peu pour que rien ne dépasse.
+  - L'heure est centrée entre l'en-tête et le haut de la météo.
 - **Météo** : prévisions sur **5 jours**, sans nom de ville ni météo du jour, en 5 blocs identiques (3 en haut, 2 en bas, centrés, espaces égaux). Chaque icône est ajustée à son empreinte dans une zone fixe ; les températures passent en 12 px quand elles sont trop longues pour garder un écart entre les blocs.
 - **Crypto**
   - Plus de titre, de date ni de bulle.
@@ -38,7 +39,7 @@ Pages Heure, Météo et Crypto redessinées, pages Crypto sur 30 jours.
 - **Passerelle**
   - 6 jours demandés à Open-Meteo (aujourd'hui et les 5 suivants).
   - Variations 24 h, 7 j et 30 j de chaque crypto ; indicateur de page dédiée ; courbe sur 30 jours (CoinGecko `market_chart`, gardée 30 minutes) et route `/btc/30j`.
-- Polices : symbole « ° » ajouté au 32 px ; nouvelles tailles de 26 px (prix) et 72 px (heure).
+- Polices : symbole « ° » ajouté au 32 px ; nouvelle taille de 26 px (prix).
 
 ### Mise à jour
 - Passerelle avant l'afficheur, sinon la page Météo n'affiche que 3 jours et les écrans Crypto n'ont ni courbe ni variation sur 30 jours. `docker-compose.yml` inchangé.

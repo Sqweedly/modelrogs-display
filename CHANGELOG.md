@@ -12,51 +12,37 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [2.8.0] — 2026-10-25
+## [2.7.0] — 2026-10-25
 
-Pages Heure et Météo sans cartes, nouveaux écrans Crypto.
+Pages Heure, Météo et Crypto redessinées, pages Crypto sur 30 jours.
 
 ### Ajouté
-- **Page dédiée** : avec 2 ou 3 cryptos, chaque crypto dont la variation sur 7 jours atteint **+5 % ou −5 %** a sa propre page, identique à celle d'une crypto seule (30 jours), affichée juste après l'écran « prix en vedette ».
-- Passerelle : variation sur 30 jours, courbe sur 30 jours (CoinGecko, gardée 30 min), route `/btc/30j`.
-
-### Modifié
-- **Heure** : plus de carte sous la météo du jour ; icône agrandie (environ 75 px de large).
-- **Météo** : plus de cartes ni de traits ; icônes agrandies (environ 105 px pour les 2 prochains jours, 75 px pour les 3 suivants), jours et températures plus grands.
-- **Crypto, 1 crypto choisie** : courbe sur **30 jours**, la plus grande possible ; logo et prix sur une ligne ; variations 24 h, 7 j et 30 j sans bulle, en colonnes.
-- **Crypto, 2 ou 3 cryptos** : écran « prix en vedette » sans bulle : grand logo, prix en grand, et les variations « 24 h » et « 7 j » sur une même ligne, alignées en colonnes d'une crypto à l'autre, dans la plus grande police qui tient. Plus de nom de crypto.
-- Intitulés des variations (24 h, 7 j, 30 j) dans la couleur de la variation (vert ou rouge).
-- **Prix** : au moins 4 chiffres pour toutes les cryptos (2,184 €, 0,08214 €), 2 décimales quand elles suffisent.
-
-### Mise à jour
-- Passerelle avant l'afficheur (sinon les écrans Crypto n'ont ni courbe ni variation sur 30 jours). `docker-compose.yml` inchangé.
-
----
-
-## [2.7.0] — 2026-10-24
-
-Pages Heure, Météo et Crypto redessinées.
+- **Crypto, page dédiée** : avec 2 ou 3 cryptos, chaque crypto dont la variation sur 7 jours atteint **+5 % ou −5 %** a sa propre page, identique à celle d'une crypto seule (30 jours). Elle s'affiche juste après l'écran « prix en vedette », avec la durée d'une page normale.
+- **Crypto, courbe sur 30 jours** pour une crypto seule et pour les pages dédiées, avec la mention « 30 J » en filigrane dans le graphique.
+- **Variation sur 30 jours** en plus des variations 24 h et 7 jours.
 
 ### Modifié
 - **Heure**
   - En-tête en gras : le jour à gauche, la date au format JJ/MM/AA à droite, calculée par l'afficheur.
   - Chiffres de l'heure réduits d'environ 10 % (68 px au lieu de 76 px).
-  - Carte **météo du jour** à la place du lever et du coucher du soleil : grande icône, température actuelle, min et max. Pas de libellé, l'icône suffit.
-  - Tout est aligné sur les mêmes bords, avec des espaces égaux entre l'en-tête, l'heure et la carte.
+  - **Météo du jour** à la place du lever et du coucher du soleil, sans carte : grande icône (environ 75 px), température actuelle, min et max. Pas de libellé, l'icône suffit.
+  - Tout est aligné sur les mêmes bords, avec des espaces égaux entre l'en-tête, l'heure et la météo.
 - **Météo**
   - Prévisions sur **5 jours**, sans nom de ville ni météo du jour (affichée sur la page Heure).
-  - Les 2 prochains jours en grand, les 3 suivants dessous, avec les plus grandes icônes possibles.
+  - Les 2 prochains jours en grand, les 3 suivants dessous, sans cartes ni traits : icônes d'environ 105 px et 75 px.
 - **Crypto**
-  - Plus de titre, de date ni de mention « 7 jours ».
-  - 1 crypto : logo et nom agrandis, courbe jusqu'en bas de l'écran.
-  - 2 cryptos : deux moitiés rééquilibrées, logos et noms agrandis.
-  - 3 cryptos : trois bandes comme la page à 2 ; la variation sur 7 jours est centrée automatiquement entre le symbole et le prix.
-  - Prix avec **2 décimales au plus** (sans décimale à partir de 1 000) : 57 864 €, 142,35 €, 2,18 €.
-- **Passerelle :** 6 jours demandés à Open-Meteo (aujourd'hui et les 5 suivants).
+  - Plus de titre, de date ni de bulle.
+  - **1 crypto** : logo et prix sur une ligne, variations 24 h, 7 j et 30 j en colonnes, puis la plus grande courbe possible sur 30 jours.
+  - **2 ou 3 cryptos** : écran « prix en vedette » : grand logo, prix en grand, et les variations « 24 h » et « 7 j » sur une même ligne, alignées en colonnes d'une crypto à l'autre, dans la plus grande police qui tient.
+  - Intitulés des variations (24 h, 7 j, 30 j) dans la couleur de la variation (vert ou rouge).
+  - **Prix** avec au moins 4 chiffres, 2 décimales quand elles suffisent : 57 864 €, 142,35 €, 2,184 €, 0,08214 €.
+- **Passerelle**
+  - 6 jours demandés à Open-Meteo (aujourd'hui et les 5 suivants).
+  - Variations 24 h, 7 j et 30 j de chaque crypto ; indicateur de page dédiée ; courbe sur 30 jours (CoinGecko `market_chart`, gardée 30 minutes) et route `/btc/30j`.
 - Polices : symbole « ° » ajouté au 32 px.
 
 ### Mise à jour
-- Passerelle avant l'afficheur, sinon la page Météo n'affiche que 3 jours. `docker-compose.yml` inchangé.
+- Passerelle avant l'afficheur, sinon la page Météo n'affiche que 3 jours et les écrans Crypto n'ont ni courbe ni variation sur 30 jours. `docker-compose.yml` inchangé.
 
 ---
 
@@ -182,7 +168,6 @@ Première version publiée dans ce dépôt.
 - OTA `/update` conservée.
 - Reprise automatique de la configuration du firmware « MODELROGS Discord » et de MODELROGS Display 2.0 (Wi-Fi, passerelle, services supervisés).
 
-[2.8.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.8.0
 [2.7.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.0
 [2.6.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.6.0
 [2.5.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.5.0

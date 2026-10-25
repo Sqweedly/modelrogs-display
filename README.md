@@ -230,7 +230,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
 - Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. Jusqu'à 4 personnes : une carte chacune (photo, durée de présence, micro ou casque coupé, LIVE, caméra) ; au-delà, une grille de photos.
 - Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : affiche, titre, qui regarde, lecture directe ou transcodage, progression. Plusieurs : liste de 3 lignes.
-- Crypto : 1 crypto choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque crypto qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 €).
+- Crypto : 1 crypto choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque crypto qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 €).
 - Supervision : **n'apparaît qu'en cas de problème** (panne, service instable, Kuma injoignable) ; tout va bien = page masquée. Tuiles jusqu'à 12 services, au-delà un compteur et la liste des problèmes. Une maintenance seule ne fait pas apparaître la page.
 - Une panne affiche l'écran d'alerte rouge immédiatement, puis l'alerte alterne avec les pages (un écran sur deux) jusqu'au retour à la normale.
 - Un point ambre en haut à droite signale une donnée ancienne (source injoignable).

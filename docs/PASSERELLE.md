@@ -148,7 +148,7 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
 
 ### Crypto (`/btc?ids=&devise=` et `/btc/30j?id=&devise=`)
 
-Voir le parcours d'une requête (section 4) : depuis la 2.8.0, la réponse ne contient plus de courbe sur 7 jours, mais les variations 24 h, 7 j et 30 j de chaque crypto.
+Voir le parcours d'une requête (section 4) : depuis la 2.7.0, la réponse ne contient plus de courbe sur 7 jours, mais les variations 24 h, 7 j et 30 j de chaque crypto.
 - **Réglages de l'afficheur** : jusqu'à **3 cryptos** parmi une liste (Bitcoin, Ethereum, XRP, Solana, BNB, Cardano, Dogecoin, TRON, Litecoin, Polkadot), et la devise (`eur` ou `usd`). Sans choix, Bitcoin.
 - **Une crypto choisie** : la réponse contient sa **courbe sur 30 jours** (`p30`, 60 points normalisés), tirée de CoinGecko `/coins/<id>/market_chart?days=30` et gardée 30 minutes.
 - **Deux ou trois** : pas de courbe (écran « prix en vedette »). Chaque crypto porte `x: 1` si sa variation sur 7 jours atteint **+5 % ou −5 %** : l'afficheur lui consacre alors une page supplémentaire, qu'il demande à **`/btc/30j?id=<id>`** (même contenu qu'une crypto seule, courbe sur 30 jours comprise).

@@ -527,7 +527,14 @@ static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool 
   logoCrypto(c, 14, 10, 36, BG);
   drawText(fitText(c["px"] | "", F_32, 164), 60, 11, F_32, TXT, BG);
   colonnesVariations(c, 14, 226, 54, F_11, F_16, 15, true);
-  courbe(c["p30"], 14, 220, 94, 218, (c["u30"] | 1) ? VERT : ROUGE, BG, true, 2.5f, true);
+  // Courbe sur 30 jours, avec « 30 J » en filigrane dans le graphique :
+  // dégradé, puis filigrane, puis la ligne qui repasse devant.
+  const int haut = 94, bas = 218, yF = 160;
+  uint16_t ligne = (c["u30"] | 1) ? VERT : ROUGE;
+  courbe(c["p30"], 14, 220, haut, bas, ligne, BG, true, 2.5f, false);
+  uint16_t fondF = tft.alphaBlend(90 * (bas - (yF + 15)) / (bas - haut), ligne, BG);
+  drawText("30 J", 120, yF, F_32, tft.alphaBlend(70, TXT, fondF), fondF, TC_DATUM);
+  courbe(c["p30"], 14, 220, haut, bas, ligne, BG, false, 2.5f, true);
   staleMark(perime);
   pageDots(dotIndex, dotCount, accentCrypto(c["s"] | ""));
 }

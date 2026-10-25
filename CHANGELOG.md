@@ -12,6 +12,12 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [À venir]
+
+### Corrigé
+- **Image Docker** : les étiquettes `2.7`, `2` et `latest` ne sont plus déplacées par la republication d'une ancienne version. Avant, remplacer la 2.7.0 au moment de la sortie de la 2.7.1 pouvait laisser `:2` (celle de `docker-compose.yml`) sur l'image 2.7.0. Les publications passent désormais l'une après l'autre, et chaque étiquette est vérifiée après l'envoi.
+- **Release remplacée** : les notes sont aussi mises à jour, plus seulement les fichiers.
+
 ## [2.7.1] — 2026-10-25
 
 Pages Discord et Météo réorganisées, bas de l'écran mieux utilisé.

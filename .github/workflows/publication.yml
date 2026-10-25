@@ -10,6 +10,12 @@ on:
   push:
     tags: ["v*.*.*"]
 
+# Une publication à la fois : deux tags poussés ensemble (ex. une version
+# remplacée et une nouvelle) ne se disputent plus les étiquettes de l'image.
+concurrency:
+  group: publication
+  cancel-in-progress: false
+
 permissions:
   contents: write    # création de la Release
   packages: write    # publication de l'image sur ghcr.io
@@ -79,6 +85,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # tous les tags : pour savoir si cette version est la plus récente
+
+      # Les étiquettes « flottantes » (x.y, x, latest) ne sont déplacées que si
+      # cette version est la plus récente de sa série : republier une ancienne
+      # version (ex. 2.7.0 remplacée après la sortie de la 2.7.1) ne touche
+      # qu'à son étiquette exacte.
+      - name: Version la plus récente ?
+        id: recente
+        run: |
+          git fetch --force --tags
+          V="${GITHUB_REF_NAME#v}"
+          MAJ="${V%%.*}"; RESTE="${V#*.}"; MIN="${RESTE%%.*}"
+          TOUTES=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
+          HAUTE=$(echo "$TOUTES" | tail -1)
+          HAUTE_MAJ=$(echo "$TOUTES" | grep "^${MAJ}\." | tail -1)
+          HAUTE_MIN=$(echo "$TOUTES" | grep "^${MAJ}\.${MIN}\." | tail -1)
+          echo "latest=$([ "$V" = "$HAUTE" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "majeure=$([ "$V" = "$HAUTE_MAJ" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "mineure=$([ "$V" = "$HAUTE_MIN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "Version $V ; plus récentes : $HAUTE (globale), $HAUTE_MAJ ($MAJ.x), $HAUTE_MIN ($MAJ.$MIN.x)"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -90,16 +117,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Étiquettes de version (x.y.z, x.y, x, latest)
+      - name: Étiquettes de version (x.y.z, et x.y, x, latest si plus récente)
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
+          flavor: |
+            latest=false
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.recente.outputs.mineure }}
+            type=semver,pattern={{major}},enable=${{ steps.recente.outputs.majeure }}
+            type=raw,value=latest,enable=${{ steps.recente.outputs.latest }}
 
       - name: Construction multi-architecture et publication
         uses: docker/build-push-action@v6
@@ -112,6 +141,25 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Contrôle après publication : chaque étiquette pointe sur l'image qui vient
+      # d'être construite, et cette image annonce bien la version du tag.
+      - name: Vérification des étiquettes publiées
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          REF=$(docker buildx imagetools inspect "$IMAGE:$V" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "### Image $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          for T in $TAGS; do
+            D=$(docker buildx imagetools inspect "$T" --format '{{json .Manifest}}' | jq -r .digest)
+            echo "- \`${T#$IMAGE:}\` → $D" >> "$GITHUB_STEP_SUMMARY"
+            [ "$D" = "$REF" ] || { echo "::error::$T ne pointe pas sur l'image $V"; exit 1; }
+          done
+          docker pull -q --platform linux/amd64 "$IMAGE:$V" > /dev/null
+          LUE=$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$IMAGE:$V")
+          [ "$LUE" = "$V" ] || { echo "::error::l'image $V annonce la version « $LUE »"; exit 1; }
+          echo "Image $V vérifiée : $TAGS"
 
   release:
     name: Release GitHub
@@ -140,7 +188,7 @@ jobs:
           **Firmware** (afficheur SmallTV) : connectez-vous au Wi-Fi de l'afficheur, ouvrez
           \`http://192.168.4.1/update\` et envoyez **modelrogs-display.bin.gz**.
 
-          **Passerelle** (serveur Docker) : image \`${IMAGE}:${VERSION}\` (également \`:${MAJEURE}\` et \`:latest\`).
+          **Passerelle** (serveur Docker) : image \`${IMAGE}:${VERSION}\` (également \`:${MAJEURE}\` et \`:latest\` quand c'est la version la plus récente).
           Mise à jour d'une installation existante : \`docker compose pull && docker compose up -d\`.
           Nouvelle installation : téléchargez **docker-compose.yml**, renseignez vos modules, puis \`docker compose up -d\`.
 
@@ -164,8 +212,10 @@ jobs:
         run: |
           FICHIERS="dist/modelrogs-display.bin.gz dist/modelrogs-display.bin dist/docker-compose.yml dist/SHA256SUMS.txt"
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            # Release créée à la main dans GitHub (le tag a été créé avec elle) : on la complète
+            # Release déjà présente (version remplacée, ou créée à la main dans GitHub) :
+            # fichiers et notes remplacés par ceux de cette publication
             gh release upload "$GITHUB_REF_NAME" $FICHIERS --clobber
+            gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
           else
             gh release create "$GITHUB_REF_NAME" \
               --title "MODELROGS Display ${GITHUB_REF_NAME#v}" \

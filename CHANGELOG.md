@@ -22,24 +22,23 @@ Pages Heure, Météo et Crypto redessinées, pages Crypto sur 30 jours.
 - **Variation sur 30 jours** en plus des variations 24 h et 7 jours.
 
 ### Modifié
-- **Heure**
-  - En-tête en gras : le jour à gauche, la date au format JJ/MM/AA à droite, calculée par l'afficheur.
-  - Chiffres de l'heure réduits d'environ 10 % (68 px au lieu de 76 px).
-  - **Météo du jour** à la place du lever et du coucher du soleil, sans carte : grande icône (environ 75 px), température actuelle, min et max. Pas de libellé, l'icône suffit.
-  - Tout est aligné sur les mêmes bords ; l'heure est centrée en hauteur entre l'en-tête et la température.
-- **Météo**
-  - Prévisions sur **5 jours**, sans nom de ville ni météo du jour (affichée sur la page Heure).
-  - 5 blocs identiques (jour, icône d'environ 65 px, min / max), 3 en haut et 2 en bas, sans cartes ni traits, centrés sur l'écran.
+- **Heure** : deux blocs qui occupent tout l'écran, avec des espaces égaux (environ 13 px).
+  - En haut, « date + heure » : jour à gauche, date JJ/MM/AA à droite (en gras, calculée par l'afficheur), puis l'heure en 72 px, qui domine.
+  - En bas, « météo du jour » à la place du lever et du coucher du soleil, sans carte : icône et température actuelle en grand, min / max dessous, sans libellé.
+  - L'icône est agrandie selon son empreinte réelle (un soleil rond n'occupe pas la même place qu'un nuage avec pluie), puis l'icône et la température sont centrées ensemble sur l'écran.
+- **Météo** : prévisions sur **5 jours**, sans nom de ville ni météo du jour, en 5 blocs identiques (3 en haut, 2 en bas, centrés, espaces égaux). Chaque icône est ajustée à son empreinte dans une zone fixe ; les températures passent en 12 px quand elles sont trop longues pour garder un écart entre les blocs.
 - **Crypto**
   - Plus de titre, de date ni de bulle.
-  - **1 crypto** : logo et prix sur une ligne (prix centré sur la hauteur du logo), variations 24 h, 7 j et 30 j en colonnes, puis la plus grande courbe possible sur 30 jours.
-  - **2 ou 3 cryptos** : écran « prix en vedette » : logo, prix en 26 px centré sur le logo (18 px s'il est trop long, jamais tronqué pour les cryptos proposées), et les variations « 24 h » et « 7 j » sur une même ligne, alignées en colonnes d'une crypto à l'autre, dans la plus grande police qui tient.
+  - **1 crypto** : logo et prix centrés sur une ligne (prix centré sur la hauteur du logo), variations 24 h, 7 j et 30 j en colonnes, puis la plus grande courbe possible sur 30 jours.
+  - **2 cryptos** : pour chacune, logo de 56 px et prix centrés ensemble, puis « 24 h … » et « 7 j … » sur une ligne, centrés.
+  - **3 cryptos** : le logo a exactement la hauteur du bloc prix + variations (même haut, même bas), « 24 h … » et « 7 j … » sur une ligne, en colonnes communes ; le tout centré sur l'écran.
+  - Tailles de police choisies automatiquement : les plus grandes qui tiennent pour toutes les cryptos de l'écran ; espaces verticaux égaux entre les lignes.
   - Intitulés des variations (24 h, 7 j, 30 j) dans la couleur de la variation (vert ou rouge).
   - **Prix** avec au moins 4 chiffres, 2 décimales quand elles suffisent : 57 864 €, 142,35 €, 2,184 €, 0,08214 €.
 - **Passerelle**
   - 6 jours demandés à Open-Meteo (aujourd'hui et les 5 suivants).
   - Variations 24 h, 7 j et 30 j de chaque crypto ; indicateur de page dédiée ; courbe sur 30 jours (CoinGecko `market_chart`, gardée 30 minutes) et route `/btc/30j`.
-- Polices : symbole « ° » ajouté au 32 px ; nouvelle taille de 26 px pour les prix.
+- Polices : symbole « ° » ajouté au 32 px ; nouvelles tailles de 26 px (prix) et 72 px (heure).
 
 ### Mise à jour
 - Passerelle avant l'afficheur, sinon la page Météo n'affiche que 3 jours et les écrans Crypto n'ont ni courbe ni variation sur 30 jours. `docker-compose.yml` inchangé.

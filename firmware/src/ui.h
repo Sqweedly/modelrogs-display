@@ -54,7 +54,7 @@ constexpr int MARGE_BAS  = 3;
 extern TFT_eSPI tft;
 
 // Polices lissées (Inter) — voir fonts/inter_fonts.h
-enum FontId : uint8_t { F_11, F_13, F_16, F_18, F_32, F_52, F_68, F_26 };
+enum FontId : uint8_t { F_11, F_13, F_16, F_18, F_32, F_52, F_72, F_26 };
 
 void uiBegin();
 void useFont(FontId f);
@@ -88,6 +88,11 @@ void staleMark(bool stale, uint16_t bg = Col::BG);
 // Icônes flat dessinées par le code (aucun bitmap en flash).
 // Codes météo identiques à gateway/app/sources/meteo.py
 void weatherIcon(uint8_t code, int cx, int cy, float scale, uint16_t bg);
+// Icône agrandie au maximum pour tenir dans la zone (x, y, w, h), centrée sur
+// son empreinte réelle ; scaleMax > 0 plafonne l'agrandissement.
+void weatherIconFit(uint8_t code, int x, int y, int w, int h, uint16_t bg, float scaleMax = 0);
+// Échelle qu'aurait l'icône dans une zone w x h, et taille de son encre.
+float weatherIconScale(uint8_t code, int w, int h, int* encreW = nullptr, int* encreH = nullptr);
 void halfSun(int cx, int cy, uint16_t color, uint16_t bg);
 void headsetIcon(int cx, int cy, uint16_t color, uint16_t bg);
 void warningIcon(int cx, int cy, uint16_t color, uint16_t bg);

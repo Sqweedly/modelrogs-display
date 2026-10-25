@@ -3,7 +3,7 @@
 
 TFT_eSPI tft;
 
-static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F68, F26 };
+static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F72, F26 };
 static int8_t currentFont = -1;
 
 void uiBegin() {
@@ -206,8 +206,48 @@ void moon(const Pen& p, float x, float y, float r, uint16_t under) {
 }
 }  // namespace
 
+// Empreinte réelle de chaque icône dans son repère 76 x 60 (gauche, haut,
+// droite, bas), mesurée dans le simulateur : le soleil est rond et compact,
+// le nuage large, la pluie haute... Sert à ajuster et centrer chaque icône.
+static const float EMPREINTE[10][4] = {
+  { 16.7f, 8.7f, 59.7f, 51.7f },   // 0 soleil
+  { 14.0f, 2.0f, 66.3f, 52.3f },   // 1 éclaircies
+  { 10.0f, 10.0f, 73.3f, 52.3f },  // 2 nuageux
+  { 13.7f, 7.0f, 63.3f, 57.7f },   // 3 brouillard
+  { 14.0f, 7.0f, 63.3f, 58.0f },   // 4 pluie
+  { 14.0f, 7.0f, 63.3f, 57.7f },   // 5 neige
+  { 14.0f, 7.0f, 63.3f, 62.3f },   // 6 orage
+  { 22.0f, 10.0f, 60.7f, 46.3f },  // 7 nuit claire
+  { 14.0f, 4.7f, 66.3f, 52.3f },   // 8 nuit peu nuageuse
+  { 14.0f, 15.0f, 63.3f, 48.3f },  // autre code : nuage
+};
+
+static void dessinerIcone(uint8_t code, float x0, float y0, float scale, uint16_t bg);
+
 void weatherIcon(uint8_t code, int cx, int cy, float scale, uint16_t bg) {
-  Pen p{ cx - 38 * scale, cy - 30 * scale, scale, bg };
+  dessinerIcone(code, cx - 38 * scale, cy - 30 * scale, scale, bg);
+}
+
+float weatherIconScale(uint8_t code, int w, int h, int* encreW, int* encreH) {
+  const float* e = EMPREINTE[code < 9 ? code : 9];
+  float s = min((float)w / (e[2] - e[0]), (float)h / (e[3] - e[1]));
+  if (encreW) *encreW = (int)lroundf(s * (e[2] - e[0]));
+  if (encreH) *encreH = (int)lroundf(s * (e[3] - e[1]));
+  return s;
+}
+
+void weatherIconFit(uint8_t code, int x, int y, int w, int h, uint16_t bg, float scaleMax) {
+  const float* e = EMPREINTE[code < 9 ? code : 9];
+  float s = min((float)w / (e[2] - e[0]), (float)h / (e[3] - e[1]));
+  if (scaleMax > 0) s = min(s, scaleMax);
+  // L'empreinte (et non le repère 76 x 60) est centrée dans la zone
+  float x0 = x + w / 2.0f - s * (e[0] + e[2]) / 2;
+  float y0 = y + h / 2.0f - s * (e[1] + e[3]) / 2;
+  dessinerIcone(code, x0, y0, s, bg);
+}
+
+static void dessinerIcone(uint8_t code, float x0, float y0, float scale, uint16_t bg) {
+  Pen p{ x0, y0, scale, bg };
   float lw = max(1.6f, 3.2f * scale);
   switch (code) {
     case 0:  // soleil

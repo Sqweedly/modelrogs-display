@@ -44,12 +44,20 @@ static int  lastClockMinute = -1;
 static char lastDate[32] = "";
 
 // Page Heure : occupe toute la hauteur utile (3 px masqués en haut et en bas).
-// En-tête : jour à gauche, date JJ/MM/AA à droite ; chiffres en 68 px ;
-// la carte météo du jour occupe tout le bas.
-// Chiffres de l'heure centrés en hauteur entre l'en-tête (jour, date) et le
-// haut de la température ; tout est aligné sur les bords des chiffres (x 24..216).
-static const int X_G = 24, X_D = 216;
-static const int Y_ENTETE = 14, Y_CHIFFRES = 57, H_CHIFFRES = 54, Y_METEO = 115, H_METEO = 95;
+// Page Heure, en deux blocs qui occupent toute la hauteur utile (y 3..222) :
+//  - en haut, « date + heure » : jour à gauche et date à droite, puis l'heure
+//    en 72 px, qui domine ;
+//  - en bas, « météo » : icône ajustée à son empreinte et température en
+//    grand, min / max dessous.
+// Les espaces entre le haut de l'écran, l'en-tête, l'heure, la météo et les
+// points de pagination sont égaux (ESPACE). Marges latérales de 14 px.
+static const int X_G = 14, X_D = 226;
+// Hauteurs d'encre : en-tête 16 px (barre de la date comprise), chiffres
+// 54 px, zone météo 98 px ; les 4 espaces (haut, en-tête/heure, heure/météo,
+// météo/points) font 13 à 15 px.
+static const int Y_ENTETE = 12;                        // texte de l'en-tête (encre y 16..31)
+static const int Y_CHIFFRES = 45, H_CHIFFRES = 56;    // texte des chiffres (encre y 45..98)
+static const int Y_METEO = 112, H_METEO = 98;         // zone météo (y 112..209)
 
 // Date locale JJ/MM/AA calculée à partir de l'horloge (jours depuis 1970 ->
 // année, mois, jour : algorithme « civil_from_days »).
@@ -82,12 +90,12 @@ static void drawClockDigits() {
   // des heures et des minutes, et centré sur la hauteur des chiffres.
   const char ch[5] = { hh[0], hh[1], ':', mm[0], mm[1] };
   GlyphBox g[5];
-  for (int i = 0; i < 5; i++) glyphBox(F_68, (uint8_t)ch[i], g[i]);
+  for (int i = 0; i < 5; i++) glyphBox(F_72, (uint8_t)ch[i], g[i]);
   int hhL = g[0].dx, hhR = g[0].adv + g[1].dx + g[1].w;   // encre des heures (depuis la plume)
   int mmL = g[3].dx, mmR = g[3].adv + g[4].dx + g[4].w;   // encre des minutes
   // Écart encre chiffre <-> « : » : 9 px, réduit pour les heures larges
-  // (« 00:00 ») afin que l'ensemble tienne dans 232 px (plume jamais à x = 0).
-  int ECART = (232 - (hhR - hhL) - (mmR - mmL) - g[2].w) / 2;
+  // (« 00:00 ») afin que l'ensemble tienne dans 216 px (12 px de marge de chaque côté).
+  int ECART = (216 - (hhR - hhL) - (mmR - mmL) - g[2].w) / 2;
   ECART = ECART > 9 ? 9 : (ECART < 3 ? 3 : ECART);
   int total = (hhR - hhL) + ECART + g[2].w + ECART + (mmR - mmL);
   int encre = 120 - total / 2;                            // bord gauche de l'encre
@@ -96,31 +104,39 @@ static void drawClockDigits() {
   int xM = encre + (hhR - hhL) + ECART + g[2].w + ECART - mmL;
   // Centre vertical : (haut + bas) de l'encre, mesuré depuis la ligne de base
   int dyC = ((g[2].dy * 2 - g[2].h) - (g[0].dy * 2 - g[0].h)) / 2;
-  drawText(String(ch[0]), xH, Y_CHIFFRES, F_68, TXT, BG);
-  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_68, TXT, BG);
-  drawText(":", xC, Y_CHIFFRES + dyC, F_68, VIOLET, BG);
-  drawText(String(ch[3]), xM, Y_CHIFFRES, F_68, TXT, BG);
-  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_68, TXT, BG);
+  drawText(String(ch[0]), xH, Y_CHIFFRES, F_72, TXT, BG);
+  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_72, TXT, BG);
+  drawText(":", xC, Y_CHIFFRES + dyC, F_72, VIOLET, BG);
+  drawText(String(ch[3]), xM, Y_CHIFFRES, F_72, TXT, BG);
+  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_72, TXT, BG);
   lastClockMinute = minuteOfDay;
 }
 
-// Météo du jour, sans carte : grande icône à gauche ; à droite, température
-// actuelle et min / max, centrés ensemble dans leur colonne et sur la hauteur
-// de la zone. Pas de libellé : l'icône suffit. Données de /meteo (15 min de cache).
+// Météo du jour : à gauche l'icône, agrandie au maximum selon son empreinte
+// réelle et centrée dans sa zone ; à droite la température en 52 px et le
+// min / max, centrés ensemble dans leur colonne et sur la hauteur de la zone.
 static void carteMeteoDuJour() {
   JsonDocument doc;
   if (gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) != 200) return;   // l'horloge reste seule
-  const int cy = Y_METEO + H_METEO / 2 + 2;               // même espace au-dessus et au-dessous
-  weatherIcon(doc["i"] | 2, 72, cy + 2, 1.45f, BG);
-  const int cx = 170, ecart = 12;
+  const int cy = Y_METEO + H_METEO / 2, ecart = 12, gapIT = 16;
+  uint8_t code = doc["i"] | 2;
+  String t = String((int)(doc["t"] | 0)) + "°";
+  String a = String((int)(doc["mn"] | 0)) + "°", s = " / ", b = String((int)(doc["mx"] | 0)) + "°";
+  int wMM = textW(a, F_18) + textW(s, F_18) + textW(b, F_18);
+  int wT = max(textW(t, F_52), wMM);                       // largeur de la colonne de texte
+  // Icône : la plus grande qui laisse la place au texte (zone de 104 x H_METEO au plus)
+  int iw, ih;
+  weatherIconScale(code, min(104, 212 - gapIT - wT), H_METEO, &iw, &ih);
+  // Icône + texte centrés ensemble sur l'écran, d'après leurs largeurs réelles
+  int x0 = 120 - (iw + gapIT + wT) / 2;
+  weatherIconFit(code, x0, Y_METEO, iw, H_METEO, BG);
+  const int cx = x0 + iw + gapIT + wT / 2;
   GlyphBox gT, gM;
   glyphBox(F_52, '0', gT);
   glyphBox(F_18, '0', gM);
-  int haut = cy - (gT.h + ecart + gM.h) / 2;              // haut de l'encre de la température
-  drawText(String((int)(doc["t"] | 0)) + "°", cx, haut - (fontAscent(F_52) - gT.dy), F_52, TXT, BG, TC_DATUM);
-  String a = String((int)(doc["mn"] | 0)) + "°", s = " / ", b = String((int)(doc["mx"] | 0)) + "°";
-  int w = textW(a, F_18) + textW(s, F_18) + textW(b, F_18);
-  int x = cx - w / 2, y = haut + gT.h + ecart - (fontAscent(F_18) - gM.dy);
+  int haut = cy - (gT.h + ecart + gM.h) / 2 - 1;           // haut de l'encre de la température
+  drawText(t, cx, haut - (fontAscent(F_52) - gT.dy), F_52, TXT, BG, TC_DATUM);
+  int x = cx - wMM / 2, y = haut + gT.h + ecart - (fontAscent(F_18) - gM.dy);
   x += drawText(a, x, y, F_18, BLEU, BG);
   x += drawText(s, x, y, F_18, SEP, BG);
   drawText(b, x, y, F_18, AMBRE, BG);
@@ -152,7 +168,8 @@ bool clockTick() {
 
 // ----------------------------------------------------------------- Météo
 
-static const int Y_METEO_HAUT = 11, Y_METEO_BAS = 119;   // haut des deux rangées de briques
+// Haut des deux rangées de blocs : 15 px d'espace en haut, entre les rangées et en bas.
+static const int Y_METEO_HAUT = 15, Y_METEO_BAS = 118;
 
 // « 10° / 15° » centré en cx : min (bleu) / max (ambre), même ordre partout.
 static void minMaxCentre(JsonObject j, int cx, int y, FontId f, uint16_t bg) {
@@ -176,16 +193,24 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
 
   // 5 jours, sans ville ni météo du jour (affichée sur la page Heure) :
   // les deux prochains jours en grand, les trois suivants dessous.
+  // Températures : 14 px, ou 12 px si l'une d'elles ne laisse pas 8 px entre deux blocs
+  FontId ft = F_13;
+  for (JsonObject j : doc["j"].as<JsonArray>()) {
+    String t = String((int)(j["mn"] | 0)) + "°/" + String((int)(j["mx"] | 0)) + "°";
+    if (textW(t, F_13) + 8 > 72 - 8) ft = F_11;
+  }
   uint8_t k = 0;
   for (JsonObject j : doc["j"].as<JsonArray>()) {
     if (k >= 5) break;
-    // 5 briques identiques (jour, icône, min / max), sans cartes ni traits :
-    // 3 en haut, 2 en bas, centrées sur l'écran (pas de 72 px entre les centres).
-    int cx = k < 3 ? 120 + (k - 1) * 72 : 120 + (k == 3 ? -36 : 36);
+    // 5 blocs identiques (jour, icône, min / max), sans cartes ni traits :
+    // 3 en haut, 2 en bas, centrés sur l'écran (72 px entre les centres).
+    // L'icône est ajustée à son empreinte dans une zone fixe de 66 x 52 px.
+    // Encre d'un bloc : jour (y+3..y+14), icône (y+20..y+71), min / max (y+78..y+90).
+    int cx = k < 3 ? 48 + k * 72 : 84 + (k - 3) * 72;
     int y = k < 3 ? Y_METEO_HAUT : Y_METEO_BAS;
     drawText(j["d"] | "", cx, y, F_13, TXT2, BG, TC_DATUM);
-    weatherIcon(j["i"] | 2, cx, y + 44, 0.86f, BG);
-    minMaxCentre(j, cx, y + 77, F_13, BG);
+    weatherIconFit(j["i"] | 2, cx - 33, y + 20, 66, 52, BG);
+    minMaxCentre(j, cx, y + 74 + (ft == F_11 ? 1 : 0), ft, BG);
     k++;
   }
 
@@ -512,10 +537,21 @@ static int drawTextCentreV(const String& t, int x, int cy, FontId f, uint16_t co
   return drawText(t, x, y, f, coul, BG);
 }
 
-// Prix en 26 px, ou 18 px s'il dépasse maxW (tronqué en dernier recours)
-static void prixAjuste(const String& px, int x, int cy, int maxW) {
-  FontId f = textW(px, F_26) <= maxW ? F_26 : F_18;
-  drawTextCentreV(fitText(px, f, maxW), x, cy, f, TXT);
+// Hauteur de l'encre des prix au-dessus de la ligne de base : celle du
+// caractère le plus haut réellement affiché (« $ » dépasse les chiffres).
+static int hautPrix(JsonArray cs, uint8_t n, FontId f) {
+  int h = 0;
+  for (uint8_t k = 0; k < n; k++) {
+    const char* p = cs[k]["px"] | "";
+    while (*p) {
+      uint16_t u = (uint8_t)*p++;
+      if ((u & 0xE0) == 0xC0 && *p) { u = ((u & 0x1F) << 6) | (*p++ & 0x3F); }
+      else if ((u & 0xF0) == 0xE0 && p[0] && p[1]) { u = ((u & 0x0F) << 12) | ((p[0] & 0x3F) << 6) | (p[1] & 0x3F); p += 2; }
+      GlyphBox g;
+      if (u != ' ' && glyphBox(f, u, g)) h = max(h, g.dy);
+    }
+  }
+  return h;
 }
 
 // « 24 h +1,9 % » : intitulé et valeur dans la couleur de la variation
@@ -534,8 +570,11 @@ static int largeurVariation(JsonArray cs, uint8_t n, const char* lab, const char
 // trois variations, puis la plus grande courbe possible.
 static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool perime) {
   tft.fillScreen(BG);
-  logoCrypto(c, 14, 10, 36, BG);
-  drawTextCentreV(fitText(c["px"] | "", F_32, 164), 60, 10 + 18, F_32, TXT);   // centré sur le logo
+  // Logo + prix centrés ensemble sur l'écran ; prix centré sur la hauteur du logo
+  String px = fitText(c["px"] | "", F_32, 212 - 36 - 12);
+  int x0 = 120 - (36 + 12 + textW(px, F_32)) / 2;
+  logoCrypto(c, x0, 10, 36, BG);
+  drawTextCentreV(px, x0 + 36 + 12, 10 + 18, F_32, TXT);
   colonnesVariations(c, 14, 226, 54, F_11, F_16, 15, true);
   // Courbe sur 30 jours, avec « 30 J » en filigrane dans le graphique :
   // dégradé, puis filigrane, puis la ligne qui repasse devant.
@@ -553,6 +592,62 @@ static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool 
 // « prix en vedette » par btcEcranSuivant().
 static char    dediees[3][16];
 static uint8_t nbDediees = 0, prochaineDediee = 0;
+
+// « Prix en vedette » à 2 cryptos (place disponible : une moitié d'écran
+// chacune). Par crypto :
+//  - ligne 1 : logo de 56 px et prix (32, 26 ou 18 px selon la largeur),
+//    centrés ensemble horizontalement, le prix centré sur la hauteur du logo ;
+//  - ligne 2 : « 24 h … » et « 7 j … » centrés sur l'écran, dans la plus
+//    grande police qui tient (16, 13 ou 11 px), colonnes communes aux deux.
+// Les deux blocs et les trois espaces (haut, milieu, bas) sont égaux.
+static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool perime) {
+  const int L = 56, gapH = 12, gapLV = 12, ecartVar = 16;
+  FontId fp = F_18;
+  for (FontId f : { F_32, F_26, F_18 }) {
+    int wp = max(textW(cs[0]["px"] | "", f), textW(cs[1]["px"] | "", f));
+    fp = f;
+    if (L + gapH + wp <= 212) break;
+  }
+  FontId fv = F_11;
+  int w24 = 0, w7 = 0;
+  for (FontId f : { F_16, F_13, F_11 }) {
+    w24 = largeurVariation(cs, 2, "24 h ", "v24", f);
+    w7 = largeurVariation(cs, 2, "7 j ", "v7", f);
+    fv = f;
+    if (w24 + ecartVar + w7 <= 212) break;
+  }
+  GlyphBox gv, gj;
+  glyphBox(fv, '0', gv);
+  glyphBox(fv, 'j', gj);
+  const int desc = max(0, gj.h - gj.dy);
+  const int hBloc = L + gapLV + gv.h + desc;            // encre d'un bloc
+  const int espace = (222 - 2 * hBloc) / 3, reste = (222 - 2 * hBloc) - 3 * espace;
+  const int hp = hautPrix(cs, 2, fp);
+  int wpMax = 0;
+  for (uint8_t k = 0; k < 2; k++) wpMax = max<int>(wpMax, textW(cs[k]["px"] | "", fp));
+  const int x0 = 120 - (L + gapH + min(wpMax, 212 - L - gapH)) / 2;   // logo + prix centrés
+  const int x24 = 120 - (w24 + ecartVar + w7) / 2, x7 = x24 + w24 + ecartVar;
+
+  tft.fillScreen(BG);
+  for (uint8_t k = 0; k < 2; k++) {
+    JsonObject c = cs[k];
+    int haut = 3 + reste / 2 + espace + k * (hBloc + espace);
+    logoCrypto(c, x0, haut, L, BG);
+    // prix : encre (hp px au-dessus de la ligne de base) centrée sur le logo
+    int base = haut + L / 2 + hp / 2;
+    drawText(fitText(c["px"] | "", fp, 212 - L - gapH), x0 + L + gapH, base - fontAscent(fp), fp, TXT, BG);
+    int yv = haut + L + gapLV + gv.h - fontAscent(fv);  // ligne de base des variations
+    groupeVariation(c, "24 h ", "v24", "u24", x24, yv, fv);
+    groupeVariation(c, "7 j ", "v7", "u7", x7, yv, fv);
+    if ((c["x"] | 0) && nbDediees < 3) {
+      strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
+      dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';
+      if (dediees[nbDediees][0]) nbDediees++;
+    }
+  }
+  staleMark(perime);
+  pageDots(dotIndex, dotCount, accentCrypto(cs[0]["s"] | ""));
+}
 
 // Crypto :
 //   1 crypto     -> page sur 30 jours
@@ -576,39 +671,66 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  // Variations « 24 h … » et « 7 j … » sur une ligne, en deux colonnes communes
-  // à toutes les cryptos de l'écran, dans la plus grande police qui tient :
-  // 2 cryptos -> pleine largeur, centrée ; 3 cryptos -> sous le prix.
-  const int dispo = n == 2 ? 212 : 164, ecart = n == 2 ? 18 : 10;
-  FontId f = F_11;
-  int w24 = 0, w7 = 0;
-  for (FontId e : { F_16, F_13, F_11 }) {
-    if (n == 3 && e == F_16) continue;
-    w24 = largeurVariation(cs, n, "24 h ", "v24", e);
-    w7 = largeurVariation(cs, n, "7 j ", "v7", e);
-    f = e;
-    if (w24 + ecart + w7 <= dispo) break;
+  if (n == 2) {
+    vedetteDeux(cs, dotIndex, dotCount, perime);
+    return;
   }
-  const int x24 = n == 2 ? 120 - (w24 + ecart + w7) / 2 : 62, x7 = x24 + w24 + ecart;
+
+  // « Prix en vedette ». Chaque ligne = logo + bloc de texte (prix, puis
+  // « 24 h … » et « 7 j … » sur une ligne). Le diamètre du logo est égal à la
+  // hauteur du bloc de texte (haut du prix -> bas des chiffres des variations) :
+  // logo et texte ont le même haut et le même bas. Polices : les plus grandes
+  // qui tiennent pour toutes les cryptos de l'écran. Le groupe logo + texte est
+  // centré horizontalement ; les lignes sont réparties avec des espaces égaux.
+  static const FontId PRIX[3] = { F_32, F_26, F_18 };
+  static const FontId VAR[3]  = { F_16, F_13, F_11 };
+  const int gapH = 12, ecartVar = 12, gapPV = n == 2 ? 12 : 9;
+  FontId fp = F_18, fv = F_11;
+  int d = 0, wTexte = 0, w24 = 0, w7 = 0;
+  bool trouve = false;
+  for (int ip = 0; ip < 3 && !trouve; ip++) {
+    for (int iv = (n == 2 ? 0 : 1); iv < 3 && !trouve; iv++) {
+      GlyphBox gv;
+      glyphBox(VAR[iv], '0', gv);
+      int dd = hautPrix(cs, n, PRIX[ip]) + gapPV + gv.h;
+      int wp = 0;
+      for (uint8_t k = 0; k < n; k++) wp = max<int>(wp, textW(cs[k]["px"] | "", PRIX[ip]));
+      int a = largeurVariation(cs, n, "24 h ", "v24", VAR[iv]), b = largeurVariation(cs, n, "7 j ", "v7", VAR[iv]);
+      int wt = max(wp, a + ecartVar + b);
+      if (dd + gapH + wt <= 212) {
+        fp = PRIX[ip]; fv = VAR[iv]; d = dd; wTexte = wt; w24 = a; w7 = b; trouve = true;
+      }
+    }
+  }
+  if (!trouve) {                     // dernier recours : plus petites polices, prix tronqués
+    GlyphBox gv;
+    glyphBox(F_11, '0', gv);
+    d = hautPrix(cs, n, F_18) + gapPV + gv.h;
+    w24 = largeurVariation(cs, n, "24 h ", "v24", F_11);
+    w7 = largeurVariation(cs, n, "7 j ", "v7", F_11);
+    wTexte = 212 - d - gapH;
+  }
+  GlyphBox gv;
+  glyphBox(fv, '0', gv);
+  const int hp = hautPrix(cs, n, fp);               // encre du prix au-dessus de la ligne de base
+  const int x0 = 120 - (d + gapH + wTexte) / 2;     // groupe centré sur l'écran
+  const int xt = x0 + d + gapH;                      // colonne du texte
+  GlyphBox gj;
+  glyphBox(fv, 'j', gj);
+  const int desc = max(0, gj.h - gj.dy);             // descente du « j » de « 7 j »
+  const int espaceV = (222 - n * (d + desc)) / (n + 1);   // espaces visuels égaux (y 3..224)
+  const int reste = (222 - n * (d + desc)) - espaceV * (n + 1);   // arrondi : réparti haut / bas
 
   tft.fillScreen(BG);
   for (uint8_t k = 0; k < n; k++) {
     JsonObject c = cs[k];
-    int yv;
-    // Prix en 26 px (18 px s'il ne tient pas), centré sur la hauteur du logo
-    if (n == 2) {               // deux moitiés : logo, prix ; variations dessous
-      int y = 6 + k * 110;
-      logoCrypto(c, 14, y + 10, 52, BG);
-      prixAjuste(c["px"] | "", 78, y + 10 + 26, 148);
-      yv = y + 78;
-    } else {                    // trois lignes : logo à gauche, prix et variations à droite
-      int y = 4 + k * 73;
-      logoCrypto(c, 14, y + 12, 40, BG);
-      prixAjuste(c["px"] | "", 62, y + 19, 164);
-      yv = y + 42;
-    }
-    groupeVariation(c, "24 h ", "v24", "u24", x24, yv, f);
-    groupeVariation(c, "7 j ", "v7", "u7", x7, yv, f);
+    int haut = 3 + reste / 2 + espaceV + k * (d + desc + espaceV);   // haut de l'encre de la ligne
+    logoCrypto(c, x0, haut, d, BG);
+    // Ligne de base du prix à haut + hp ; celle des variations au bas du logo
+    drawText(fitText(c["px"] | "", fp, wTexte), xt, haut + hp - fontAscent(fp), fp, TXT, BG);
+    int yv = haut + d - fontAscent(fv);
+    groupeVariation(c, "24 h ", "v24", "u24", xt, yv, fv);
+    groupeVariation(c, "7 j ", "v7", "u7", xt + w24 + ecartVar, yv, fv);
     if ((c["x"] | 0) && nbDediees < 3) {
       strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
       dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';

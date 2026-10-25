@@ -3,7 +3,7 @@
 
 TFT_eSPI tft;
 
-static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F68 };
+static const uint8_t* const FONT_DATA[] = { F11, F13, F16, F18, F32, F52, F68, F26 };
 static int8_t currentFont = -1;
 
 void uiBegin() {

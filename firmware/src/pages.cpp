@@ -46,11 +46,10 @@ static char lastDate[32] = "";
 // Page Heure : occupe toute la hauteur utile (3 px masqués en haut et en bas).
 // En-tête : jour à gauche, date JJ/MM/AA à droite ; chiffres en 68 px ;
 // la carte météo du jour occupe tout le bas.
-// Chiffres centrés entre l'en-tête et la carte (même espace au-dessus et au-dessous).
-// Tout est aligné sur les bords des chiffres (x 24..216) et centré en hauteur,
-// avec le même espace entre l'en-tête, les chiffres et la carte météo.
+// Chiffres de l'heure centrés en hauteur entre l'en-tête (jour, date) et le
+// haut de la température ; tout est aligné sur les bords des chiffres (x 24..216).
 static const int X_G = 24, X_D = 216;
-static const int Y_ENTETE = 14, Y_CHIFFRES = 49, H_CHIFFRES = 54, Y_METEO = 115, H_METEO = 95;
+static const int Y_ENTETE = 14, Y_CHIFFRES = 57, H_CHIFFRES = 54, Y_METEO = 115, H_METEO = 95;
 
 // Date locale JJ/MM/AA calculée à partir de l'horloge (jours depuis 1970 ->
 // année, mois, jour : algorithme « civil_from_days »).
@@ -153,6 +152,8 @@ bool clockTick() {
 
 // ----------------------------------------------------------------- Météo
 
+static const int Y_METEO_HAUT = 11, Y_METEO_BAS = 119;   // haut des deux rangées de briques
+
 // « 10° / 15° » centré en cx : min (bleu) / max (ambre), même ordre partout.
 static void minMaxCentre(JsonObject j, int cx, int y, FontId f, uint16_t bg) {
   String a = String((int)(j["mn"] | 0)) + "°", s = "/", b = String((int)(j["mx"] | 0)) + "°";
@@ -178,18 +179,13 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
   uint8_t k = 0;
   for (JsonObject j : doc["j"].as<JsonArray>()) {
     if (k >= 5) break;
-    // Sans cartes ni traits : toute la place pour les icônes.
-    if (k < 2) {
-      int cx = 66 + k * 108;
-      drawText(j["d"] | "", cx, 6, F_16, TXT2, BG, TC_DATUM);
-      weatherIcon(j["i"] | 2, cx, 62, 1.38f, BG);
-      minMaxCentre(j, cx, 100, F_18, BG);
-    } else {
-      int cx = 44 + (k - 2) * 76;
-      drawText(j["d"] | "", cx, 126, F_13, TXT2, BG, TC_DATUM);
-      weatherIcon(j["i"] | 2, cx, 170, 0.98f, BG);
-      minMaxCentre(j, cx, 203, F_13, BG);
-    }
+    // 5 briques identiques (jour, icône, min / max), sans cartes ni traits :
+    // 3 en haut, 2 en bas, centrées sur l'écran (pas de 72 px entre les centres).
+    int cx = k < 3 ? 120 + (k - 1) * 72 : 120 + (k == 3 ? -36 : 36);
+    int y = k < 3 ? Y_METEO_HAUT : Y_METEO_BAS;
+    drawText(j["d"] | "", cx, y, F_13, TXT2, BG, TC_DATUM);
+    weatherIcon(j["i"] | 2, cx, y + 44, 0.86f, BG);
+    minMaxCentre(j, cx, y + 77, F_13, BG);
     k++;
   }
 
@@ -508,6 +504,20 @@ static void colonnesVariations(JsonObject c, int x0, int x1, int y, FontId fl, F
   }
 }
 
+// Texte de chiffres dont l'encre est centrée verticalement sur cy (hauteur d'un « 0 »)
+static int drawTextCentreV(const String& t, int x, int cy, FontId f, uint16_t coul) {
+  GlyphBox g;
+  glyphBox(f, '0', g);
+  int y = cy - g.h / 2 - (fontAscent(f) - g.dy);
+  return drawText(t, x, y, f, coul, BG);
+}
+
+// Prix en 26 px, ou 18 px s'il dépasse maxW (tronqué en dernier recours)
+static void prixAjuste(const String& px, int x, int cy, int maxW) {
+  FontId f = textW(px, F_26) <= maxW ? F_26 : F_18;
+  drawTextCentreV(fitText(px, f, maxW), x, cy, f, TXT);
+}
+
 // « 24 h +1,9 % » : intitulé et valeur dans la couleur de la variation
 static void groupeVariation(JsonObject c, const char* lab, const char* val, const char* up, int x, int y, FontId f) {
   drawText(String(lab) + (c[val] | ""), x, y, f, (c[up] | 1) ? VERT : ROUGE_TX, BG);
@@ -525,7 +535,7 @@ static int largeurVariation(JsonArray cs, uint8_t n, const char* lab, const char
 static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool perime) {
   tft.fillScreen(BG);
   logoCrypto(c, 14, 10, 36, BG);
-  drawText(fitText(c["px"] | "", F_32, 164), 60, 11, F_32, TXT, BG);
+  drawTextCentreV(fitText(c["px"] | "", F_32, 164), 60, 10 + 18, F_32, TXT);   // centré sur le logo
   colonnesVariations(c, 14, 226, 54, F_11, F_16, 15, true);
   // Courbe sur 30 jours, avec « 30 J » en filigrane dans le graphique :
   // dégradé, puis filigrane, puis la ligne qui repasse devant.
@@ -569,7 +579,7 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
   // Variations « 24 h … » et « 7 j … » sur une ligne, en deux colonnes communes
   // à toutes les cryptos de l'écran, dans la plus grande police qui tient :
   // 2 cryptos -> pleine largeur, centrée ; 3 cryptos -> sous le prix.
-  const int dispo = n == 2 ? 212 : 158, ecart = n == 2 ? 18 : 10;
+  const int dispo = n == 2 ? 212 : 164, ecart = n == 2 ? 18 : 10;
   FontId f = F_11;
   int w24 = 0, w7 = 0;
   for (FontId e : { F_16, F_13, F_11 }) {
@@ -579,22 +589,23 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     f = e;
     if (w24 + ecart + w7 <= dispo) break;
   }
-  const int x24 = n == 2 ? 120 - (w24 + ecart + w7) / 2 : 68, x7 = x24 + w24 + ecart;
+  const int x24 = n == 2 ? 120 - (w24 + ecart + w7) / 2 : 62, x7 = x24 + w24 + ecart;
 
   tft.fillScreen(BG);
   for (uint8_t k = 0; k < n; k++) {
     JsonObject c = cs[k];
     int yv;
-    if (n == 2) {               // deux moitiés : grand logo, prix ; variations dessous
+    // Prix en 26 px (18 px s'il ne tient pas), centré sur la hauteur du logo
+    if (n == 2) {               // deux moitiés : logo, prix ; variations dessous
       int y = 6 + k * 110;
-      logoCrypto(c, 14, y + 4, 62, BG);
-      drawText(fitText(c["px"] | "", F_32, 136), 88, y + 20, F_32, TXT, BG);
-      yv = y + 80;
-    } else {                    // trois lignes : logo, prix, variations sous le prix
+      logoCrypto(c, 14, y + 10, 52, BG);
+      prixAjuste(c["px"] | "", 78, y + 10 + 26, 148);
+      yv = y + 78;
+    } else {                    // trois lignes : logo à gauche, prix et variations à droite
       int y = 4 + k * 73;
-      logoCrypto(c, 14, y + 8, 46, BG);
-      drawText(fitText(c["px"] | "", F_32, 154), 70, y + 6, F_32, TXT, BG);
-      yv = y + 44;
+      logoCrypto(c, 14, y + 12, 40, BG);
+      prixAjuste(c["px"] | "", 62, y + 19, 164);
+      yv = y + 42;
     }
     groupeVariation(c, "24 h ", "v24", "u24", x24, yv, f);
     groupeVariation(c, "7 j ", "v7", "u7", x7, yv, f);

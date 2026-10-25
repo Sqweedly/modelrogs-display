@@ -5,7 +5,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 | Module | Page affichée | À configurer |
 |---|---|---|
 | `heure` | Jour, date (JJ/MM/AA), heure, et la météo du jour (icône, température, min / max) | — |
-| `meteo` | Prévisions sur 5 jours : les 2 prochains en grand, les 3 suivants dessous | — |
+| `meteo` | Prévisions sur 5 jours : 5 blocs identiques (jour, icône, min / max) | — |
 | `crypto` | 1 à 3 cryptos (BTC, ETH, XRP…) avec logos officiels ; courbe sur 30 jours pour une crypto seule ou en forte variation | — |
 | `supervision` | Services Uptime Kuma (+ écran d'alerte en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |

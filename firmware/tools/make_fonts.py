@@ -36,6 +36,7 @@ POLICES = [
     ("F32", "Inter-Black.ttf", 32, CHIFFRES + "ABCDEFGHIJKLMNOPQRSTUVWXYZ €$.,+-%/:…°"),
     ("F52", "Inter-Black.ttf", 52, CHIFFRES + "°-/ "),
     ("F68", "Inter-Black.ttf", 68, CHIFFRES + ":"),
+    ("F26", "Inter-Black.ttf", 26, CHIFFRES + " €$.,…"),     # prix des écrans à 2 ou 3 cryptos
 ]
 
 

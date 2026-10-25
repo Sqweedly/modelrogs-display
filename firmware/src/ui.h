@@ -54,7 +54,7 @@ constexpr int MARGE_BAS  = 3;
 extern TFT_eSPI tft;
 
 // Polices lissées (Inter) — voir fonts/inter_fonts.h
-enum FontId : uint8_t { F_11, F_13, F_16, F_18, F_32, F_52, F_68 };
+enum FontId : uint8_t { F_11, F_13, F_16, F_18, F_32, F_52, F_68, F_26 };
 
 void uiBegin();
 void useFont(FontId f);

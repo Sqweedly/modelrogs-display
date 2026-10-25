@@ -26,20 +26,20 @@ Pages Heure, Météo et Crypto redessinées, pages Crypto sur 30 jours.
   - En-tête en gras : le jour à gauche, la date au format JJ/MM/AA à droite, calculée par l'afficheur.
   - Chiffres de l'heure réduits d'environ 10 % (68 px au lieu de 76 px).
   - **Météo du jour** à la place du lever et du coucher du soleil, sans carte : grande icône (environ 75 px), température actuelle, min et max. Pas de libellé, l'icône suffit.
-  - Tout est aligné sur les mêmes bords, avec des espaces égaux entre l'en-tête, l'heure et la météo.
+  - Tout est aligné sur les mêmes bords ; l'heure est centrée en hauteur entre l'en-tête et la température.
 - **Météo**
   - Prévisions sur **5 jours**, sans nom de ville ni météo du jour (affichée sur la page Heure).
-  - Les 2 prochains jours en grand, les 3 suivants dessous, sans cartes ni traits : icônes d'environ 105 px et 75 px.
+  - 5 blocs identiques (jour, icône d'environ 65 px, min / max), 3 en haut et 2 en bas, sans cartes ni traits, centrés sur l'écran.
 - **Crypto**
   - Plus de titre, de date ni de bulle.
-  - **1 crypto** : logo et prix sur une ligne, variations 24 h, 7 j et 30 j en colonnes, puis la plus grande courbe possible sur 30 jours.
-  - **2 ou 3 cryptos** : écran « prix en vedette » : grand logo, prix en grand, et les variations « 24 h » et « 7 j » sur une même ligne, alignées en colonnes d'une crypto à l'autre, dans la plus grande police qui tient.
+  - **1 crypto** : logo et prix sur une ligne (prix centré sur la hauteur du logo), variations 24 h, 7 j et 30 j en colonnes, puis la plus grande courbe possible sur 30 jours.
+  - **2 ou 3 cryptos** : écran « prix en vedette » : logo, prix en 26 px centré sur le logo (18 px s'il est trop long, jamais tronqué pour les cryptos proposées), et les variations « 24 h » et « 7 j » sur une même ligne, alignées en colonnes d'une crypto à l'autre, dans la plus grande police qui tient.
   - Intitulés des variations (24 h, 7 j, 30 j) dans la couleur de la variation (vert ou rouge).
   - **Prix** avec au moins 4 chiffres, 2 décimales quand elles suffisent : 57 864 €, 142,35 €, 2,184 €, 0,08214 €.
 - **Passerelle**
   - 6 jours demandés à Open-Meteo (aujourd'hui et les 5 suivants).
   - Variations 24 h, 7 j et 30 j de chaque crypto ; indicateur de page dédiée ; courbe sur 30 jours (CoinGecko `market_chart`, gardée 30 minutes) et route `/btc/30j`.
-- Polices : symbole « ° » ajouté au 32 px.
+- Polices : symbole « ° » ajouté au 32 px ; nouvelle taille de 26 px pour les prix.
 
 ### Mise à jour
 - Passerelle avant l'afficheur, sinon la page Météo n'affiche que 3 jours et les écrans Crypto n'ont ni courbe ni variation sur 30 jours. `docker-compose.yml` inchangé.

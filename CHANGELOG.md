@@ -24,7 +24,7 @@ Pages Heure et Météo sans cartes, nouveaux écrans Crypto.
 - **Heure** : plus de carte sous la météo du jour ; icône agrandie (environ 75 px de large).
 - **Météo** : plus de cartes ni de traits ; icônes agrandies (environ 105 px pour les 2 prochains jours, 75 px pour les 3 suivants), jours et températures plus grands.
 - **Crypto, 1 crypto choisie** : courbe sur **30 jours**, la plus grande possible ; logo et prix sur une ligne ; variations 24 h, 7 j et 30 j sans bulle, en colonnes.
-- **Crypto, 2 ou 3 cryptos** : écran « prix en vedette » sans bulle : grand logo, prix en grand, variations 24 h et 7 j.
+- **Crypto, 2 ou 3 cryptos** : écran « prix en vedette » sans bulle : grand logo, prix en grand, et les variations « 24 h » et « 7 j » sur une même ligne, alignées en colonnes d'une crypto à l'autre, dans la plus grande police qui tient. Plus de nom de crypto.
 - Intitulés des variations (24 h, 7 j, 30 j) dans la couleur de la variation (vert ou rouge).
 - **Prix** : au moins 4 chiffres pour toutes les cryptos (2,184 €, 0,08214 €), 2 décimales quand elles suffisent.
 

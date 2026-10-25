@@ -508,6 +508,17 @@ static void colonnesVariations(JsonObject c, int x0, int x1, int y, FontId fl, F
   }
 }
 
+// « 24 h +1,9 % » : intitulé et valeur dans la couleur de la variation
+static void groupeVariation(JsonObject c, const char* lab, const char* val, const char* up, int x, int y, FontId f) {
+  drawText(String(lab) + (c[val] | ""), x, y, f, (c[up] | 1) ? VERT : ROUGE_TX, BG);
+}
+
+static int largeurVariation(JsonArray cs, uint8_t n, const char* lab, const char* val, FontId f) {
+  int m = 0;
+  for (uint8_t k = 0; k < n; k++) m = max<int>(m, textW(String(lab) + (cs[k][val] | ""), f));
+  return m;
+}
+
 // Une crypto sur 30 jours : page unique (1 crypto choisie) ou page dédiée
 // (variation sur 7 jours de +/- 5 % ou plus). Logo et prix sur une ligne,
 // trois variations, puis la plus grande courbe possible.
@@ -548,21 +559,38 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
+  // Variations « 24 h … » et « 7 j … » sur une ligne, en deux colonnes communes
+  // à toutes les cryptos de l'écran, dans la plus grande police qui tient :
+  // 2 cryptos -> pleine largeur, centrée ; 3 cryptos -> sous le prix.
+  const int dispo = n == 2 ? 212 : 158, ecart = n == 2 ? 18 : 10;
+  FontId f = F_11;
+  int w24 = 0, w7 = 0;
+  for (FontId e : { F_16, F_13, F_11 }) {
+    if (n == 3 && e == F_16) continue;
+    w24 = largeurVariation(cs, n, "24 h ", "v24", e);
+    w7 = largeurVariation(cs, n, "7 j ", "v7", e);
+    f = e;
+    if (w24 + ecart + w7 <= dispo) break;
+  }
+  const int x24 = n == 2 ? 120 - (w24 + ecart + w7) / 2 : 68, x7 = x24 + w24 + ecart;
+
   tft.fillScreen(BG);
   for (uint8_t k = 0; k < n; k++) {
     JsonObject c = cs[k];
-    if (n == 2) {               // deux moitiés : grand logo, prix, nom, variations pleine largeur
+    int yv;
+    if (n == 2) {               // deux moitiés : grand logo, prix ; variations dessous
       int y = 6 + k * 110;
       logoCrypto(c, 14, y + 4, 62, BG);
-      drawText(fitText(c["px"] | "", F_32, 136), 88, y + 6, F_32, TXT, BG);
-      drawText(fitText(c["n"] | "", F_13, 136), 88, y + 44, F_13, MUTED, BG);
-      colonnesVariations(c, 14, 226, y + 74, F_11, F_16, 14, false);
-    } else {                    // trois lignes : logo, prix, variations à côté du logo
+      drawText(fitText(c["px"] | "", F_32, 136), 88, y + 20, F_32, TXT, BG);
+      yv = y + 80;
+    } else {                    // trois lignes : logo, prix, variations sous le prix
       int y = 4 + k * 73;
       logoCrypto(c, 14, y + 8, 46, BG);
-      drawText(fitText(c["px"] | "", F_32, 154), 70, y + 4, F_32, TXT, BG);
-      colonnesVariations(c, 66, 226, y + 41, F_11, F_13, 13, false);
+      drawText(fitText(c["px"] | "", F_32, 154), 70, y + 6, F_32, TXT, BG);
+      yv = y + 44;
     }
+    groupeVariation(c, "24 h ", "v24", "u24", x24, yv, f);
+    groupeVariation(c, "7 j ", "v7", "u7", x7, yv, f);
     if ((c["x"] | 0) && nbDediees < 3) {
       strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
       dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';

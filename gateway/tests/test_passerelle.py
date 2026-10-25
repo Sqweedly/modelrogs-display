@@ -175,8 +175,11 @@ async def principal() -> int:
             ("/btc/30j?id=inconnu", lambda d: d["ok"] == 0),
             ("/plex", lambda d: d["ok"] and d["n"] == 0 and d["s"] == []),
             ("/supervision/services", lambda d: d["ok"] and len(d["s"]) == 15 and isinstance(d["s"][0]["id"], str)),
-            ("/supervision?ids=2,3,4,5,6,7,8", lambda d: d["md"] == "t" and d["s"][0]["e"] == 1 and d["al"] is None),
-            ("/supervision?ids=1,2,3,4,5,6,7,8", lambda d: d["al"]["n"] == "NAS" and d["al"]["m"] == 4),
+            ("/supervision?ids=2,3,4,5,6,7,8", lambda d: d["md"] == "t" and d["s"][0]["e"] == 1 and d["al"] is None
+                and all(x["e"] != 0 for x in d["s"]) and len(d["s"]) == d["pa"] + d["in"] + d["ma"]),
+            ("/supervision?ids=1,2,3,4,5,6,7,8", lambda d: d["al"]["n"] == "NAS" and d["al"]["m"] == 4
+                and d["s"][0]["n"] == "NAS" and d["s"][0]["m"] == 4 and d["s"][0]["b"] == 0
+                and d["s"][1]["e"] == 1 and d["s"][1]["b"] == 1),
             ("/supervision?ids=" + tous, lambda d: d["md"] == "r" and len(d["s"]) == 3 and d["pa"] == 2),
             ("/supervision", lambda d: d["tot"] == 15 and d["md"] == "r" and d["al"]["n"] == "NAS"),
             ("/supervision?ids=*", lambda d: d["tot"] == 15 and d["pa"] == 2),
@@ -196,13 +199,15 @@ async def principal() -> int:
         # --- Plex : une lecture (affiche), puis trois (liste, sans affiche)
         from app.cache import cache as C
         PLEX.append({"sessionKey": "1", "type": "movie", "title": "Les Gardiens du Phare", "year": 2024,
+                     "librarySectionTitle": "Films",
                      "thumb": "/library/metadata/10/thumb/1", "duration": 7_080_000, "viewOffset": 2_530_000,
                      "User": {"title": "Marc"}, "Player": {"state": "playing"}})
         C._valeurs.pop("plex-sessions", None)
         d = await (await c.get("/plex")).json()
         un = d["s"][0] if d["s"] else {}
         ok = (d["n"] == 1 and d["ev"] == 1 and un["t"] == "Les Gardiens du Phare" and un["st"] == "Film · 2024"
-              and un["pos"] == "42:10" and un["r"] == "reste 1 h 16" and un["pg"] == 357 and un["tc"] == 0 and un["i"])
+              and un["pos"] == "42:10" and un["r"] == "reste 1 h 16" and un["pg"] == 357 and un["tc"] == 0 and un["i"]
+              and un["b"] == "Films" and un["md"] == 0 and un["ep"] == "")
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} Plex, une lecture -> {json.dumps(d, ensure_ascii=False)[:150]}")
 
@@ -215,6 +220,7 @@ async def principal() -> int:
         print(f"{'OK ' if ok else 'ÉCHEC'} affiche Plex 78x117 -> {len(corps)} o, centre {px:#06x}, coin arrondi {coin:#06x}")
 
         PLEX.append({"sessionKey": "2", "type": "episode", "grandparentTitle": "Station Orbis", "title": "Le Retour",
+                     "librarySectionTitle": "Séries",
                      "parentIndex": 2, "index": 5, "grandparentThumb": "/library/metadata/11/thumb/2",
                      "duration": 2_700_000, "viewOffset": 1_944_000, "User": {"title": "Julie"},
                      "Player": {"state": "playing"}, "TranscodeSession": {"videoDecision": "transcode"}})
@@ -222,8 +228,10 @@ async def principal() -> int:
                      "duration": 200_000, "viewOffset": 20_000, "User": {"title": "Salon"}, "Player": {"state": "paused"}})
         C._valeurs.pop("plex-sessions", None)
         d = await (await c.get("/plex")).json()
-        ok = (d["n"] == 3 and d["ev"] == 3 and d["tc"] == 1 and all(s["i"] == "" for s in d["s"])
-              and d["s"][1]["st"] == "S2 E5 · Le Retour" and d["s"][2]["pa"] == 1 and d["s"][2]["st"] == "Les Ondes")
+        ok = (d["n"] == 3 and d["ev"] == 3 and d["tc"] == 1 and d["s"][0]["i"] and d["s"][1]["i"] and d["s"][2]["i"] == ""
+              and d["s"][1]["st"] == "S2 E5 · Le Retour" and d["s"][2]["pa"] == 1 and d["s"][2]["st"] == "Les Ondes"
+              and d["s"][1]["b"] == "Séries" and d["s"][1]["md"] == 2 and d["s"][1]["ep"] == "S2 · E5"
+              and d["s"][2]["md"] == 0 and d["s"][2]["b"] == "")
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} Plex, trois lectures -> n={d['n']} ev={d['ev']} tc={d['tc']}")
         PLEX.clear()

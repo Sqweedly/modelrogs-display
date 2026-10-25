@@ -165,7 +165,7 @@ Voir le parcours d'une requête (section 4) : depuis la 2.7.0, la réponse ne co
   1. lit les derniers battements de chaque sonde choisie ;
   2. traduit l'état Kuma en état d'écran : en ligne → OK, hors ligne → panne, en attente → instable, maintenance → maintenance ;
   3. **trie les problèmes en premier** ;
-  4. choisit la mise en page : **tuiles** jusqu'à 12 services, **résumé** au-delà (compteur et 3 problèmes au plus) ;
+  4. n'envoie que les **services en défaut** (12 au plus), chacun avec ses minutes dans l'état actuel (`m`, et `b` = 1 si le début est plus ancien que l'historique de Kuma), plus les compteurs (OK, pannes, instables, maintenances) ;
   5. calcule l'**alerte** : la panne la plus ancienne, sa durée en minutes et le nombre total de pannes.
 - Pour ajouter un service, il suffit de l'ajouter à la page de statut dans Kuma : avec le réglage par défaut (« Tous les services »), il apparaît sur l'écran sans toucher à l'afficheur.
 - **Délai d'apparition : une minute environ.** Kuma garde lui-même ses réponses de page de statut en cache quelques minutes ; la passerelle ajoute à ses requêtes un paramètre qui change à chaque appel (`?_=<heure>`), ignoré par Kuma, pour toujours obtenir la liste à jour. Elle relit la liste chaque minute.

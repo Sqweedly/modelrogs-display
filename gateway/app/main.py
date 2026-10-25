@@ -25,6 +25,8 @@ log = logging.getLogger("passerelle")
 
 # Version injectée dans l'image par GitHub Actions (tag Git) ; « dev » en local.
 VERSION = os.environ.get("MODELROGS_VERSION", "").strip() or "dev"
+# Commit de l'image (7 caractères) : distingue deux images d'un même numéro
+REVISION = os.environ.get("MODELROGS_REVISION", "").strip()[:7]
 PORT = int(os.environ.get("PORT", "8080"))
 
 CATALOGUE: dict[str, Module] = {m.id: m for m in (
@@ -114,7 +116,7 @@ async def demarrage(app: web.Application) -> None:
             log.info("Module %s actif", m.id)
             if m.demarrer:
                 m.demarrer()
-    log.info("Passerelle %s prête sur le port %d", VERSION, PORT)
+    log.info("Passerelle %s%s prête sur le port %d", VERSION, f" ({REVISION})" if REVISION else "", PORT)
 
 
 async def arret(app: web.Application) -> None:

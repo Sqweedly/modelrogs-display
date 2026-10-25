@@ -502,15 +502,69 @@ static uint16_t stateColor(uint8_t st) {
   }
 }
 
-static const char* stateLabel(uint8_t st) {
-  switch (st) {
-    case SUP_PANNE:    return "panne";
-    case SUP_INSTABLE: return "instable";
-    case SUP_MAINT:    return "maint.";
-    default:           return "ok";
+
+// Durée courte d'indisponibilité : « < 1 min », « 12 min », « 1 h 05 »,
+// « 2 j 3 h » ; « > » devant quand le début est plus ancien que l'historique Kuma.
+static String dureeCourte(uint32_t m, bool borne) {
+  char b[16];
+  if (m < 1) return borne ? String("> 1 min") : String("< 1 min");
+  if (m < 60) snprintf(b, sizeof(b), "%lu min", (unsigned long)m);
+  else if (m < 1440) snprintf(b, sizeof(b), "%lu h %02lu", (unsigned long)(m / 60), (unsigned long)(m % 60));
+  else snprintf(b, sizeof(b), "%lu j %lu h", (unsigned long)(m / 1440), (unsigned long)(m % 1440 / 60));
+  return (borne ? String("> ") : String("")) + b;
+}
+
+// Coche lissée (deux segments à bouts ronds), dessinée d'une seule forme
+// d'après la distance au tracé : pas de défaut à la jonction.
+static float distSeg(float px, float py, float ax, float ay, float bx, float by) {
+  float vx = bx - ax, vy = by - ay, wx = px - ax, wy = py - ay;
+  float t = (vx * wx + vy * wy) / (vx * vx + vy * vy);
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  float dx = wx - t * vx, dy = wy - t * vy;
+  return sqrtf(dx * dx + dy * dy);
+}
+
+static void coche(int cx, int cy, int taille, uint16_t fg, uint16_t bg) {
+  const float k = taille / 40.0f, R = 3.4f * k;
+  const float ax = cx - 15 * k, ay = cy + 1 * k, bx = cx - 5 * k, by = cy + 11 * k, ex = cx + 16 * k, ey = cy - 11 * k;
+  for (int y = (int)(cy - 13 * k - R - 1); y <= (int)(cy + 12 * k + R + 1); y++) {
+    for (int x = (int)(ax - R - 1); x <= (int)(ex + R + 1); x++) {
+      float d = fminf(distSeg(x + 0.5f, y + 0.5f, ax, ay, bx, by), distSeg(x + 0.5f, y + 0.5f, bx, by, ex, ey));
+      float a = R + 0.5f - d;
+      if (a <= 0) continue;
+      tft.drawPixel(x, y, a >= 1 ? fg : tft.alphaBlend((uint8_t)(a * 255), fg, bg));
+    }
   }
 }
 
+// « Tout est OK » (page Supervision affichée à la demande sans aucun défaut) :
+// grand disque vert avec coche au milieu, « TOUT EST OK » en haut, bulle
+// « N services en ligne » en bas ; espaces égaux, l'icône prend le reste.
+static void supervisionToutOk(uint8_t dotIndex, uint8_t dotCount) {
+  GlyphBox gT;
+  glyphBox(F_32, 'T', gT);
+  const int hTitre = gT.h, hBulle = 34, e = 14;
+  const int H = 225 - 6 - 3;                                // jusqu'à 6 px au-dessus des points
+  const int hIcone = H - hTitre - hBulle - 4 * e;
+  int y = 3 + e;
+  drawText("TOUT EST OK", 120, y - (fontAscent(F_32) - gT.dy), F_32, TXT, BG, TC_DATUM);
+  y += hTitre + e;
+  const int r = hIcone / 2;
+  tft.fillSmoothCircle(120, y + r, r, VERT, BG);
+  coche(120, y + r, (int)(hIcone * 0.62f), SOMBRE, VERT);
+  y += hIcone + e;
+  String bilan = String(gSup.tot) + (gSup.tot > 1 ? " services en ligne" : " service en ligne");
+  card(16, y, 208, hBulle, 12, CARD, BG);
+  drawText(bilan, 120, y + hBulle / 2 + 1, F_16, TXT, CARD, MC_DATUM);
+  staleMark(gSup.stale);
+  pageDots(dotIndex, dotCount, VERT);
+}
+
+// Supervision : récapitulatif des services en défaut seulement (affichée juste
+// après l'écran PANNE). En haut, le compteur « 1/8 KO » (services en défaut) ; dessous,
+// une ligne par service en défaut (pannes d'abord), dont la hauteur s'adapte
+// au nombre : de 1 à 6 lignes ; au-delà, 5 lignes et « + N autres ».
+// Espaces égaux au-dessus, entre les éléments, 6 px au-dessus des points.
 void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
   if (!gSup.ok) {
@@ -518,74 +572,91 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
     pageDots(dotIndex, dotCount, VERT);
     return;
   }
-
-  drawText("Supervision", 14, 15, F_16, TXT, BG);
-  drawText(String(gSup.tot) + (gSup.tot > 1 ? " services" : " service"), 14, 35, F_11, MUTED, BG);
-
-  // Bulle de synthèse en haut à droite, alignée sur le titre (comme en 2.3).
-  // Si le texte complet toucherait « Supervision », seul le problème est gardé.
-  String resume, court;
-  uint16_t pillCol;
-  if (gSup.pa > 0) {
-    resume = court = String(gSup.pa) + " en panne";
-    pillCol = ROUGE;
-  } else if (gSup.in > 0) {
-    court = String(gSup.in) + " instable";
-    resume = String(gSup.okn) + " OK · " + court;
-    pillCol = AMBRE;
-  } else if (gSup.ma > 0) {
-    court = String(gSup.ma) + " maint.";
-    resume = String(gSup.okn) + " OK · " + court;
-    pillCol = BLEU;
-  } else {
-    resume = court = "Tout est OK";
-    pillCol = VERT;
+  // Services en défaut (la passerelle les envoie en premier, pannes d'abord)
+  uint8_t idx[MAX_SUP_ITEMS], nd = 0;
+  for (uint8_t i = 0; i < gSup.count; i++)
+    if (gSup.st[i] != SUP_OK) idx[nd++] = i;
+  const int defauts = gSup.pa + gSup.in + gSup.ma;         // total réel (peut dépasser la liste)
+  if (defauts == 0 || nd == 0) {                           // affichée à la demande, sans défaut
+    supervisionToutOk(dotIndex, dotCount);
+    return;
   }
-  const int finTitre = 14 + textW("Supervision", F_16) + 8;
-  if (226 - (textW(resume, F_11) + 14) < finTitre) resume = court;
-  pill(226, 15, resume, F_11, SOMBRE, pillCol, BG, true);
+  const int lignes = defauts > 6 ? 5 : min(nd, (uint8_t)6);
+  const int autres = defauts - lignes;
+  const bool ligneAutres = autres > 0;
 
-  if (!gSup.resume) {
-    // Tuiles (jusqu'à 12 services), les problèmes en premier.
-    uint8_t n = gSup.count;
-    uint8_t rows = (n + 1) / 2;
-    const int top = 59, avail = 158, gap = 6;
-    int h = rows ? min(32, (avail - (rows - 1) * gap) / rows) : 32;
-    int r = min(10, h / 2);
-    for (uint8_t i = 0; i < n; i++) {
-      int x = 14 + (i % 2) * 109;
-      int y = top + (i / 2) * (h + gap);
-      uint8_t st = gSup.st[i];
-      uint16_t c = stateColor(st);
-      if (st == SUP_OK) card(x, y, 103, h, r, CARD);
-      else outlinedCard(x, y, 103, h, r, c, CARD);
-      tft.fillSmoothCircle(x + 12, y + h / 2, 4, c, CARD);
-      drawText(fitText(gSup.names[i], F_13, 75), x + 22, y + h / 2 + 1, F_13, TXT, CARD, ML_DATUM);
-    }
-  } else {
-    // Résumé (plus de 12 services) : compteur + services en défaut.
-    uint16_t cc = gSup.pa ? ROUGE : (gSup.in ? AMBRE : VERT);
-    String big = String(gSup.okn);
-    String small = "/ " + String(gSup.tot) + " OK";
-    int wB = textW(big, F_52), wS = textW(small, F_18);
-    int x = 120 - (wB + 8 + wS) / 2;
-    drawText(big, x, 106, F_52, cc, BG, L_BASELINE);
-    drawText(small, x + wB + 8, 106, F_18, TXT2, BG, L_BASELINE);
+  // Compteur « 1/8 KO » : services en défaut et « KO » en grand, dans la couleur
+  // de la situation (rouge si panne, ambre si instable, bleu si maintenance)
+  uint16_t cc = gSup.pa ? ROUGE : (gSup.in ? AMBRE : BLEU);
+  String big = String(defauts), small = "/" + String(gSup.tot), ko = "KO";
+  GlyphBox g52;
+  glyphBox(F_52, '0', g52);
+  const int hCompteur = g52.h;
 
-    uint8_t shown = min<uint8_t>(gSup.count, 3);
-    for (uint8_t i = 0; i < shown; i++) {
-      int y = 117 + i * 30;
-      uint8_t st = gSup.st[i];
-      uint16_t c = stateColor(st);
-      outlinedCard(14, y, 212, 26, 9, c, CARD);
-      tft.fillSmoothCircle(26, y + 13, 4, c, CARD);
-      drawText(fitText(gSup.names[i], F_13, 130), 36, y + 14, F_13, TXT, CARD, ML_DATUM);
-      drawText(stateLabel(st), 218, y + 14, F_11, st == SUP_PANNE ? ROUGE_TX : c, CARD, MR_DATUM);
+  // Lignes : hauteur et police selon le nombre
+  const int gapL = lignes <= 3 ? 8 : 6;
+  GlyphBox gA;
+  glyphBox(F_11, '0', gA);
+  const int hAutres = ligneAutres ? gA.h : 0;
+  const int ZONE_H = 225 - 6 - 3;
+  const int eMin = 10;
+  int hL = lignes ? (ZONE_H - hCompteur - hAutres - (lignes - 1) * gapL - (2 + (ligneAutres ? 1 : 0)) * eMin) / lignes : 0;
+  hL = min(hL, 40);
+  const FontId fe = hL >= 30 ? F_13 : F_11;
+  // Police des noms : la plus grande permise par la hauteur des lignes, réduite
+  // tant qu'un nom ne tient pas en entier (13 px au minimum, puis « … »)
+  FontId fn = hL >= 34 ? F_18 : (hL >= 28 ? F_16 : F_13);
+  {
+    static const FontId SERIE[3] = { F_18, F_16, F_13 };
+    int iF = fn == F_18 ? 0 : (fn == F_16 ? 1 : 2);
+    int rdM = hL >= 34 ? 5 : 4;
+    for (; iF < 2; iF++) {
+      bool tient = true;
+      for (int k = 0; k < lignes && tient; k++) {
+        uint8_t st = gSup.st[idx[k]];
+        int place = 226 - 12 - textW(dureeCourte(gSup.mins[idx[k]], gSup.borne[idx[k]]), fe) - 8 - (14 + 8 + 2 * rdM + 9);
+        tient = textW(gSup.names[idx[k]], SERIE[iF]) <= place;
+      }
+      if (tient) break;
     }
-    uint8_t more = (gSup.count - shown) + gSup.extra;
-    if (more) drawText("+" + String(more) + " autre(s)", 120, 206, F_11, MUTED, BG, TC_DATUM);
-    if (gSup.count == 0) drawText("Tout fonctionne", 120, 148, F_16, VERT, BG, TC_DATUM);
+    fn = SERIE[iF];
   }
+  const int hListe = lignes * hL + (lignes - 1) * gapL + (ligneAutres ? gapL + hAutres : 0);
+  // Peu de lignes (hauteur plafonnée) : compteur et liste groupés et centrés,
+  // espaces égaux en haut, entre les deux et en bas ; sinon la liste descend
+  // jusqu'à 6 px au-dessus des points.
+  const int nEsp = hL >= 40 ? 3 : 2;
+  const int e = min((ZONE_H - hCompteur - hListe) / nEsp, 24);
+  const int decal = (ZONE_H - hCompteur - hListe - nEsp * e) / 2;   // reste centré
+
+  int y = 3 + e + (nEsp == 3 ? decal : 0);
+  {
+    const int wB = textW(big, F_52), wS = textW(small, F_18), wK = textW(ko, F_52), e1 = 4, e2 = 12;
+    int x = 120 - (wB + e1 + wS + e2 + wK) / 2;
+    const int base = y + g52.dy;                           // ligne de base commune
+    x += drawText(big, x, base - fontAscent(F_52), F_52, cc, BG) + e1;
+    x += drawText(small, x, base - fontAscent(F_18), F_18, TXT2, BG) + e2;
+    drawText(ko, x, base - fontAscent(F_52), F_52, cc, BG);
+    y += hCompteur + e;
+  }
+  for (int k = 0; k < lignes; k++) {
+    uint8_t i = idx[k];
+    uint8_t st = gSup.st[i];
+    uint16_t c = stateColor(st);
+    int r = min(10, hL / 2);
+    outlinedCard(14, y, 212, hL, r, c, CARD);
+    int rd = hL >= 34 ? 5 : 4;
+    tft.fillSmoothCircle(14 + 8 + rd + 4, y + hL / 2, rd, c, CARD);
+    int xN = 14 + 8 + 2 * rd + 9;
+    String lab = dureeCourte(gSup.mins[i], gSup.borne[i]);   // temps d'indisponibilité
+    int wLab = textW(lab, fe);
+    drawText(fitText(gSup.names[i], fn, 226 - 12 - wLab - 8 - xN), xN, y + hL / 2 + 1, fn, TXT, CARD, ML_DATUM);
+    drawText(lab, 226 - 12, y + hL / 2 + 1, fe, st == SUP_PANNE ? ROUGE_TX : c, CARD, MR_DATUM);
+    y += hL + gapL;
+  }
+  if (ligneAutres)
+    drawText("+ " + String(autres) + (autres > 1 ? " autres services en défaut" : " autre service en défaut"),
+             120, y - (fontAscent(F_11) - gA.dy), F_11, MUTED, BG, TC_DATUM);
 
   staleMark(gSup.stale);
   pageDots(dotIndex, dotCount, VERT);
@@ -593,26 +664,27 @@ void drawSupervision(uint8_t dotIndex, uint8_t dotCount) {
 
 // ---------------------------------------------------------------- Alerte
 
+// Écran PANNE : « PANNE » en haut, grand triangle d'alerte au milieu, bulle
+// « N services sur M en panne » en bas ; espaces égaux, l'icône prend le reste.
 void drawAlert() {
   tft.fillScreen(ALERTE);
-  warningIcon(120, 51, TXT, ALERTE);
-  drawText("PANNE", 120, 84, F_32, TXT, ALERTE, TC_DATUM);
-  drawText(fitText(gSup.alName, F_18, 216), 120, 125, F_18, TXT, ALERTE, TC_DATUM);
-
-  String depuis;
-  if (gSup.alMin == 0) depuis = "Hors ligne depuis moins d'1 min";
-  else if (gSup.alMin < 60) depuis = "Hors ligne depuis " + String(gSup.alMin) + " min";
-  else {
-    char buf[40];
-    snprintf(buf, sizeof(buf), "Hors ligne depuis %u h %02u", gSup.alMin / 60, gSup.alMin % 60);
-    depuis = buf;
-  }
-  drawText(depuis, 120, 155, F_13, TXT, ALERTE, TC_DATUM);
-
-  card(16, 183, 208, 36, 10, ALERTE2, ALERTE);
+  GlyphBox gP;
+  glyphBox(F_32, 'P', gP);
+  const int hPanne = gP.h;
+  const int hBulle = 38;
+  const int e = 14;
+  const int H = 240 - 3 - 3;                                // zone visible y 3..236
+  const int hIcone = H - hPanne - hBulle - 4 * e;
+  int y = 3 + e;
+  drawText("PANNE", 120, y - (fontAscent(F_32) - gP.dy), F_32, TXT, ALERTE, TC_DATUM);
+  y += hPanne + e;
+  warningIconTaille(120, y + hIcone / 2, hIcone, TXT, ALERTE);
+  y += hIcone + e;
   String bilan = String(gSup.alCount) + (gSup.alCount > 1 ? " services sur " : " service sur ")
                + String(gSup.tot) + " en panne";
-  drawText(bilan, 120, 202, F_13, TXT, ALERTE2, MC_DATUM);
+  FontId fb = textW(bilan, F_16) <= 208 - 24 ? F_16 : F_13;
+  card(16, y, 208, hBulle, 12, ALERTE2, ALERTE);
+  drawText(bilan, 120, y + hBulle / 2 + 1, fb, TXT, ALERTE2, MC_DATUM);
 }
 
 // --------------------------------------------------------------- Bitcoin
@@ -930,101 +1002,221 @@ static void plexBarre(int x, int y, int w, int h, uint16_t pg, uint16_t bg) {
   tft.fillSmoothRoundRect(x, y, plein, h, h / 2, PLEX, DIM);
 }
 
-// Coupe un titre en deux lignes au dernier espace qui tient dans maxW.
-static void deuxLignes(const char* titre, FontId f, int maxW, String& l1, String& l2) {
-  String t = titre;
-  if (textW(t, f) <= maxW) { l1 = t; l2 = ""; return; }
-  int coupe = -1;
-  for (int i = 0; i < (int)t.length(); i++) {
-    if (t[i] == ' ' && textW(t.substring(0, i), f) <= maxW) coupe = i;
+// Zones de progression de l'écran affiché : redessinées seules quand seule la
+// progression change (sans retélécharger les affiches).
+struct ZoneProgres {
+  int x, y, w;          // barre
+  int h;                // épaisseur de la barre
+  int yT;               // ligne de texte des temps (-1 : pas de temps sous la barre)
+  bool resteADroite;    // « reste … » à droite de la barre, sur sa ligne
+};
+static ZoneProgres zones[MAX_PLEX];
+static uint8_t nZones = 0;
+
+static void dessinerProgres(uint8_t i) {
+  const ZoneProgres& z = zones[i];
+  const PlexState::Ligne& l = gPlex.l[i];
+  if (z.resteADroite) {
+    int wr = textW(l.reste, F_11);
+    tft.fillRect(z.x, z.y - 6, z.w + 1, z.h + 12, BG);
+    plexBarre(z.x, z.y, z.w - wr - 8, z.h, l.pg, BG);
+    drawText(l.reste, z.x + z.w, z.y + z.h / 2 + 1, F_11, MUTED, BG, MR_DATUM);
+    return;
   }
-  if (coupe <= 0) { l1 = fitText(t, f, maxW); l2 = ""; return; }
-  l1 = t.substring(0, coupe);
-  l2 = fitText(t.substring(coupe + 1), f, maxW);
-}
-
-static const int PLEX_Y_BARRE = 188;
-
-static void plexProgresUne() {
-  const PlexState::Ligne& l = gPlex.l[0];
-  tft.fillRect(14, PLEX_Y_BARRE - 2, 213, 30, BG);
-  plexBarre(14, PLEX_Y_BARRE, 212, 6, l.pg, BG);
-  drawText(l.pos, 14, PLEX_Y_BARRE + 12, F_11, TXT, BG);
-  drawText(l.reste, 226, PLEX_Y_BARRE + 12, F_11, MUTED, BG, TR_DATUM);
-}
-
-static void plexProgresListe() {
-  for (uint8_t i = 0; i < gPlex.count; i++) {
-    int y = 60 + i * 54;
-    tft.fillRect(82, y + 29, 136, 9, CARD);
-    plexBarre(84, y + 31, 132, 5, gPlex.l[i].pg, CARD);
+  int bas = z.yT >= 0 ? z.yT + fontAscent(F_11) + 4 : z.y + z.h + 2;
+  tft.fillRect(z.x, z.y - 2, z.w + 1, bas - (z.y - 2), BG);
+  plexBarre(z.x, z.y, z.w, z.h, l.pg, BG);
+  if (z.yT >= 0) {
+    drawText(l.pos, z.x, z.yT, F_11, TXT, BG);
+    drawText(l.reste, z.x + z.w, z.yT, F_11, MUTED, BG, TR_DATUM);
   }
 }
 
 void plexProgress() {
   if (!gPlex.ok || gPlex.count == 0) return;
-  if (gPlex.n == 1) plexProgresUne();
-  else plexProgresListe();
+  for (uint8_t i = 0; i < nZones && i < gPlex.count; i++) dessinerProgres(i);
+}
+
+// Affiche (ou remplaçant de même forme avec un triangle « lecture »)
+static void plexAffiche(const PlexState::Ligne& l, int x, int y, int w, int h, int r) {
+  if (gwImage(l.affiche, x, y, w, h, BG, r)) return;
+  card(x, y, w, h, r, CARD);
+  int cx = x + w / 2, cy = y + h / 2, t = max(5, w / 5);
+  tft.fillTriangle(cx - t / 2, cy - t, cx - t / 2, cy + t, cx + t, cy, PLEX);
+}
+
+static const char* plexMode(const PlexState::Ligne& l) {
+  return l.mode == 2 ? "Transcodage" : (l.mode == 1 ? "Flux direct" : "Direct");
+}
+
+// Haut et bas de l'encre d'une ligne de texte : pour aligner au pixel.
+static int baseDepuisHaut(const String& t, FontId f, int hautEncre, int* basEncre = nullptr) {
+  int d = 0, b = 0;
+  encreTexte(t, f, d, b);
+  GlyphBox g;
+  glyphBox(f, 'H', g);
+  d = max(d, (int)g.dy);
+  if (basEncre) *basEncre = hautEncre + d + b;
+  return hautEncre + d - fontAscent(f);                    // y de drawText (TL_DATUM)
+}
+
+// --- Une lecture --------------------------------------------------------------
+// Affiche aussi grande que possible à gauche (proportions 2:3) ; à sa droite,
+// qui regarde (en haut), puis la bibliothèque, l'épisode et le mode de lecture
+// (alignés sur le bas de l'affiche). En bas, sur toute la largeur : le titre,
+// la barre de progression, la position et le temps restant.
+static void plexUne() {
+  const PlexState::Ligne& l = gPlex.l[0];
+  const int haut = 3 + 8, gAT = 9, gTB = 8, gBT = 6, hBarre = 6;
+  int tD = 0, tB = 0;
+  encreTexte(l.pos, F_11, tD, tB);
+  encreTexte(l.reste, F_11, tD, tB);
+  const int basTemps = 225 - 6;
+  const int yT = basTemps - tB - fontAscent(F_11);
+  const int yB = basTemps - tB - tD - gBT - hBarre;
+  FontId ft = textW(l.titre, F_18) <= 212 ? F_18 : F_16;
+  String titre = fitText(l.titre, ft, 212);
+  int nD = 0, nB = 0;
+  encreTexte(titre, ft, nD, nB);
+  GlyphBox gH;
+  glyphBox(ft, 'H', gH);
+  nD = max(nD, (int)gH.dy);
+  const int basTitre = yB - gTB, hautTitre = basTitre - nB - nD;
+  drawText(titre, 14, basTitre - nB - fontAscent(ft), ft, TXT, BG);
+  const int hA = hautTitre - gAT - haut, wA = hA * 2 / 3;
+  plexAffiche(l, 14, haut, wA, hA, 10);
+  const int xC = 14 + wA + 12, wC = 226 - xC;
+  drawText(fitText(l.user, F_16, wC), xC, baseDepuisHaut(l.user, F_16, haut), F_16, PLEX, BG);
+  const char* mode = plexMode(l);
+  uint16_t cm = l.mode == 2 ? AMBRE : VERT;
+  const FontId fP = (textW(mode, F_13) + 14 <= wC && textW("En pause", F_13) + 14 <= wC) ? F_13 : F_11;
+  const int hP = fP == F_11 ? 19 : 22, gP = 6;
+  int y = haut + hA;
+  if (l.pause) { y -= hP; pill(xC, y, "En pause", fP, TXT, DIM, BG); y -= gP; }
+  y -= hP;
+  pill(xC, y, fitText(mode, fP, wC - 14), fP, SOMBRE, cm, BG);
+  y -= 10;
+  if (l.ep[0]) {
+    int a = 0, b = 0;
+    encreTexte(l.ep, F_13, a, b);
+    drawText(l.ep, xC, y - b - fontAscent(F_13), F_13, MUTED, BG);
+    y -= a + b + 7;
+  }
+  if (l.biblio[0]) {
+    int a = 0, b = 0;
+    String bib = fitText(l.biblio, F_16, wC);
+    encreTexte(bib, F_16, a, b);
+    drawText(bib, xC, y - b - fontAscent(F_16), F_16, TXT, BG);
+  }
+  zones[0] = { 14, yB, 212, hBarre, yT, false };
+  nZones = 1;
+}
+
+// --- 2 ou 3 lectures (et plus) : une ligne par lecture -------------------------
+// Hauteurs égales sur toute la hauteur utile, affiche à gauche.
+//  - 2 lectures : qui regarde ; titre ; pastille d'état et épisode ;
+//    en bas, barre, position et temps restant ;
+//  - 3 lectures : qui regarde et pastille d'état ; titre ; barre et temps restant.
+// Le haut du texte et le bas de la barre sont alignés sur l'affiche.
+static FontId policeQuiTient(const char* t, FontId grande, FontId petite, int w) {
+  return textW(t, grande) <= w ? grande : petite;
+}
+
+static void plexLignes(uint8_t n, int autres) {
+  const int haut = 3 + 8, bas = 225 - 6 - (autres ? 16 : 0);
+  const int g = n == 2 ? 12 : 9;
+  const int hL = (bas - haut - (n - 1) * g) / n;
+  const bool grand = n == 2;
+  for (uint8_t i = 0; i < n; i++) {
+    const PlexState::Ligne& l = gPlex.l[i];
+    const int y0 = haut + i * (hL + g), yBas = y0 + hL;
+    const int wA = hL * 2 / 3;
+    plexAffiche(l, 14, y0, wA, hL, grand ? 8 : 6);
+    const int xG = 14 + wA + 10;
+    const int xD = 226, w = xD - xG;
+    const char* t = l.pause ? "En pause" : plexMode(l);
+    const uint16_t cP = l.pause ? DIM : (l.mode == 2 ? AMBRE : VERT), fP = l.pause ? TXT : SOMBRE;
+    const int wPill = textW(t, F_11) + 14, hPill = 19;
+    if (grand) {
+      int basU = 0, basT = 0;
+      String u = fitText(l.user, F_16, w);
+      drawText(u, xG, baseDepuisHaut(u, F_16, y0, &basU), F_16, PLEX, BG);
+      // Titre : 16 px sur une ligne, sinon 14 px sur une ligne, sinon 14 px sur deux
+      FontId fT = policeQuiTient(l.titre, F_16, F_13, w);
+      String t1 = l.titre, t2 = "";
+      if (textW(t1, fT) > w) {
+        int coupe = -1;
+        for (int k = 0; k < (int)t1.length(); k++)
+          if (t1[k] == ' ' && textW(t1.substring(0, k), fT) <= w) coupe = k;
+        if (coupe > 0) { t2 = fitText(t1.substring(coupe + 1), fT, w); t1 = t1.substring(0, coupe); }
+        else t1 = fitText(t1, fT, w);
+      }
+      drawText(t1, xG, baseDepuisHaut(t1, fT, basU + 9, &basT), fT, TXT, BG);
+      if (t2.length()) drawText(t2, xG, baseDepuisHaut(t2, fT, basT + 5, &basT), fT, TXT, BG);
+      // Pastille + épisode (« S2 · E5 », ou « S2E5 » si la place manque)
+      const int yP = basT + (t2.length() ? 7 : 9);
+      tft.fillSmoothRoundRect(xG, yP, wPill, hPill, hPill / 2 - 2, cP, BG);
+      drawText(t, xG + wPill / 2, yP + hPill / 2 + 1, F_11, fP, cP, MC_DATUM);
+      String info = l.ep;
+      if (info.length()) {
+        const int wI = w - wPill - 8;
+        if (textW(info, F_13) > wI) {                    // « S2 · E5 » -> « S2E5 »
+          char c[16];
+          int j = 0;
+          for (const char* q = l.ep; *q && j < 15; q++)
+            if (*q != ' ' && (uint8_t)*q != 0xC2 && (uint8_t)*q != 0xB7) c[j++] = *q;
+          c[j] = 0;
+          info = c;
+        }
+        FontId fI = policeQuiTient(info.c_str(), F_13, F_11, wI);
+        drawText(fitText(info, fI, wI), xG + wPill + 8, yP + hPill / 2 + 1, fI, MUTED, BG, ML_DATUM);
+      }
+      // Barre et temps alignés sur le bas de l'affiche
+      int tD = 0, tB = 0;
+      encreTexte(l.pos, F_11, tD, tB);
+      encreTexte(l.reste, F_11, tD, tB);
+      const int yT = yBas - tB - fontAscent(F_11);
+      const int yB = yBas - tB - tD - 6 - 5;
+      zones[i] = { xG, yB, w, 5, yT, false };
+    } else {
+      // Qui regarde (F_13) et pastille à droite, centrés sur la même ligne
+      const int cy = y0 + hPill / 2;
+      tft.fillSmoothRoundRect(xD - wPill, y0, wPill, hPill, hPill / 2 - 2, cP, BG);
+      drawText(t, xD - wPill / 2, cy + 1, F_11, fP, cP, MC_DATUM);
+      drawText(fitText(l.user, F_13, w - wPill - 8), xG, cy + 1, F_13, PLEX, BG, ML_DATUM);
+      // Titre centré entre la ligne du haut et la barre
+      FontId fT = policeQuiTient(l.titre, F_16, F_13, w);
+      String ti = fitText(l.titre, fT, w);
+      int d = 0, b = 0;
+      encreTexte(ti, fT, d, b);
+      GlyphBox gH;
+      glyphBox(fT, 'H', gH);
+      d = max(d, (int)gH.dy);
+      const int yB = yBas - 5 - 3;                       // barre (le texte « reste » la déborde de 3 px)
+      const int hautT = (y0 + hPill + yB - 3) / 2 - (d + b) / 2;
+      drawText(ti, xG, hautT + d - fontAscent(fT), fT, TXT, BG);
+      zones[i] = { xG, yB, w, 5, -1, true };
+    }
+  }
+  nZones = n;
+  if (autres)
+    drawText("+ " + String(autres) + (autres > 1 ? " autres lectures" : " autre lecture"), 120,
+             225 - 6 - 11, F_11, MUTED, BG, TC_DATUM);
 }
 
 void drawPlex(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
+  nZones = 0;
   if (!gPlex.ok || gPlex.count == 0) {
     errorPage("Plex", "Aucune lecture en cours");
     pageDots(dotIndex, dotCount, PLEX);
     return;
   }
-
-  drawText("Plex", 14, 15, F_16, TXT, BG);
-  String bulle = String(gPlex.n) + (gPlex.n > 1 ? " lectures" : " lecture");
-  pill(226, 15, bulle, F_11, SOMBRE, PLEX, BG, true);
-
-  if (gPlex.n == 1) {
-    // --- Une lecture : affiche, titre, qui regarde, mode, progression
-    const PlexState::Ligne& l = gPlex.l[0];
-    drawText(l.pause ? "En pause" : "Lecture en cours", 14, 35, F_11, MUTED, BG);
-    if (!gwImage(l.affiche, 14, 58, 78, 117, BG, 8)) {
-      card(14, 58, 78, 117, 8, CARD);
-      tft.fillTriangle(44, 101, 44, 131, 68, 116, PLEX);   // « lecture »
-    }
-    const int x = 104, w = 122;
-    String l1, l2;
-    deuxLignes(l.titre, F_18, w, l1, l2);
-    drawText(l1, x, 58, F_18, TXT, BG);
-    int y = 80;
-    if (l2.length()) { drawText(l2, x, 80, F_18, TXT, BG); y = 102; }
-    drawText(fitText(l.sous, F_11, w), x, y + 4, F_11, MUTED, BG);
-    // Qui regarde
-    String u = fitText(l.user, F_11, w - 30);
-    int wu = textW(u, F_11) + 26;
-    card(x, 130, wu, 19, 9, CARD);
-    tft.fillSmoothCircle(x + 10, 139, 3, PLEX, CARD);
-    drawText(u, x + 18, 140, F_11, PLEX, CARD, ML_DATUM);
-    // Mode de lecture
-    if (l.pause)   pill(x, 155, "En pause", F_11, TXT, DIM, BG);
-    else if (l.tc) pill(x, 155, "Transcodage", F_11, SOMBRE, AMBRE, BG);
-    else           pill(x, 155, "Direct", F_11, SOMBRE, VERT, BG);
-    plexProgresUne();
-
-  } else {
-    // --- Plusieurs lectures : 3 lignes au plus, sans affiche
-    String sous = gPlex.tc ? "dont " + String(gPlex.tc) + (gPlex.tc > 1 ? " transcodages" : " transcodage")
-                           : String("Toutes en lecture directe");
-    if (gPlex.n > gPlex.count) sous = "3 premières · " + sous;
-    drawText(fitText(sous, F_11, 212), 14, 35, F_11, MUTED, BG);
-    for (uint8_t i = 0; i < gPlex.count; i++) {
-      const PlexState::Ligne& l = gPlex.l[i];
-      int y = 60 + i * 54;
-      card(14, y, 212, 46, 10, CARD);
-      const char* mode = l.pause ? "Pause" : (l.tc ? "Transcod." : "Direct");
-      uint16_t cm = l.pause ? MUTED : (l.tc ? AMBRE : VERT);
-      int wm = drawText(mode, 216, y + 8, F_11, cm, CARD, TR_DATUM);
-      drawText(fitText(l.titre, F_13, 192 - wm - 8), 24, y + 7, F_13, TXT, CARD);
-      drawText(fitText(l.user, F_11, 54), 24, y + 27, F_11, PLEX, CARD);
-    }
-    plexProgresListe();
-  }
-
+  const uint8_t n = min<uint8_t>(gPlex.count, MAX_PLEX);
+  const int autres = gPlex.n > n ? gPlex.n - n : 0;
+  if (gPlex.n == 1 || n == 1) plexUne();
+  else plexLignes(n, autres);
+  plexProgress();
   staleMark(gPlex.stale);
   pageDots(dotIndex, dotCount, PLEX);
 }

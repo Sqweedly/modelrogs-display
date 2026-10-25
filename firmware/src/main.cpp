@@ -12,8 +12,11 @@
 // - Pages en rotation : Heure, Météo, Discord, Supervision, Crypto, Plex
 //   (+ écran d'alerte prioritaire en cas de panne). Discord et Plex ne
 //   s'affichent que s'il y a quelqu'un / une lecture, et passent devant
-//   dès une arrivée / le début d'une lecture. Supervision ne s'affiche
-//   qu'en cas de problème (panne, instable, Kuma injoignable).
+//   dès une arrivée / le début d'une lecture.
+// - Panne : bloc « PANNE + récapitulatif Supervision » affiché aussitôt, puis
+//   après chaque page tant que la panne dure. Sans panne, la Supervision
+//   n'apparaît dans la rotation que si un service est instable ou si Kuma
+//   ne répond pas.
 // - Toutes les données viennent de la passerelle Docker (HTTP local)
 // =====================================================
 
@@ -44,6 +47,7 @@ static ScreenState screen = S_BOOT;
 static int8_t   curPage = -1;          // -1 : aucune page affichée
 static uint32_t pageSince = 0;
 static bool     alertShown = false;    // l'écran d'alerte est affiché en ce moment
+static bool     blocSup = false;       // récap Supervision affiché après l'écran PANNE
 static bool     alertActive = false;   // une panne est en cours
 static bool     idleShown = false;
 static int8_t   forcedPage = -1;
@@ -79,9 +83,10 @@ static bool pageAvailable(uint8_t p) {
   if (!pageEnabled(p) || !moduleUsable(p)) return false;   // désactivée ici ou sur la passerelle
   if (p == PG_DISCORD) return gDisc.ok && gDisc.n > 0;     // masquée si personne
   if (p == PG_PLEX) return gPlex.ok && gPlex.n > 0;        // masquée sans lecture
-  // Supervision masquée quand tout va bien : visible s'il y a une panne, un
-  // service instable, ou si Kuma / la passerelle ne répond pas.
-  if (p == PG_SUP) return !gSup.ok || gSup.pa > 0 || gSup.in > 0;
+  // Supervision : pendant une panne, elle passe dans le bloc « PANNE +
+  // Supervision » (hors rotation). Sans panne, elle n'est dans la rotation que
+  // si un service est instable ou si Kuma / la passerelle ne répond pas.
+  if (p == PG_SUP) return !gSup.alert && (!gSup.ok || gSup.in > 0);
   return true;
 }
 
@@ -136,11 +141,12 @@ static void nextPage() {
   }
 }
 
-// Écran d'alerte : affiché une durée de page, en alternance avec la rotation.
+// Écran PANNE : premier écran du bloc (une durée de page), suivi du récap Supervision.
 // curPage garde la dernière page normale, pour reprendre la rotation ensuite.
 static void showAlert() {
   drawAlert();
   alertShown = true;
+  blocSup = false;
   drawnSupVersion = gSup.version;
   pageSince = millis();
 }
@@ -166,7 +172,7 @@ static void setScreen(ScreenState s) {
   if (s == screen) return;
   screen = s;
   curPage = -1;
-  alertShown = false;
+  alertShown = blocSup = false;
   switch (s) {
     case S_VALIDATE:
       drawSplash("Configuration à valider", "1. Wi-Fi \"" + String(cfg.apSsid) + "\"",
@@ -294,7 +300,7 @@ void loop() {
   // --- Après une modification de configuration
   if (configChanged) {
     configChanged = false;
-    alertShown = false;
+    alertShown = blocSup = false;
     alertActive = false;               // une panne en cours sera réaffichée aussitôt
     if (forcedPage < 0) {
       curPage = (curPage >= 0 ? curPage - 1 : -1);   // reprendre la rotation
@@ -304,9 +310,8 @@ void loop() {
 
   const uint32_t dureePage = (uint32_t)cfg.pageSec * 1000UL;
 
-  // --- Alerte supervision : une nouvelle panne s'affiche immédiatement, puis
-  //     l'écran d'alerte alterne avec les pages (1 écran sur 2) jusqu'au retour
-  //     à la normale.
+  // --- Panne : le bloc « PANNE + Supervision » s'affiche immédiatement, puis
+  //     après chaque page jusqu'au retour à la normale.
   if (supAlert && !alertActive) {
     alertActive = true;
     showAlert();
@@ -314,8 +319,8 @@ void loop() {
   }
   if (!supAlert && alertActive) {
     alertActive = false;
-    if (alertShown) {
-      alertShown = false;
+    if (alertShown || blocSup) {
+      alertShown = blocSup = false;
       nextPage();
       return;
     }
@@ -325,14 +330,14 @@ void loop() {
   if (forcedPage >= 0) {
     uint8_t p = forcedPage;
     forcedPage = -1;
-    alertShown = false;
+    alertShown = blocSup = false;
     showPage(p);
     return;
   }
   if (priorityDiscord) {
     priorityDiscord = false;
     if (pageAvailable(PG_DISCORD)) {
-      alertShown = false;
+      alertShown = blocSup = false;
       showPage(PG_DISCORD);
       return;
     }
@@ -340,7 +345,7 @@ void loop() {
   if (priorityPlex) {                      // une lecture vient de commencer
     priorityPlex = false;
     if (pageAvailable(PG_PLEX)) {
-      alertShown = false;
+      alertShown = blocSup = false;
       showPage(PG_PLEX);
       return;
     }
@@ -352,14 +357,30 @@ void loop() {
       drawAlert();
       drawnSupVersion = gSup.version;
     }
-    if (now - pageSince >= dureePage) {
+    if (now - pageSince >= dureePage) {      // fin de l'écran PANNE : récap Supervision
       alertShown = false;
+      blocSup = true;
+      drawSupervision(0, 0);
+      drawnSupVersion = gSup.version;
+      pageSince = millis();
+    }
+    return;
+  }
+
+  // --- Récap Supervision du bloc : mise à jour, puis page suivante
+  if (blocSup) {
+    if (drawnSupVersion != gSup.version) {
+      drawSupervision(0, 0);
+      drawnSupVersion = gSup.version;
+    }
+    if (now - pageSince >= dureePage) {
+      blocSup = false;
       nextPage();
     }
     return;
   }
 
-  // --- Rotation (une alerte en cours s'intercale entre chaque page)
+  // --- Rotation (pendant une panne, le bloc s'intercale après chaque page)
   if (curPage < 0) {
     if (supAlert && now - pageSince > 5000UL) { showAlert(); return; }
     if (now - pageSince > 5000UL || !idleShown) nextPage();

@@ -7,9 +7,9 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 | `heure` | Jour, date (JJ/MM/AA), heure, et la météo du jour (icône, température, min / max) | — |
 | `meteo` | Prévisions sur 5 jours : 5 blocs identiques (jour, icône ajustée, min / max), 2 en haut et 3 en bas | — |
 | `crypto` | 1 à 3 cryptos (BTC, ETH, XRP…) avec logos officiels ; courbe sur 30 jours pour une crypto seule ou en forte variation | — |
-| `supervision` | Services Uptime Kuma (+ écran d'alerte en cas de panne) | Kuma dans `docker-compose.yml` |
+| `supervision` | Services Uptime Kuma en défaut (+ écran PANNE en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
-| `plex` | Lectures en cours, avec l'affiche quand il n'y en a qu'une | Plex dans `docker-compose.yml` |
+| `plex` | Lectures en cours avec leur affiche ; une seule : grande affiche, qui regarde, bibliothèque et mode de lecture | Plex dans `docker-compose.yml` |
 
 ```
  Internet (Open-Meteo, CoinGecko, Discord)        Réseau local
@@ -154,7 +154,7 @@ curl http://localhost:8080/modules                 # modules annoncés à l'affi
 
 **Ajouter ou retirer un module plus tard** : modifie `MODULES` et ses variables, puis lance `docker compose up -d`. L'afficheur le prend en compte à l'ouverture de son interface, et au plus tard après 10 minutes.
 
-**Mettre à jour la passerelle** : `docker compose pull && docker compose up -d`.
+**Mettre à jour la passerelle** : `docker compose pull && docker compose up -d` (avec `pull_policy: always` dans `docker-compose.yml`, `docker compose up -d` suffit). Le log du conteneur indique la version en cours au démarrage : `Passerelle 2.8.0 (1a2b3c4) prête sur le port 8080`.
 
 **Dossier du cache** : la ligne `volumes:` indique où la passerelle écrit son cache sur l'hôte (`./cache:/cache` = sous-dossier `cache` à côté du `docker-compose.yml`). Remplace la partie gauche par le chemin de ton choix, par exemple `/volume1/docker/modelrogs/cache:/cache`. Rien à créer à la main : au démarrage, le conteneur crée le dossier si besoin et lui donne le bon propriétaire (utilisateur 10001, ou `PUID`/`PGID` si tu les renseignes), puis abandonne définitivement root avant de lancer la passerelle. C'est la seule raison des lignes `cap_add: CHOWN, SETUID, SETGID`.
 
@@ -229,10 +229,12 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 **Comportement**
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
 - Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. En haut, l'icône du serveur et le nom du salon ; dessous, les photos de profil avec le pseudo (8 caractères au plus) et l'état (micro ou casque coupé, LIVE), en pastille proportionnelle à la photo. Les photos sont aussi grandes que possible : une seule en grand, 2 côte à côte, 2 × 2 pour 3 ou 4 personnes, 3 colonnes sur 2 lignes pour 5 ou 6 ; au-delà de 6, 5 photos et une pastille « +N ».
-- Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : affiche, titre, qui regarde, lecture directe ou transcodage, progression. Plusieurs : liste de 3 lignes.
+- Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : grande affiche, qui regarde, bibliothèque, épisode, mode (direct, flux direct, transcodage, en pause), titre et progression. Plusieurs : une ligne par lecture avec son affiche (3 au plus, puis « + N autres lectures »).
 - Crypto : 1 crypto choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque crypto qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 €).
-- Supervision : **n'apparaît qu'en cas de problème** (panne, service instable, Kuma injoignable) ; tout va bien = page masquée. Tuiles jusqu'à 12 services, au-delà un compteur et la liste des problèmes. Une maintenance seule ne fait pas apparaître la page.
-- Une panne affiche l'écran d'alerte rouge immédiatement, puis l'alerte alterne avec les pages (un écran sur deux) jusqu'au retour à la normale.
+- **Panne** : bloc de deux écrans, affiché immédiatement puis **après chaque page** jusqu'au retour à la normale :
+  1. écran **PANNE** rouge : grand triangle d'alerte et « N services sur M en panne » ;
+  2. récapitulatif **Supervision** : compteur « 1/8 KO » et la liste des services en défaut (pannes d'abord) avec leur temps d'indisponibilité, 6 au plus, ou 5 et « + N autres ».
+- Sans panne, la page Supervision (même récapitulatif) n'apparaît dans la rotation que si un service est instable ou si Kuma ne répond pas. Tout va bien, ou une maintenance seule : rien ne s'affiche ; demandée depuis l'interface web, la page montre alors « TOUT EST OK ».
 - Un point ambre en haut à droite signale une donnée ancienne (source injoignable).
 
 **Fonctionnement en continu**

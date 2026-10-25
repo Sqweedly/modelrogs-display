@@ -163,7 +163,8 @@ static uint32_t supHash() {
   uint8_t nums[9] = { gSup.ok, gSup.stale, gSup.resume, gSup.tot, gSup.okn,
                       gSup.pa, gSup.in, gSup.ma, gSup.extra };
   for (uint8_t v : nums) h = (h ^ v) * 16777619UL;
-  for (uint8_t i = 0; i < gSup.count; i++) h = hashStr(h, gSup.names[i]) + gSup.st[i];
+  for (uint8_t i = 0; i < gSup.count; i++)
+    h = (hashStr(h, gSup.names[i]) + gSup.st[i]) * 31 + gSup.mins[i] * 2 + gSup.borne[i];
   return h;
 }
 
@@ -198,6 +199,8 @@ void pollSup() {
     if (gSup.count >= MAX_SUP_ITEMS) break;
     copyStr(gSup.names[gSup.count], NAME_BYTES, s["n"] | "?");
     gSup.st[gSup.count] = s["e"] | 0;
+    gSup.mins[gSup.count] = s["m"] | 0;
+    gSup.borne[gSup.count] = (s["b"] | 0) != 0;
     gSup.count++;
   }
 
@@ -235,7 +238,8 @@ bool pollPlex() {
     uint32_t h = 2166136261UL ^ (gPlex.n * 31 + gPlex.tc);
     for (uint8_t i = 0; i < gPlex.count; i++) {
       const PlexState::Ligne& l = gPlex.l[i];
-      h = hashStr(hashStr(hashStr(hashStr(h, l.titre), l.sous), l.user), l.affiche) + l.tc * 3 + l.pause * 5;
+      h = hashStr(hashStr(hashStr(hashStr(hashStr(hashStr(h, l.titre), l.sous), l.user), l.affiche), l.biblio), l.ep)
+          + l.tc * 3 + l.pause * 5 + l.mode * 7;
     }
     return h;
   };
@@ -257,8 +261,11 @@ bool pollPlex() {
     copyStr(l.pos, sizeof(l.pos), s["pos"] | "");
     copyStr(l.reste, sizeof(l.reste), s["r"] | "");
     copyStr(l.affiche, sizeof(l.affiche), s["i"] | "");
+    copyStr(l.biblio, sizeof(l.biblio), s["b"] | "");
+    copyStr(l.ep, sizeof(l.ep), s["ep"] | "");
     l.pg = min<int>(1000, s["pg"] | 0);
     l.tc = (s["tc"] | 0) != 0;
+    l.mode = s["md"] | (l.tc ? 2 : 0);
     l.pause = (s["pa"] | 0) != 0;
   }
 

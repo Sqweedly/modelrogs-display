@@ -310,6 +310,50 @@ void headsetIcon(int cx, int cy, uint16_t color, uint16_t bg) {
   tft.fillSmoothRoundRect(cx + 4, cy, 5, 9, 2, color, bg);
 }
 
+// Distance d'un point au segment [a, b]
+static float distSegment(float px, float py, float ax, float ay, float bx, float by) {
+  float vx = bx - ax, vy = by - ay, wx = px - ax, wy = py - ay;
+  float t = (vx * wx + vy * wy) / (vx * vx + vy * vy);
+  t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  float dx = wx - t * vx, dy = wy - t * vy;
+  return sqrtf(dx * dx + dy * dy);
+}
+
+// Triangle d'alerte à l'échelle : encre de hauteur h centrée en (cx, cy).
+// Dessiné en une seule forme (triangle aux coins arrondis), lissée d'après la
+// distance de chaque pixel au bord : pas de chevauchement de traits aux coins.
+void warningIconTaille(int cx, int cy, int h, uint16_t color, uint16_t bg) {
+  const float k = h / 47.0f;                 // à k = 1 : triangle de 50 x 41, bords de 6
+  const float R = 3 * k;                     // rayon des coins (demi-épaisseur du bord)
+  const float tx = cx, ty = cy - 20.5f * k, lx = cx - 25 * k, ly = cy + 20.5f * k, rx = cx + 25 * k;
+  const int y0 = (int)floorf(ty - R - 1), y1 = (int)ceilf(ly + R + 1);
+  const int x0 = (int)floorf(lx - R - 1), x1 = (int)ceilf(rx + R + 1);
+  for (int y = y0; y <= y1; y++) {
+    int debut = -1;                           // début d'une série de pixels pleins
+    for (int x = x0; x <= x1 + 1; x++) {
+      float a = 0;
+      if (x <= x1) {
+        const float px = x + 0.5f, py = y + 0.5f;
+        // Intérieur du triangle (même signe pour les trois côtés)
+        float c1 = (lx - tx) * (py - ty) - (ly - ty) * (px - tx);
+        float c2 = (rx - lx) * (py - ly) - (ly - ly) * (px - lx);
+        float c3 = (tx - rx) * (py - ly) - (ty - ly) * (px - rx);
+        bool dedans = (c1 <= 0 && c2 <= 0 && c3 <= 0) || (c1 >= 0 && c2 >= 0 && c3 >= 0);
+        float d = dedans ? 0 : fminf(distSegment(px, py, tx, ty, lx, ly),
+                                fminf(distSegment(px, py, lx, ly, rx, ly), distSegment(px, py, rx, ly, tx, ty)));
+        a = R + 0.5f - d;
+        a = a < 0 ? 0 : (a > 1 ? 1 : a);
+      }
+      if (a >= 1) { if (debut < 0) debut = x; continue; }
+      if (debut >= 0) { tft.drawFastHLine(debut, y, x - debut, color); debut = -1; }
+      if (a > 0) tft.drawPixel(x, y, tft.alphaBlend((uint8_t)(a * 255), color, bg));
+    }
+  }
+  const int bw = max(3, (int)lroundf(6 * k));
+  tft.fillSmoothRoundRect(cx - bw / 2, (int)lroundf(cy - 9 * k), bw, (int)lroundf(16 * k), bw / 2, bg, color);
+  tft.fillSmoothCircle(cx, (int)lroundf(cy + 12.5f * k), max(2, (int)lroundf(3.2f * k)), bg, color);
+}
+
 void warningIcon(int cx, int cy, uint16_t color, uint16_t bg) {
   int tx = cx, ty = cy - 21, lx = cx - 25, ly = cy + 20, rx = cx + 25, ry = cy + 20;
   // Bords épais lissés (angles arrondis) PUIS remplissage par-dessus

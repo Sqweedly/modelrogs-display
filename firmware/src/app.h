@@ -64,7 +64,10 @@ struct PlexState {
     char     pos[10];
     char     reste[18];
     char     affiche[IMG_TOKEN];
+    char     biblio[24];     // bibliothèque Plex (Films, Séries…)
+    char     ep[16];         // « S1 · E3 » pour un épisode
     uint16_t pg;             // progression 0..1000
+    uint8_t  mode;           // 0 lecture directe, 1 flux direct, 2 transcodage
     bool     tc, pause;
   } l[MAX_PLEX];
 };
@@ -83,6 +86,8 @@ struct SupState {
   char     err[48] = "";
   char     names[MAX_SUP_ITEMS][NAME_BYTES];
   uint8_t  st[MAX_SUP_ITEMS];
+  uint32_t mins[MAX_SUP_ITEMS];             // minutes dans l'état actuel (services en défaut)
+  bool     borne[MAX_SUP_ITEMS];            // durée minimale : début hors de l'historique Kuma
   bool     alert = false;
   char     alName[NAME_BYTES] = "";
   uint16_t alMin = 0;

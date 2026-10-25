@@ -34,7 +34,7 @@ POLICES = [
     ("F16", "Inter-ExtraBold.ttf", 16, COMPLET),
     ("F18", "Inter-Black.ttf", 18, COMPLET),
     ("F32", "Inter-Black.ttf", 32, CHIFFRES + "ABCDEFGHIJKLMNOPQRSTUVWXYZ €$.,+-%/:…°"),
-    ("F52", "Inter-Black.ttf", 52, CHIFFRES + "°-/ "),
+    ("F52", "Inter-Black.ttf", 52, CHIFFRES + "°-/ KO"),      # « KO » : compteur de la Supervision
     ("F68", "Inter-Black.ttf", 68, CHIFFRES + ":"),
     ("F26", "Inter-Black.ttf", 26, CHIFFRES + " €$.,…"),     # prix des écrans à 2 ou 3 cryptos
 ]

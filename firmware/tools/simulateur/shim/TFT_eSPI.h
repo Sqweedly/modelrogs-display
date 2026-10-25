@@ -27,6 +27,7 @@ class TFT_eSPI {
   void fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t c);
   void drawFastVLine(int32_t x, int32_t y, int32_t h, uint32_t c) { fillRect(x, y, 1, h, c); }
   void drawFastHLine(int32_t x, int32_t y, int32_t w, uint32_t c) { fillRect(x, y, w, 1, c); }
+  void drawPixel(int32_t x, int32_t y, uint32_t c) { px(x, y, (uint16_t)c); }
   void setSwapBytes(bool s) { swap = s; }
   void pushImage(int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* d) {
     for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) {

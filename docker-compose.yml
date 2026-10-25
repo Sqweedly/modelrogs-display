@@ -14,6 +14,9 @@
 services:
   gateway:
     image: ghcr.io/sqweedly/modelrogs-gateway:2
+    # Vérifie à chaque « docker compose up -d » si une version 2.x plus récente
+    # est publiée (sinon, seul « docker compose pull » la télécharge)
+    pull_policy: always
     container_name: modelrogs-gateway
     restart: unless-stopped
     ports:

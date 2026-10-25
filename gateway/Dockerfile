@@ -13,19 +13,22 @@ RUN pip install --no-cache-dir --no-compile --prefix=/install -r /tmp/requiremen
 # --- Étape 2 : image finale ---------------------------------------------------
 FROM python:3.12-alpine
 
-# Numéro de version, fourni par GitHub Actions à partir du tag (ex. 2.3.0)
+# Numéro de version et commit, fournis par GitHub Actions à partir du tag (ex. 2.8.0)
 ARG VERSION=dev
+ARG REVISION=
 
 LABEL org.opencontainers.image.title="modelrogs-gateway" \
       org.opencontainers.image.description="Passerelle des afficheurs MODELROGS Display (SmallTV ESP8266)" \
       org.opencontainers.image.source="https://github.com/sqweedly/modelrogs-display" \
-      org.opencontainers.image.version="${VERSION}"
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     CACHE_DIR=/cache \
     PORT=8080 \
-    MODELROGS_VERSION=${VERSION}
+    MODELROGS_VERSION=${VERSION} \
+    MODELROGS_REVISION=${REVISION}
 
 # libjpeg : nécessaire à Pillow quand il a été compilé (armv7)
 RUN apk add --no-cache libjpeg-turbo zlib

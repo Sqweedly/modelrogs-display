@@ -22,8 +22,8 @@ _ORDRE = {PANNE: 0, INSTABLE: 1, MAINTENANCE: 2, OK: 3}
 # Statut Kuma -> état écran (0 = down, 1 = up, 2 = pending, 3 = maintenance)
 _KUMA = {0: PANNE, 1: OK, 2: INSTABLE, 3: MAINTENANCE}
 
-MAX_TUILES = 12      # au-delà : mode « résumé » (compteur + problèmes)
-MAX_PROBLEMES = 3    # lignes de problèmes en mode résumé (= ce que l'écran affiche)
+MAX_TUILES = 12      # au-delà : mode « résumé » (compteur + problèmes), pour les anciens afficheurs
+MAX_PROBLEMES = 12   # services en défaut envoyés (l'écran en montre 6, ou 5 + « autres »)
 MAX_CHOIX = 48       # services cochables sur l'afficheur
 
 
@@ -77,17 +77,30 @@ def _date_kuma(texte: str) -> datetime | None:
         return None
 
 
-def _minutes_en_panne(historique: list[dict]) -> int:
-    """Minutes écoulées depuis le passage en panne (dernière suite de statuts 0)."""
-    debut = None
+def _minutes_dans_etat(historique: list[dict]) -> tuple[int, bool]:
+    """Minutes écoulées depuis le passage dans l'état actuel (dernière suite de
+    battements de même statut). Le booléen indique une durée minimale : tout
+    l'historique connu est dans cet état, le début réel est plus ancien."""
+    if not historique:
+        return 0, False
+    statut = historique[-1].get("status")
+    debut, borne = None, True
     for battement in reversed(historique):
-        if battement.get("status") != 0:
+        if battement.get("status") != statut:
+            borne = False
             break
         debut = battement.get("time")
     moment = _date_kuma(debut) if debut else None
     if moment is None:
+        return 0, False
+    return max(0, int((datetime.now(timezone.utc) - moment).total_seconds() // 60)), borne
+
+
+def _minutes_en_panne(historique: list[dict]) -> int:
+    """Minutes écoulées depuis le passage en panne (dernière suite de statuts 0)."""
+    if not historique or historique[-1].get("status") != 0:
         return 0
-    return max(0, int((datetime.now(timezone.utc) - moment).total_seconds() // 60))
+    return _minutes_dans_etat(historique)[0]
 
 
 async def liste_services(session: aiohttp.ClientSession, q: dict) -> dict:
@@ -121,18 +134,19 @@ async def etat(session: aiohttp.ClientSession, q: dict) -> dict:
         historique = battements.get(str(sonde["id"])) or []
         statut = historique[-1].get("status") if historique else None
         e = _KUMA.get(statut, INSTABLE)
-        services.append({"nom": sonde["nom"], "e": e,
-                         "min": _minutes_en_panne(historique) if e == PANNE else 0})
+        minutes, borne = _minutes_dans_etat(historique) if e != OK else (0, False)
+        services.append({"nom": sonde["nom"], "e": e, "duree": minutes, "borne": borne,
+                         "min": minutes if e == PANNE else 0})
 
     services.sort(key=lambda s: (_ORDRE[s["e"]], s["nom"].lower()))
     compte = {k: sum(1 for s in services if s["e"] == k) for k in (OK, INSTABLE, PANNE, MAINTENANCE)}
     total = len(services)
 
-    if total <= MAX_TUILES:
-        mode, affiches, autres = "t", services, 0
-    else:
-        problemes = [s for s in services if s["e"] != OK]
-        mode, affiches, autres = "r", problemes[:MAX_PROBLEMES], max(0, len(problemes) - MAX_PROBLEMES)
+    # Depuis la 2.8.0, l'afficheur ne montre que les services en défaut : seuls
+    # eux sont envoyés (pannes d'abord), 12 au plus, quel que soit le total.
+    problemes = [s for s in services if s["e"] != OK]
+    mode = "t" if total <= MAX_TUILES else "r"
+    affiches, autres = problemes[:MAX_PROBLEMES], max(0, len(problemes) - MAX_PROBLEMES)
 
     # L'alerte met en avant la panne la plus ancienne.
     pannes = sorted((s for s in services if s["e"] == PANNE), key=lambda s: -s["min"])
@@ -142,7 +156,8 @@ async def etat(session: aiohttp.ClientSession, q: dict) -> dict:
         "ok": 1,
         "tot": total, "okn": compte[OK], "pa": compte[PANNE], "in": compte[INSTABLE], "ma": compte[MAINTENANCE],
         "md": mode,
-        "s": [{"n": ecran(s["nom"], 14), "e": s["e"]} for s in affiches],
+        # m : minutes dans l'état actuel ; b = 1 : durée minimale (début hors de l'historique Kuma)
+        "s": [{"n": ecran(s["nom"], 14), "e": s["e"], "m": s["duree"], "b": int(s["borne"])} for s in affiches],
         "x": autres,
         "al": alerte,
         "p": int(perime1 or perime2),

@@ -12,6 +12,30 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.8.0] — 2026-10-25
+
+Panne et Supervision repensées, Plex redessiné, version de la passerelle fiable.
+
+### Modifié
+- **Écran PANNE** : « PANNE » en haut, grand triangle d'alerte au milieu, bulle « N services sur M en panne » en bas, espaces égaux. Plus de nom de service ni de durée.
+- **Supervision** : seulement le récapitulatif des services en défaut (compteur « 1/8 KO », nombre en défaut et « KO » en grand dans la couleur de la situation, puis une ligne par service, pannes d'abord, avec son **temps d'indisponibilité** : « 4 min », « 2 h 15 », « > 2 j 2 h » quand le début est plus ancien que l'historique Kuma). Hauteur des lignes et taille des noms adaptées au nombre : 1 à 6 lignes, au-delà 5 lignes et « + N autres ». Les services OK ne sont plus affichés.
+- **Supervision sans défaut** (page demandée depuis l'interface web) : écran « TOUT EST OK », grand disque vert avec coche et bulle « N services en ligne ».
+- **Rotation** : une panne affiche le bloc « PANNE + Supervision » aussitôt, puis après chaque page jusqu'au retour à la normale. La page Supervision ne figure plus dans la rotation pendant une panne ; sans panne, elle n'y apparaît que si un service est instable ou si Kuma ne répond pas.
+- **Plex, une lecture** : affiche agrandie au maximum à gauche (2:3) ; à sa droite, qui regarde (en haut), puis la bibliothèque (Films, Séries…), l'épisode (« S2 · E5 ») et le mode de lecture (Direct, Flux direct, Transcodage, En pause), alignés sur le bas de l'affiche. En bas, le titre juste au-dessus de la barre de progression. Plus de titre « Plex », de nombre de lectures, de « Lecture en cours » ni d'année.
+- **Plex, plusieurs lectures** : plus de titre « Plex », de nombre de lectures ni de nombre de transcodages ; une ligne par lecture, avec son affiche, sur toute la hauteur.
+  - 2 lectures : qui regarde, titre (sur deux lignes si besoin), pastille d'état et épisode ; barre, position et temps restant alignés sur le bas de l'affiche.
+  - 3 lectures : qui regarde et pastille d'état, titre, barre et temps restant.
+  - Au-delà : les 3 premières et « + N autres lectures ».
+- **Passerelle** : `/plex` indique aussi la bibliothèque, l'épisode et le mode de lecture (direct, flux direct ou transcodage), et envoie l'affiche de chaque lecture affichée (3 au plus). `/supervision` n'envoie plus que les services en défaut (12 au plus), quel que soit le nombre de services, avec pour chacun ses minutes dans l'état actuel.
+
+### Corrigé
+- **Version de la passerelle** : le log de démarrage indique aussi le commit de l'image (`Passerelle 2.8.0 (1a2b3c4) prête sur le port 8080`), pour voir d'un coup d'œil quelle image tourne. Un log resté sur « 2.7.0 » venait d'une image non retéléchargée ou de l'étiquette `:2` restée sur la 2.7.0 (corrigé dans la publication 2.7.2).
+- **`docker-compose.yml`** : `pull_policy: always`, pour que `docker compose up -d` vérifie à chaque fois si une version 2.x plus récente est publiée.
+
+### Mise à jour
+- Passerelle d'abord, puis l'afficheur. Un afficheur 2.7.x avec la nouvelle passerelle ne montrerait que les services en défaut dans ses tuiles.
+- Dans `docker-compose.yml`, ajouter sous la ligne `image:` : `pull_policy: always` (facultatif). Puis `docker compose pull && docker compose up -d` : le log doit afficher `Passerelle 2.8.0`.
+
 ## [2.7.2] — 2026-10-25
 
 Discord : nom du salon et pastilles d'état à l'échelle ; Météo recentrée ; publication Docker fiabilisée.
@@ -203,6 +227,7 @@ Première version publiée dans ce dépôt.
 - OTA `/update` conservée.
 - Reprise automatique de la configuration du firmware « MODELROGS Discord » et de MODELROGS Display 2.0 (Wi-Fi, passerelle, services supervisés).
 
+[2.8.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.8.0
 [2.7.2]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.2
 [2.7.1]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.1
 [2.7.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.0

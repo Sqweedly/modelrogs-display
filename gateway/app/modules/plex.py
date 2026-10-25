@@ -1,9 +1,8 @@
 """Lectures en cours sur un serveur Plex (page visible seulement pendant une lecture).
 
 Source : {PLEX_URL}/status/sessions, avec le jeton PLEX_TOKEN (compte
-administrateur du serveur). Une seule lecture : l'afficheur montre l'affiche
-(film, série pour un épisode, album pour une musique). Plusieurs lectures :
-liste de 3 lignes au plus.
+administrateur du serveur). Chaque lecture (3 au plus) vient avec son affiche
+(film, série pour un épisode, album pour une musique).
 
 « ev » augmente à chaque nouvelle lecture : l'afficheur s'en sert pour
 montrer la page dès qu'une lecture commence.
@@ -65,6 +64,21 @@ def _transcodage(m: dict) -> int:
     return int("transcode" in decisions)
 
 
+def _mode(m: dict) -> int:
+    """0 : lecture directe ; 1 : flux direct (réempaqueté, sans réencodage) ; 2 : transcodage."""
+    if _transcodage(m):
+        return 2
+    return 1 if m.get("TranscodeSession") else 0
+
+
+def _episode(m: dict) -> str:
+    """« S1 · E3 » pour un épisode, sinon vide."""
+    if m.get("type") != "episode":
+        return ""
+    saison, episode = m.get("parentIndex"), m.get("index")
+    return f"S{saison} · E{episode}" if saison is not None and episode is not None else ""
+
+
 class Suivi:
     """Mémorise les lectures déjà vues pour compter les nouvelles (« ev »)."""
 
@@ -114,10 +128,12 @@ async def lectures(session: aiohttp.ClientSession, q: dict) -> dict:
             "pos": _duree(position),
             "r": _reste(duree - position) if duree else "",
             "tc": _transcodage(m),
+            "md": _mode(m),
+            "b": ecran(m.get("librarySectionTitle") or "", 20),   # bibliothèque (Films, Séries…)
+            "ep": _episode(m),
             "pa": int((m.get("Player") or {}).get("state") == "paused"),
-            # Affiche uniquement utile quand il n'y a qu'une lecture
-            "i": images.enregistrer(f"{url}{image}", {"X-Plex-Token": jeton})
-                 if image and len(metas) == 1 else "",
+            # Affiche de chaque lecture affichée (3 au plus)
+            "i": images.enregistrer(f"{url}{image}", {"X-Plex-Token": jeton}) if image else "",
         })
     return {
         "ok": 1,

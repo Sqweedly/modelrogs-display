@@ -96,3 +96,4 @@ float weatherIconScale(uint8_t code, int w, int h, int* encreW = nullptr, int* e
 void halfSun(int cx, int cy, uint16_t color, uint16_t bg);
 void headsetIcon(int cx, int cy, uint16_t color, uint16_t bg);
 void warningIcon(int cx, int cy, uint16_t color, uint16_t bg);
+void warningIconTaille(int cx, int cy, int h, uint16_t color, uint16_t bg);

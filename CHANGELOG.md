@@ -12,6 +12,25 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.7.1] — 2026-10-25
+
+Pages Discord et Météo réorganisées, bas de l'écran mieux utilisé.
+
+### Modifié
+- **Discord**
+  - En-tête : icône du serveur (40 px) et nom du serveur seulement, centrés ensemble ; plus de nombre de personnes ni de nom de salon.
+  - Photos de profil aussi grandes que possible selon le nombre de personnes : 1 en grand, 2 côte à côte, 2 × 2 pour 3 ou 4, 3 colonnes sur 2 lignes pour 5 ou 6. Au-delà de 6 : 5 photos et une pastille « +N ».
+  - Pseudo centré sous chaque photo, raccourci à 7 caractères + « … » au-delà de 8 ; taille choisie pour que tous les pseudos de l'écran tiennent.
+  - Espaces égaux entre les photos, en largeur comme en hauteur ; durée de présence retirée.
+- **Météo** : 2 jours en haut et 3 en bas ; chaque rangée est répartie sur la largeur avec des espaces égaux ; icônes plus grandes.
+- **Bas de l'écran** : sur les pages Discord, Météo et Crypto (2 ou 3 cryptos), le contenu descend jusqu'à 6 px au-dessus des points de pagination.
+
+### Corrigé
+- **Crypto, 3 cryptos** : la virgule des prix (et le bas du « $ ») ne touche plus les variations 24 h et 7 j.
+
+### Mise à jour
+- Passerelle inchangée (republiée en 2.7.1 avec le même code) : seul l'afficheur est à mettre à jour. `docker-compose.yml` inchangé.
+
 ## [2.7.0] — 2026-10-25
 
 Pages Heure, Météo et Crypto redessinées, pages Crypto sur 30 jours.
@@ -168,6 +187,7 @@ Première version publiée dans ce dépôt.
 - OTA `/update` conservée.
 - Reprise automatique de la configuration du firmware « MODELROGS Discord » et de MODELROGS Display 2.0 (Wi-Fi, passerelle, services supervisés).
 
+[2.7.1]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.1
 [2.7.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.0
 [2.6.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.6.0
 [2.5.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.5.0

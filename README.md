@@ -5,7 +5,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 | Module | Page affichée | À configurer |
 |---|---|---|
 | `heure` | Jour, date (JJ/MM/AA), heure, et la météo du jour (icône, température, min / max) | — |
-| `meteo` | Prévisions sur 5 jours : 5 blocs identiques (jour, icône ajustée, min / max) | — |
+| `meteo` | Prévisions sur 5 jours : 5 blocs identiques (jour, icône ajustée, min / max), 2 en haut et 3 en bas | — |
 | `crypto` | 1 à 3 cryptos (BTC, ETH, XRP…) avec logos officiels ; courbe sur 30 jours pour une crypto seule ou en forte variation | — |
 | `supervision` | Services Uptime Kuma (+ écran d'alerte en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
@@ -228,7 +228,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 **Comportement**
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
-- Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. Jusqu'à 4 personnes : une carte chacune (photo, durée de présence, micro ou casque coupé, LIVE, caméra) ; au-delà, une grille de photos.
+- Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. En haut, l'icône et le nom du serveur ; dessous, les photos de profil avec le pseudo (8 caractères au plus) et l'état (micro ou casque coupé, LIVE). Les photos sont aussi grandes que possible : une seule en grand, 2 côte à côte, 2 × 2 pour 3 ou 4 personnes, 3 colonnes sur 2 lignes pour 5 ou 6 ; au-delà de 6, 5 photos et une pastille « +N ».
 - Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : affiche, titre, qui regarde, lecture directe ou transcodage, progression. Plusieurs : liste de 3 lignes.
 - Crypto : 1 crypto choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque crypto qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 €).
 - Supervision : **n'apparaît qu'en cas de problème** (panne, service instable, Kuma injoignable) ; tout va bien = page masquée. Tuiles jusqu'à 12 services, au-delà un compteur et la liste des problèmes. Une maintenance seule ne fait pas apparaître la page.

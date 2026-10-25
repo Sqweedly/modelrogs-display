@@ -185,9 +185,27 @@ bool clockTick() {
 
 // ----------------------------------------------------------------- Météo
 
-// Haut des deux rangées de blocs : 15 px d'espace en haut, entre les rangées et en bas.
-static const int Y_METEO_HAUT = 15, Y_METEO_BAS = 118;
+// Encre d'un texte UTF-8 : hauteur au-dessus et au-dessous de la ligne de base.
+static void encreTexte(const String& t, FontId f, int& dessus, int& dessous) {
+  for (unsigned i = 0; i < t.length();) {
+    uint8_t c = t[i];
+    uint16_t u = c;
+    int n = c < 0x80 ? 1 : (c < 0xE0 ? 2 : 3);
+    if (n == 2 && i + 1 < t.length()) u = ((c & 0x1F) << 6) | (t[i + 1] & 0x3F);
+    if (n == 3 && i + 2 < t.length()) u = ((c & 0x0F) << 12) | ((t[i + 1] & 0x3F) << 6) | (t[i + 2] & 0x3F);
+    i += n;
+    GlyphBox g;
+    if (u == ' ' || !glyphBox(f, u, g)) continue;
+    dessus = max(dessus, g.dy);
+    dessous = max(dessous, g.h - g.dy);
+  }
+}
 
+// Page Météo : 5 blocs identiques (jour, icône, min / max), 2 en haut et 3 en
+// bas. Chaque rangée est répartie sur la largeur avec des espaces égaux (bords
+// compris). En hauteur : même espace en haut et entre les rangées, 6 px au-dessus
+// des points de pagination ; l'icône prend toute la hauteur qui reste.
+static const int METEO_PTS = 225 - 6;                    // bas (exclu) de l'encre
 // « 10° / 15° » centré en cx : min (bleu) / max (ambre), même ordre partout.
 static void minMaxCentre(JsonObject j, int cx, int y, FontId f, uint16_t bg) {
   String a = String((int)(j["mn"] | 0)) + "°", s = "/", b = String((int)(j["mx"] | 0)) + "°";
@@ -208,27 +226,37 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  // 5 jours, sans ville ni météo du jour (affichée sur la page Heure) :
-  // les deux prochains jours en grand, les trois suivants dessous.
-  // Températures : 14 px, ou 12 px si l'une d'elles ne laisse pas 8 px entre deux blocs
+  JsonArray js = doc["j"].as<JsonArray>();
+  const uint8_t nj = min<size_t>(js.size(), 5);
+  // Largeur d'un bloc : 3 blocs et 4 espaces de 8 px au moins sur la rangée du bas
+  const int BW = (240 - 4 * 8) / 3;
+  // Températures : 14 px, ou 12 px si l'une d'elles ne tient pas dans le bloc
   FontId ft = F_13;
-  for (JsonObject j : doc["j"].as<JsonArray>()) {
+  for (uint8_t k = 0; k < nj; k++) {
+    JsonObject j = js[k];
     String t = String((int)(j["mn"] | 0)) + "°/" + String((int)(j["mx"] | 0)) + "°";
-    if (textW(t, F_13) + 8 > 72 - 8) ft = F_11;
+    if (textW(t, F_13) + 8 > BW) ft = F_11;
   }
-  uint8_t k = 0;
-  for (JsonObject j : doc["j"].as<JsonArray>()) {
-    if (k >= 5) break;
-    // 5 blocs identiques (jour, icône, min / max), sans cartes ni traits :
-    // 3 en haut, 2 en bas, centrés sur l'écran (72 px entre les centres).
-    // L'icône est ajustée à son empreinte dans une zone fixe de 66 x 52 px.
-    // Encre d'un bloc : jour (y+3..y+14), icône (y+20..y+71), min / max (y+78..y+90).
-    int cx = k < 3 ? 48 + k * 72 : 84 + (k - 3) * 72;
-    int y = k < 3 ? Y_METEO_HAUT : Y_METEO_BAS;
-    drawText(j["d"] | "", cx, y, F_13, TXT2, BG, TC_DATUM);
-    weatherIconFit(j["i"] | 2, cx - 33, y + 20, 66, 52, BG);
-    minMaxCentre(j, cx, y + 74 + (ft == F_11 ? 1 : 0), ft, BG);
-    k++;
+  // Encre réelle des jours et des températures affichés
+  int jD = 0, jB = 0, tD = 0, tB = 0;
+  for (uint8_t k = 0; k < nj; k++) {
+    JsonObject j = js[k];
+    encreTexte(j["d"] | "", F_13, jD, jB);
+    encreTexte(String((int)(j["mn"] | 0)) + "°/" + String((int)(j["mx"] | 0)) + "°", ft, tD, tB);
+  }
+  const int gJI = 7, gIT = 7, e = 12;                    // jour -> icône -> températures ; espaces
+  const int hB = (METEO_PTS - 3 - 2 * e) / 2;            // hauteur d'un bloc
+  const int IH = hB - (jD + jB) - gJI - gIT - (tD + tB); // zone de l'icône
+  for (uint8_t k = 0; k < nj; k++) {
+    JsonObject j = js[k];
+    const int rang = k < 2 ? 0 : 1, nb = rang ? 3 : 2, col = rang ? k - 2 : k;
+    const float pas = BW + (240.0f - nb * BW) / (nb + 1);
+    const int cx = 120 + (int)lroundf((col - (nb - 1) / 2.0f) * pas);
+    const int y = 3 + e + rang * (hB + e);                // haut de l'encre du bloc
+    drawText(j["d"] | "", cx, y - (fontAscent(F_13) - jD), F_13, TXT2, BG, TC_DATUM);
+    const int yI = y + jD + jB + gJI;
+    weatherIconFit(j["i"] | 2, cx - BW / 2, yI, BW, IH, BG);
+    minMaxCentre(j, cx, yI + IH + gIT - (fontAscent(ft) - tD), ft, BG);
   }
 
   staleMark(doc["p"] | 0);
@@ -238,15 +266,6 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
 // --------------------------------------------------------------- Discord
 
 static const uint16_t AVATAR[] = { VIOLET, VERT, AMBRE, BLEU, CORAIL };
-
-// Image de la passerelle, ou à défaut un remplaçant de même forme (couleur + initiale).
-static void imageOuInitiale(const char* jeton, int x, int y, int w, int h, int rayon, uint16_t fond,
-                            uint16_t couleur, const char* nom, FontId f) {
-  if (gwImage(jeton, x, y, w, h, fond, rayon)) return;
-  tft.fillRect(x, y, w, h, fond);
-  tft.fillSmoothRoundRect(x, y, w, h, rayon, couleur, fond);
-  drawText(firstChar(nom), x + w / 2, y + h / 2 + 1, f, SOMBRE, couleur, MC_DATUM);
-}
 
 // Petites icônes d'état vocal (14 x 14), tracées par le code
 static void micCoupe(int x, int y, uint16_t c, uint16_t bg) {
@@ -266,17 +285,48 @@ static void casqueCoupe(int x, int y, uint16_t c, uint16_t bg) {
   tft.drawWideLine(x, y + 14, x + 14, y, 1.7f, c, bg);
 }
 
-static void camera(int x, int y, uint16_t c, uint16_t bg) {
-  tft.fillSmoothRoundRect(x, y + 3, 10, 9, 2, c, bg);
-  tft.fillTriangle(x + 10, y + 7, x + 15, y + 3, x + 15, y + 11, c);
+// Pseudo de 8 caractères au plus : au-delà, 7 caractères + « … » (UTF-8 respecté).
+static String pseudoCourt(const char* s) {
+  int car = 0, coupe = 0;
+  for (int i = 0; s[i]; i++) {
+    if ((s[i] & 0xC0) == 0x80) continue;               // octet de suite UTF-8
+    if (car == 7) coupe = i;
+    car++;
+  }
+  if (car <= 8) return String(s);
+  return String(s).substring(0, coupe) + "…";
 }
 
-static int etiquetteLive(int xDroite, int y, uint16_t bg) {
-  int w = textW("LIVE", F_11) + 10;
-  tft.fillSmoothRoundRect(xDroite - w, y, w, 17, 4, ROUGE, bg);
-  drawText("LIVE", xDroite - w / 2, y + 9, F_11, TXT, ROUGE, MC_DATUM);
-  return w;
+// Avatar rond de diamètre d centré en (cx, cy), avec l'état vocal en pastille
+// en bas à droite et un anneau blurple pour une arrivée récente.
+static void avatarRond(uint8_t i, int cx, int cy, int d) {
+  const int r = d / 2;
+  const char* nom = gDisc.names[i];
+  if (!gwImage(gDisc.avatar[i], cx - r, cy - r, d, d, BG, r)) {
+    uint16_t c = AVATAR[i % 5];
+    tft.fillSmoothCircle(cx, cy, r, c, BG);
+    String ini = firstChar(nom);
+    bool grand = d >= 80 && ini.length() == 1 && isalnum((unsigned char)ini[0]);
+    drawText(ini, cx, cy + 1, grand ? F_32 : F_18, SOMBRE, c, MC_DATUM);
+  }
+  if (gDisc.isNew[i]) tft.drawSmoothArc(cx, cy, r + 4, r + 2, 0, 360, BLURPLE, BG, false);
+  uint8_t e = gDisc.etat[i];
+  const int k = (int)lroundf(d * 0.354f);              // point du cercle à 45°, en bas à droite
+  const int bx = cx + k, by = cy + k;
+  if (e & DISC_LIVE) {
+    tft.fillSmoothCircle(bx, by, 10, BG, BG);
+    tft.fillSmoothCircle(bx, by, 8, ROUGE, BG);
+    tft.fillSmoothCircle(bx, by, 3, TXT, ROUGE);
+  } else if (e & (DISC_SOURD | DISC_MUET)) {
+    tft.fillSmoothCircle(bx, by, 11, BG, BG);
+    if (e & DISC_SOURD) casqueCoupe(bx - 7, by - 7, ROUGE_TX, BG);
+    else micCoupe(bx - 7, by - 7, ROUGE_TX, BG);
+  }
 }
+
+// Zone des avatars : du bas de l'icône du serveur (y 47) jusqu'à 6 px au-dessus
+// des points de pagination (y 225). Espaces égaux au-dessus et entre les lignes.
+static const int DISC_HAUT = 47, DISC_BAS = 225 - 6;
 
 void drawDiscord(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
@@ -286,63 +336,82 @@ void drawDiscord(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  // En-tête : icône du serveur, nom du serveur, « N en vocal · salon »
-  if (!gwImage(gDisc.icone, 14, 12, 34, 34, BG, 10)) {
-    card(14, 12, 34, 34, 10, BLURPLE);
-    headsetIcon(31, 28, TXT, BLURPLE);
+  // En-tête : icône du serveur (40 px) et nom du serveur, centrés ensemble sur
+  // l'écran ; le nom est centré sur la hauteur de l'icône.
+  const int IC = 40, IY = 7, gIN = 10;
+  String nomServeur = fitText(gDisc.serveur[0] ? gDisc.serveur : "Discord", F_18, 212 - IC - gIN);
+  const int xI = 120 - (IC + gIN + textW(nomServeur, F_18)) / 2;
+  if (!gwImage(gDisc.icone, xI, IY, IC, IC, BG, 11)) {
+    card(xI, IY, IC, IC, 11, BLURPLE);
+    headsetIcon(xI + IC / 2, IY + IC / 2, TXT, BLURPLE);
   }
-  drawText(fitText(gDisc.serveur[0] ? gDisc.serveur : "Discord", F_16, 168), 58, 12, F_16, TXT, BG);
-  tft.fillSmoothCircle(62, 40, 3, gDisc.n ? VERT : DIM, BG);
-  String ligne = gDisc.n ? String(gDisc.n) + " en vocal · " : String("Personne · ");
-  drawText(fitText(ligne + gDisc.canal, F_11, 156), 70, 33, F_11, MUTED, BG);
+  {
+    GlyphBox gH;
+    glyphBox(F_18, 'H', gH);
+    // Centré sur la hauteur des majuscules (les jambages éventuels dépassent dessous)
+    int base = IY + IC / 2 + (gH.dy + 1) / 2;
+    drawText(nomServeur, xI + IC + gIN, base - fontAscent(F_18), F_18, TXT, BG);
+  }
 
-  if (gDisc.n <= 4 && gDisc.count == gDisc.n) {
-    // --- 1 à 4 personnes : une carte chacune (avatar, nom, durée, état)
-    for (uint8_t i = 0; i < gDisc.count; i++) {
-      int y = 60 + i * 41;
-      card(14, y, 212, 36, 10, CARD);
-      imageOuInitiale(gDisc.avatar[i], 19, y + 5, 26, 26, 13, CARD, AVATAR[i % 5], gDisc.names[i], F_13);
-      uint8_t e = gDisc.etat[i];
-      int droite = 216;                       // bord droit des indicateurs
-      if (gDisc.isNew[i]) {
-        pill(droite, y + 9, "arrivé", F_11, TXT, BLURPLE, CARD, true);
-        droite -= textW("arrivé", F_11) + 20;
-      } else if (e & DISC_LIVE) {
-        droite -= etiquetteLive(droite, y + 10, CARD) + 6;
-      }
-      if (!gDisc.isNew[i]) {
-        if (e & DISC_SOURD)       { casqueCoupe(droite - 14, y + 11, ROUGE_TX, CARD); droite -= 20; }
-        else if (e & DISC_MUET)   { micCoupe(droite - 14, y + 11, ROUGE_TX, CARD); droite -= 20; }
-        if ((e & DISC_CAMERA) && !(e & DISC_LIVE)) { camera(droite - 15, y + 11, MUTED, CARD); droite -= 21; }
-      }
-      int maxW = droite - 52 - 6;
-      drawText(fitText(gDisc.names[i], F_13, maxW), 52, y + 4, F_13, TXT, CARD);
-      if (gDisc.depuis[i][0]) drawText(gDisc.depuis[i], 52, y + 21, F_11, MUTED, CARD);
-    }
+  // Avatars : 6 au plus ; au-delà, 5 avatars et une pastille « +N ».
+  const uint8_t recus = min<uint8_t>(gDisc.count, MAX_DISC_NAMES);
+  uint8_t places = gDisc.n > 6 ? 5 : min<uint8_t>(recus, 6);
+  if (places > recus) places = recus;
+  const bool plus = gDisc.n > places;
+  const uint8_t m = places + (plus ? 1 : 0);
+  if (m == 0) {
+    drawText("Personne en vocal", 120, (DISC_HAUT + DISC_BAS) / 2, F_16, MUTED, BG, MC_DATUM);
   } else {
-    // --- 5 personnes et plus : grille de 4 x 2 avatars (le 8e devient « +N »)
-    uint8_t places = gDisc.n > MAX_DISC_NAMES ? MAX_DISC_NAMES - 1 : min<uint8_t>(gDisc.count, MAX_DISC_NAMES);
-    for (uint8_t i = 0; i < places; i++) {
-      int cx = 40 + (i % 4) * 53, cy = 86 + (i / 4) * 74;
-      imageOuInitiale(gDisc.avatar[i], cx - 21, cy - 21, 42, 42, 21, BG, AVATAR[i % 5], gDisc.names[i], F_18);
-      if (gDisc.isNew[i]) tft.drawSmoothArc(cx, cy, 25, 23, 0, 360, BLURPLE, BG, false);
-      uint8_t e = gDisc.etat[i];
-      int bx = cx + 12, by = cy + 12;         // pastille d'état, en bas à droite de l'avatar
-      if (e & DISC_LIVE) {
-        tft.fillSmoothCircle(bx, by, 9, BG, BG);
-        tft.fillSmoothCircle(bx, by, 7, ROUGE, BG);
-        tft.fillSmoothCircle(bx, by, 2, TXT, ROUGE);
-      } else if (e & (DISC_SOURD | DISC_MUET)) {
-        tft.fillSmoothCircle(bx, by, 10, BG, BG);
-        if (e & DISC_SOURD) casqueCoupe(bx - 7, by - 7, ROUGE_TX, BG);
-        else micCoupe(bx - 7, by - 7, ROUGE_TX, BG);
-      }
-      drawText(fitText(gDisc.names[i], F_11, 50), cx, cy + 27, F_11, TXT, BG, TC_DATUM);
+    // Grille selon le nombre : 1 ; 2 colonnes ; 2 x 2 ; 3 colonnes x 2 lignes
+    const int cols = m == 1 ? 1 : (m <= 4 ? 2 : 3);
+    const int rows = (m + cols - 1) / cols;
+    const int cellW = 212 / cols;
+    // Police des pseudos : la plus grande de la série qui laisse tenir tous les pseudos
+    static const FontId SERIE[4] = { F_18, F_16, F_13, F_11 };
+    int iF = m == 1 ? 0 : (m == 2 ? 1 : 2);
+    for (; iF < 3; iF++) {
+      bool tient = true;
+      for (uint8_t k = 0; k < places && tient; k++) tient = textW(pseudoCourt(gDisc.names[k]), SERIE[iF]) <= cellW - 6;
+      if (tient) break;
     }
-    if (gDisc.n > places) {
-      int cx = 40 + (places % 4) * 53, cy = 86 + (places / 4) * 74;
-      tft.fillSmoothCircle(cx, cy, 21, CARD, BG);
-      drawText("+" + String(gDisc.n - places), cx, cy + 1, F_16, TXT, CARD, MC_DATUM);
+    const FontId fp = SERIE[iF];
+    // Encre réelle des pseudos affichés (accents et jambages compris)
+    int pDessus = 0, pDessous = 0;
+    for (uint8_t k = 0; k < places; k++)
+      encreTexte(fitText(pseudoCourt(gDisc.names[k]), fp, cellW - 4), fp, pDessus, pDessous);
+    if (plus) encreTexte("autres", fp, pDessus, pDessous);
+    const int hp = pDessus + pDessous;
+    const int gp = m == 1 ? 10 : 7;                      // avatar -> pseudo
+    const int H = DISC_BAS - DISC_HAUT;
+    const int eMin = 6;
+    // Largeur : 14 px au moins entre les avatars et sur les bords ; hauteur : tout
+    // l'espace jusqu'à 6 px au-dessus des points, avec 6 px au moins entre les lignes.
+    const int dL = cols == 1 ? 150 : (240 - (cols + 1) * 14) / cols;
+    const int dH = (H - rows * (gp + hp) - rows * eMin) / rows;
+    int d = min(dL, dH) & ~1;                            // diamètre pair : centre exact
+    // Limité par la hauteur : espaces égaux au-dessus et entre les lignes, le bas
+    // touche la zone. Limité par la largeur : bloc centré entre l'en-tête et les points.
+    const bool parHauteur = dH <= dL;
+    const int zone = parHauteur ? H : (225 - DISC_HAUT);
+    const int libre = zone - rows * (d + gp + hp);
+    const int parts = parHauteur ? rows : rows + 1;
+    for (uint8_t k = 0; k < m; k++) {
+      const int lig = k / cols, col = k % cols;
+      const int dansLigne = min<int>(cols, m - lig * cols);   // dernière ligne incomplète : centrée
+      // Espaces horizontaux égaux (bords compris) ; dernière ligne incomplète centrée
+      const float pas = d + (240.0f - cols * d) / (cols + 1);
+      const int cx = 120 + (int)lroundf((col - (dansLigne - 1) / 2.0f) * pas);
+      const int top = DISC_HAUT + libre * (lig + 1) / parts + lig * (d + gp + hp);
+      const int cy = top + d / 2;
+      if (plus && k == m - 1) {
+        tft.fillSmoothCircle(cx, cy, d / 2, CARD, BG);
+        drawText("+" + String(gDisc.n - places), cx, cy + 1, d >= 80 ? F_32 : F_18, TXT, CARD, MC_DATUM);
+        drawText("autres", cx, top + d + gp - (fontAscent(fp) - pDessus), fp, MUTED, BG, TC_DATUM);
+        continue;
+      }
+      avatarRond(k, cx, cy, d);
+      String nom = fitText(pseudoCourt(gDisc.names[k]), fp, cellW - 4);
+      drawText(nom, cx, top + d + gp - (fontAscent(fp) - pDessus), fp, TXT, BG, TC_DATUM);
     }
   }
 
@@ -556,8 +625,9 @@ static int drawTextCentreV(const String& t, int x, int cy, FontId f, uint16_t co
 
 // Hauteur de l'encre des prix au-dessus de la ligne de base : celle du
 // caractère le plus haut réellement affiché (« $ » dépasse les chiffres).
-static int hautPrix(JsonArray cs, uint8_t n, FontId f) {
-  int h = 0;
+// basPrix : ce qui descend sous la ligne de base (virgule, « $ »).
+static int hautPrix(JsonArray cs, uint8_t n, FontId f, int* basPrix = nullptr) {
+  int h = 0, b = 0;
   for (uint8_t k = 0; k < n; k++) {
     const char* p = cs[k]["px"] | "";
     while (*p) {
@@ -565,9 +635,10 @@ static int hautPrix(JsonArray cs, uint8_t n, FontId f) {
       if ((u & 0xE0) == 0xC0 && *p) { u = ((u & 0x1F) << 6) | (*p++ & 0x3F); }
       else if ((u & 0xF0) == 0xE0 && p[0] && p[1]) { u = ((u & 0x0F) << 12) | ((p[0] & 0x3F) << 6) | (p[1] & 0x3F); p += 2; }
       GlyphBox g;
-      if (u != ' ' && glyphBox(f, u, g)) h = max(h, g.dy);
+      if (u != ' ' && glyphBox(f, u, g)) { h = max(h, g.dy); b = max(b, g.h - g.dy); }
     }
   }
+  if (basPrix) *basPrix = b;
   return h;
 }
 
@@ -638,7 +709,8 @@ static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool p
   glyphBox(fv, 'j', gj);
   const int desc = max(0, gj.h - gj.dy);
   const int hBloc = L + gapLV + gv.h + desc;            // encre d'un bloc
-  const int espace = (222 - 2 * hBloc) / 3, reste = (222 - 2 * hBloc) - 3 * espace;
+  // Espaces égaux au-dessus et entre les blocs ; 6 px au-dessus des points
+  const int espace = (216 - 2 * hBloc) / 2, reste = (216 - 2 * hBloc) - 2 * espace;
   const int hp = hautPrix(cs, 2, fp);
   int wpMax = 0;
   for (uint8_t k = 0; k < 2; k++) wpMax = max<int>(wpMax, textW(cs[k]["px"] | "", fp));
@@ -648,7 +720,7 @@ static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool p
   tft.fillScreen(BG);
   for (uint8_t k = 0; k < 2; k++) {
     JsonObject c = cs[k];
-    int haut = 3 + reste / 2 + espace + k * (hBloc + espace);
+    int haut = 3 + reste + espace + k * (hBloc + espace);
     logoCrypto(c, x0, haut, L, BG);
     // prix : encre (hp px au-dessus de la ligne de base) centrée sur le logo
     int base = haut + L / 2 + hp / 2;
@@ -701,7 +773,8 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
   // centré horizontalement ; les lignes sont réparties avec des espaces égaux.
   static const FontId PRIX[3] = { F_32, F_26, F_18 };
   static const FontId VAR[3]  = { F_16, F_13, F_11 };
-  const int gapH = 12, ecartVar = 12, gapPV = n == 2 ? 12 : 9;
+  // gapPV : du bas de la virgule (ou du « $ ») au haut des variations
+  const int gapH = 12, ecartVar = 12, gapPV = n == 2 ? 12 : 7;
   FontId fp = F_18, fv = F_11;
   int d = 0, wTexte = 0, w24 = 0, w7 = 0;
   bool trouve = false;
@@ -709,7 +782,8 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     for (int iv = (n == 2 ? 0 : 1); iv < 3 && !trouve; iv++) {
       GlyphBox gv;
       glyphBox(VAR[iv], '0', gv);
-      int dd = hautPrix(cs, n, PRIX[ip]) + gapPV + gv.h;
+      int bp = 0;
+      int dd = hautPrix(cs, n, PRIX[ip], &bp) + bp + gapPV + gv.h;
       int wp = 0;
       for (uint8_t k = 0; k < n; k++) wp = max<int>(wp, textW(cs[k]["px"] | "", PRIX[ip]));
       int a = largeurVariation(cs, n, "24 h ", "v24", VAR[iv]), b = largeurVariation(cs, n, "7 j ", "v7", VAR[iv]);
@@ -722,7 +796,8 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
   if (!trouve) {                     // dernier recours : plus petites polices, prix tronqués
     GlyphBox gv;
     glyphBox(F_11, '0', gv);
-    d = hautPrix(cs, n, F_18) + gapPV + gv.h;
+    int bp = 0;
+    d = hautPrix(cs, n, F_18, &bp) + bp + gapPV + gv.h;
     w24 = largeurVariation(cs, n, "24 h ", "v24", F_11);
     w7 = largeurVariation(cs, n, "7 j ", "v7", F_11);
     wTexte = 212 - d - gapH;
@@ -735,13 +810,16 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
   GlyphBox gj;
   glyphBox(fv, 'j', gj);
   const int desc = max(0, gj.h - gj.dy);             // descente du « j » de « 7 j »
-  const int espaceV = (222 - n * (d + desc)) / (n + 1);   // espaces visuels égaux (y 3..224)
-  const int reste = (222 - n * (d + desc)) - espaceV * (n + 1);   // arrondi : réparti haut / bas
+  // Espaces égaux au-dessus et entre les lignes ; la dernière descend jusqu'à
+  // 6 px au-dessus des points de pagination (zone y 3..218).
+  const int ZONE = 225 - 6 - 3;
+  const int espaceV = (ZONE - n * (d + desc)) / n;
+  const int reste = (ZONE - n * (d + desc)) - espaceV * n;
 
   tft.fillScreen(BG);
   for (uint8_t k = 0; k < n; k++) {
     JsonObject c = cs[k];
-    int haut = 3 + reste / 2 + espaceV + k * (d + desc + espaceV);   // haut de l'encre de la ligne
+    int haut = 3 + reste + espaceV + k * (d + desc + espaceV);   // haut de l'encre de la ligne
     logoCrypto(c, x0, haut, d, BG);
     // Ligne de base du prix à haut + hp ; celle des variations au bas du logo
     drawText(fitText(c["px"] | "", fp, wTexte), xt, haut + hp - fontAscent(fp), fp, TXT, BG);

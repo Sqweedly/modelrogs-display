@@ -105,32 +105,26 @@ static void drawClockDigits() {
   lastClockMinute = minuteOfDay;
 }
 
-// Carte météo du jour : grande icône à gauche ; à droite, température actuelle
-// et min / max, centrés ensemble dans leur colonne et sur la hauteur de la carte.
-// Pas de libellé : l'icône suffit. Données de /meteo (gardées 15 min par la passerelle).
+// Météo du jour, sans carte : grande icône à gauche ; à droite, température
+// actuelle et min / max, centrés ensemble dans leur colonne et sur la hauteur
+// de la zone. Pas de libellé : l'icône suffit. Données de /meteo (15 min de cache).
 static void carteMeteoDuJour() {
   JsonDocument doc;
   if (gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) != 200) return;   // l'horloge reste seule
-  const int h = H_METEO, cy = Y_METEO + h / 2;
-  card(X_G, Y_METEO, X_D - X_G, h, 14, CARD);
-  // Icône (encre ~64 px) et colonne de droite (~74 px) : même marge à gauche
-  // et à droite de la carte, 22 px entre les deux ; tout centré en hauteur.
-  weatherIcon(doc["i"] | 2, 70, cy + 3, 1.25f, CARD);
-
-  // Colonne de droite : température puis min / max, centrés ensemble sur la
-  // hauteur de la carte d'après la hauteur réelle des chiffres.
-  const int cx = 162, ecart = 12;
+  const int cy = Y_METEO + H_METEO / 2 + 2;               // même espace au-dessus et au-dessous
+  weatherIcon(doc["i"] | 2, 72, cy + 2, 1.45f, BG);
+  const int cx = 170, ecart = 12;
   GlyphBox gT, gM;
   glyphBox(F_52, '0', gT);
   glyphBox(F_18, '0', gM);
-  int haut = cy - (gT.h + ecart + gM.h) / 2 - 1;          // haut de l'encre de la température
-  drawText(String((int)(doc["t"] | 0)) + "°", cx, haut - (fontAscent(F_52) - gT.dy), F_52, TXT, CARD, TC_DATUM);
+  int haut = cy - (gT.h + ecart + gM.h) / 2;              // haut de l'encre de la température
+  drawText(String((int)(doc["t"] | 0)) + "°", cx, haut - (fontAscent(F_52) - gT.dy), F_52, TXT, BG, TC_DATUM);
   String a = String((int)(doc["mn"] | 0)) + "°", s = " / ", b = String((int)(doc["mx"] | 0)) + "°";
   int w = textW(a, F_18) + textW(s, F_18) + textW(b, F_18);
   int x = cx - w / 2, y = haut + gT.h + ecart - (fontAscent(F_18) - gM.dy);
-  x += drawText(a, x, y, F_18, BLEU, CARD);
-  x += drawText(s, x, y, F_18, SEP, CARD);
-  drawText(b, x, y, F_18, AMBRE, CARD);
+  x += drawText(a, x, y, F_18, BLEU, BG);
+  x += drawText(s, x, y, F_18, SEP, BG);
+  drawText(b, x, y, F_18, AMBRE, BG);
   staleMark(doc["p"] | 0);
 }
 
@@ -162,7 +156,7 @@ bool clockTick() {
 // « 10° / 15° » centré en cx : min (bleu) / max (ambre), même ordre partout.
 static void minMaxCentre(JsonObject j, int cx, int y, FontId f, uint16_t bg) {
   String a = String((int)(j["mn"] | 0)) + "°", s = "/", b = String((int)(j["mx"] | 0)) + "°";
-  const int e = 3;
+  const int e = 4;
   int w = textW(a, f) + textW(s, f) + textW(b, f) + 2 * e, x = cx - w / 2;
   x += drawText(a, x, y, f, BLEU, bg) + e;
   x += drawText(s, x, y, f, SEP, bg) + e;
@@ -184,18 +178,17 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
   uint8_t k = 0;
   for (JsonObject j : doc["j"].as<JsonArray>()) {
     if (k >= 5) break;
+    // Sans cartes ni traits : toute la place pour les icônes.
     if (k < 2) {
-      int x = 14 + k * 109, cx = x + 51;
-      card(x, 6, 103, 104, 12, CARD);
-      drawText(j["d"] | "", cx, 13, F_13, MUTED, CARD, TC_DATUM);
-      weatherIcon(j["i"] | 2, cx, 54, 0.92f, CARD);
-      minMaxCentre(j, cx, 87, F_16, CARD);
+      int cx = 66 + k * 108;
+      drawText(j["d"] | "", cx, 6, F_16, TXT2, BG, TC_DATUM);
+      weatherIcon(j["i"] | 2, cx, 62, 1.38f, BG);
+      minMaxCentre(j, cx, 100, F_18, BG);
     } else {
-      int x = 14 + (k - 2) * 73, cx = x + 33;
-      card(x, 116, 66, 102, 12, CARD);
-      drawText(j["d"] | "", cx, 122, F_11, MUTED, CARD, TC_DATUM);
-      weatherIcon(j["i"] | 2, cx, 160, 0.72f, CARD);
-      minMaxCentre(j, cx, 194, F_13, CARD);
+      int cx = 44 + (k - 2) * 76;
+      drawText(j["d"] | "", cx, 126, F_13, TXT2, BG, TC_DATUM);
+      weatherIcon(j["i"] | 2, cx, 170, 0.98f, BG);
+      minMaxCentre(j, cx, 203, F_13, BG);
     }
     k++;
   }
@@ -499,74 +492,99 @@ static void logoCrypto(JsonObject c, int x, int y, int d, uint16_t fond) {
   drawText(firstChar(sym), x + d / 2, y + d / 2 + 1, d >= 28 ? F_18 : F_13, SOMBRE, a, MC_DATUM);
 }
 
-static int variations(JsonObject c, int x, int y, uint16_t bg) {
-  bool u24 = c["u24"] | 1, u7 = c["u7"] | 1;
-  String p1 = String("24 h ") + (c["v24"] | "");
-  String p2 = String("7 j ") + (c["v7"] | "");
-  pill(x, y, p1, F_11, u24 ? VERT : ROUGE_TX, u24 ? VERT_BG : ROUGE_BG, bg);
-  int x2 = x + textW(p1, F_11) + 20;
-  pill(x2, y, p2, F_11, u7 ? VERT : ROUGE_TX, u7 ? VERT_BG : ROUGE_BG, bg);
-  return x2 + textW(p2, F_11) + 14;
+// Variations en colonnes, sans bulle : intitulé au-dessus (24 h, 7 j, 30 j),
+// valeur dessous, les deux dans la couleur de la variation (vert / rouge).
+static void colonnesVariations(JsonObject c, int x0, int x1, int y, FontId fl, FontId fv, int dy,
+                               bool avec30) {
+  static const char* const LAB[3] = { "24 h", "7 j", "30 j" };
+  static const char* const VAL[3] = { "v24", "v7", "v30" };
+  static const char* const UP[3]  = { "u24", "u7", "u30" };
+  const int n = avec30 ? 3 : 2, lc = (x1 - x0) / n;
+  for (int i = 0; i < n; i++) {
+    int cx = x0 + lc * i + lc / 2;
+    uint16_t coul = (c[UP[i]] | 1) ? VERT : ROUGE_TX;
+    drawText(LAB[i], cx, y, fl, coul, BG, TC_DATUM);
+    drawText(fitText(c[VAL[i]] | "", fv, lc - 2), cx, y + dy, fv, coul, BG, TC_DATUM);
+  }
 }
 
-// La mise en page dépend du nombre de cryptos choisies :
-//   1 -> grande page (prix, variations, courbe pleine largeur)
-//   2 -> deux moitiés (prix, variations, courbe)
-//   3 -> trois lignes (prix, variation 7 jours, mini-courbe)
+// Une crypto sur 30 jours : page unique (1 crypto choisie) ou page dédiée
+// (variation sur 7 jours de +/- 5 % ou plus). Logo et prix sur une ligne,
+// trois variations, puis la plus grande courbe possible.
+static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool perime) {
+  tft.fillScreen(BG);
+  logoCrypto(c, 14, 10, 36, BG);
+  drawText(fitText(c["px"] | "", F_32, 164), 60, 11, F_32, TXT, BG);
+  colonnesVariations(c, 14, 226, 54, F_11, F_16, 15, true);
+  courbe(c["p30"], 14, 220, 94, 218, (c["u30"] | 1) ? VERT : ROUGE, BG, true, 2.5f, true);
+  staleMark(perime);
+  pageDots(dotIndex, dotCount, accentCrypto(c["s"] | ""));
+}
+
+// Pages dédiées en attente (identifiants CoinGecko), affichées après l'écran
+// « prix en vedette » par btcEcranSuivant().
+static char    dediees[3][16];
+static uint8_t nbDediees = 0, prochaineDediee = 0;
+
+// Crypto :
+//   1 crypto     -> page sur 30 jours
+//   2 ou 3       -> « prix en vedette » (logo, prix, variations 24 h et 7 j),
+//                   puis une page dédiée par crypto dont |7 j| >= 5 %
 void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
+  nbDediees = prochaineDediee = 0;
   JsonDocument doc;
   int code = gwGet(modulePath(PG_BTC), doc);
-  tft.fillScreen(BG);
   if (code != 200) {
+    tft.fillScreen(BG);
     errorPage("Crypto", code == -5 ? String(doc["err"] | "") : String(gwErrorText(code)));
     pageDots(dotIndex, dotCount, BTC);
     return;
   }
   JsonArray cs = doc["c"].as<JsonArray>();
   uint8_t n = min<size_t>(cs.size(), 3);
-  uint16_t accent = accentCrypto(cs[0]["s"] | "");
-
-  // Ni titre, ni date, ni durée : la place sert aux prix et aux courbes (7 jours).
+  bool perime = doc["p"] | 0;
   if (n <= 1) {
-    JsonObject c = cs[0];
-    logoCrypto(c, 14, 14, 34, BG);
-    drawText(fitText(c["n"] | "", F_18, 168), 58, 14, F_18, TXT, BG);
-    drawText(c["s"] | "", 58, 35, F_13, MUTED, BG);
-    drawText(fitText(c["px"] | "", F_32, 212), 14, 60, F_32, TXT, BG);
-    variations(c, 14, 98, BG);
-    courbe(c["pts"], 14, 220, 126, 218, (c["u7"] | 1) ? VERT : ROUGE, BG, true, 2.5f, true);
-
-  } else if (n == 2) {
-    for (uint8_t k = 0; k < 2; k++) {
-      JsonObject c = cs[k];
-      int y = k ? 117 : 6;
-      logoCrypto(c, 14, y + 2, 28, BG);
-      int wPrix = drawText(c["px"] | "", 226, y + 6, F_18, TXT, BG, TR_DATUM);
-      drawText(fitText(c["n"] | "", F_16, 212 - 36 - wPrix - 8), 50, y + 7, F_16, TXT, BG);
-      variations(c, 14, y + 38, BG);
-      courbe(c["pts"], 14, 220, y + 62, y + 104, (c["u7"] | 1) ? VERT : ROUGE, BG, true, 2.0f, true);
-    }
-    tft.drawFastHLine(14, 113, 212, DIM);
-
-  } else {
-    // Trois bandes, comme la page à 2 cryptos : logo, symbole, variation 7 j
-    // (centrée entre le symbole et le prix), prix à droite, courbe pleine largeur.
-    for (uint8_t k = 0; k < 3; k++) {
-      JsonObject c = cs[k];
-      int y = 6 + k * 73;
-      if (k) tft.drawFastHLine(14, y - 4, 212, DIM);
-      logoCrypto(c, 14, y + 1, 24, BG);
-      int finSym = 46 + drawText(c["s"] | "", 46, y + 5, F_16, TXT, BG);
-      int debutPrix = 226 - drawText(c["px"] | "", 226, y + 4, F_18, TXT, BG, TR_DATUM);
-      bool u7 = c["u7"] | 1;
-      String v = fitText(c["v7"] | "", F_11, max(0, debutPrix - finSym - 8));
-      drawText(v, (finSym + debutPrix) / 2, y + 9, F_11, u7 ? VERT : ROUGE_TX, BG, TC_DATUM);
-      courbe(c["pts"], 14, 220, y + 30, y + 66, u7 ? VERT : ROUGE, BG, true, 2.0f, true);
-    }
+    pageCrypto30(cs[0], dotIndex, dotCount, perime);
+    return;
   }
 
-  staleMark(doc["p"] | 0);
-  pageDots(dotIndex, dotCount, accent);
+  tft.fillScreen(BG);
+  for (uint8_t k = 0; k < n; k++) {
+    JsonObject c = cs[k];
+    if (n == 2) {               // deux moitiés : grand logo, prix, nom, variations pleine largeur
+      int y = 6 + k * 110;
+      logoCrypto(c, 14, y + 4, 62, BG);
+      drawText(fitText(c["px"] | "", F_32, 136), 88, y + 6, F_32, TXT, BG);
+      drawText(fitText(c["n"] | "", F_13, 136), 88, y + 44, F_13, MUTED, BG);
+      colonnesVariations(c, 14, 226, y + 74, F_11, F_16, 14, false);
+    } else {                    // trois lignes : logo, prix, variations à côté du logo
+      int y = 4 + k * 73;
+      logoCrypto(c, 14, y + 8, 46, BG);
+      drawText(fitText(c["px"] | "", F_32, 154), 70, y + 4, F_32, TXT, BG);
+      colonnesVariations(c, 66, 226, y + 41, F_11, F_13, 13, false);
+    }
+    if ((c["x"] | 0) && nbDediees < 3) {
+      strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
+      dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';
+      if (dediees[nbDediees][0]) nbDediees++;
+    }
+  }
+  staleMark(perime);
+  pageDots(dotIndex, dotCount, accentCrypto(cs[0]["s"] | ""));
+}
+
+bool btcEcranSuivant(uint8_t dotIndex, uint8_t dotCount) {
+  while (prochaineDediee < nbDediees) {
+    const char* id = dediees[prochaineDediee++];
+    String devise = modParam(PG_BTC, "devise");
+    JsonDocument doc;
+    if (gwGet(String("/btc/30j?id=") + id + "&devise=" + (devise.length() ? devise : String("eur")), doc) != 200) {
+      continue;                 // indisponible : page suivante
+    }
+    pageCrypto30(doc["c"][0], dotIndex, dotCount, doc["p"] | 0);
+    return true;
+  }
+  return false;
 }
 
 // ------------------------------------------------------------------ Plex

@@ -85,19 +85,20 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
 2. **Le serveur web** route la requête vers le module `btc` (« Crypto »), après avoir vérifié qu'il est configuré.
 3. **Le cache** est consulté avec la clé `crypto-eur` :
    - si la donnée a moins de 10 minutes, elle est utilisée telle quelle ;
-   - sinon, la passerelle fait **un seul appel** CoinGecko `/coins/markets` pour **toutes** les cryptos proposées : prix, variations 24 h et 7 jours, courbe horaire sur 7 jours (168 points), adresse du logo officiel. Quel que soit le choix fait sur l'afficheur, CoinGecko n'est donc appelé qu'une fois toutes les 10 minutes par devise.
+   - sinon, la passerelle fait **un seul appel** CoinGecko `/coins/markets` pour **toutes** les cryptos proposées : prix, variations 24 h, 7 jours et 30 jours, adresse du logo officiel. Quel que soit le choix fait sur l'afficheur, CoinGecko n'est donc appelé qu'une fois toutes les 10 minutes par devise.
+   - Une seule crypto étant choisie, la passerelle ajoute sa **courbe sur 30 jours** (`/coins/bitcoin/market_chart?days=30`, environ 720 prix horaires, gardés 30 minutes).
 4. **La mise en forme** :
-   - prix formaté à la française : sans décimale à partir de 1 000, sinon 2 décimales au plus (`57 864 €`, `142,35 €`, `2,18 €`) ;
-   - variations sur 24 h et sur 7 jours, avec le signe et une virgule décimale ;
-   - réduction de la courbe par moyenne de paquets (60 points pour une crypto, 48 pour deux, 32 pour trois), le dernier point restant exact ;
+   - prix formaté à la française, avec au moins 4 chiffres (`57 864 €`, `142,35 €`, `2,184 €`) ;
+   - variations sur 24 h, 7 jours et 30 jours, avec le signe et une virgule décimale ;
+   - réduction de la courbe à **60 points** par moyenne de paquets, le dernier point restant le prix actuel ;
    - **normalisation de 0 à 100** : l'afficheur n'a plus qu'à les étirer à la hauteur de son graphique ;
    - logo : l'adresse est enregistrée et remplacée par un **jeton court** (`"i"`), que l'afficheur utilisera sur `/img` (section 6) ;
-   - dates de début et de fin (`jeu. 15`, `jeu. 22`).
-5. **La réponse**, environ 350 octets :
+   - `x` : 1 si la variation sur 7 jours atteint ±5 % (page dédiée quand plusieurs cryptos sont affichées).
+5. **La réponse**, environ 300 octets :
    ```json
-   {"ok":1,"c":[{"s":"BTC","n":"Bitcoin","px":"57 864 €","v24":"-0,1 %","u24":0,
-    "v7":"+7,2 %","u7":1,"pts":[0,10,14,…,89],"i":"3f9c0a1b2c4d"}],
-    "d0":"jeu. 15","d1":"jeu. 22","p":0}
+   {"ok":1,"c":[{"id":"bitcoin","s":"BTC","n":"Bitcoin","px":"57 864 €",
+    "v24":"-0,1 %","u24":0,"v7":"+7,2 %","u7":1,"v30":"+18,6 %","u30":1,"x":1,
+    "i":"3f9c0a1b2c4d","p30":[0,10,14,…,89]}],"p":0}
    ```
 6. **L'afficheur dessine.** Il n'a fait aucun calcul ; seul le logo est demandé à part, déjà converti.
 
@@ -109,7 +110,8 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
 |---|---|---|
 | Géocodage d'une ville (coordonnées, fuseau) | 1 an | oui |
 | Météo | 15 min | non |
-| Cours et courbes des cryptos (toutes à la fois) | 10 min | oui |
+| Cours et variations des cryptos (toutes à la fois) | 10 min | oui |
+| Courbe sur 30 jours d'une crypto | 30 min | oui |
 | Liste des sondes Kuma | 1 min | non |
 | États des sondes Kuma | 30 s | non |
 | Lectures Plex | 5 s | non |
@@ -144,11 +146,13 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
   - un **code d'icône** de 0 à 8, que l'afficheur dessine. La nuit, le soleil devient une lune.
 - Les températures sont arrondies au degré.
 
-### Crypto (`/btc?ids=&devise=`)
+### Crypto (`/btc?ids=&devise=` et `/btc/30j?id=&devise=`)
 
-Voir le parcours d'une requête (section 4).
+Voir le parcours d'une requête (section 4) : depuis la 2.8.0, la réponse ne contient plus de courbe sur 7 jours, mais les variations 24 h, 7 j et 30 j de chaque crypto.
 - **Réglages de l'afficheur** : jusqu'à **3 cryptos** parmi une liste (Bitcoin, Ethereum, XRP, Solana, BNB, Cardano, Dogecoin, TRON, Litecoin, Polkadot), et la devise (`eur` ou `usd`). Sans choix, Bitcoin.
-- **Mise en page** décidée par l'afficheur selon le nombre de cryptos : une grande page, deux moitiés, ou trois lignes avec mini-courbes.
+- **Une crypto choisie** : la réponse contient sa **courbe sur 30 jours** (`p30`, 60 points normalisés), tirée de CoinGecko `/coins/<id>/market_chart?days=30` et gardée 30 minutes.
+- **Deux ou trois** : pas de courbe (écran « prix en vedette »). Chaque crypto porte `x: 1` si sa variation sur 7 jours atteint **+5 % ou −5 %** : l'afficheur lui consacre alors une page supplémentaire, qu'il demande à **`/btc/30j?id=<id>`** (même contenu qu'une crypto seule, courbe sur 30 jours comprise).
+- **Prix** : au moins 4 chiffres, 2 décimales quand elles suffisent (`57 864 €`, `142,35 €`, `2,184 €`, `0,08214 €`).
 - **Logos officiels** : ceux que CoinGecko fournit avec les cours, convertis par la passerelle (voir « Images »).
 - Le module garde l'identifiant `btc` (route `/btc`) pour rester compatible ; `crypto` est accepté dans `MODULES`.
 - Une clé CoinGecko « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.

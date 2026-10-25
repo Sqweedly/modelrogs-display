@@ -85,18 +85,24 @@ static bool pageAvailable(uint8_t p) {
   return true;
 }
 
-static void showPage(uint8_t p, bool restartTimer = true) {
-  curPage = p;
-  if (restartTimer) pageSince = millis();
-  idleShown = false;
-
-  uint8_t idx = 0, cnt = 0;
+// Position de la page p dans la rotation (points en bas de l'écran)
+static void positionPage(uint8_t p, uint8_t& idx, uint8_t& cnt) {
+  idx = cnt = 0;
   for (uint8_t i = 0; i < PG_COUNT; i++) {
     if (pageAvailable(i) || i == p) {
       if (i == p) idx = cnt;
       cnt++;
     }
   }
+}
+
+static void showPage(uint8_t p, bool restartTimer = true) {
+  curPage = p;
+  if (restartTimer) pageSince = millis();
+  idleShown = false;
+
+  uint8_t idx, cnt;
+  positionPage(p, idx, cnt);
 
   switch (p) {
     case PG_HEURE:   drawHeure(idx, cnt); break;
@@ -360,6 +366,15 @@ void loop() {
     return;
   }
   if (now - pageSince >= dureePage) {
+    // Crypto : pages dédiées (+/- 5 % sur 7 jours) avant de passer à la suite
+    if (curPage == PG_BTC) {
+      uint8_t idx, cnt;
+      positionPage(PG_BTC, idx, cnt);
+      if (btcEcranSuivant(idx, cnt)) {
+        pageSince = millis();
+        return;
+      }
+    }
     if (supAlert) showAlert();
     else nextPage();
     return;

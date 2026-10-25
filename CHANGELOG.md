@@ -12,6 +12,27 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.8.0] — 2026-10-25
+
+Pages Heure et Météo sans cartes, nouveaux écrans Crypto.
+
+### Ajouté
+- **Page dédiée** : avec 2 ou 3 cryptos, chaque crypto dont la variation sur 7 jours atteint **+5 % ou −5 %** a sa propre page, identique à celle d'une crypto seule (30 jours), affichée juste après l'écran « prix en vedette ».
+- Passerelle : variation sur 30 jours, courbe sur 30 jours (CoinGecko, gardée 30 min), route `/btc/30j`.
+
+### Modifié
+- **Heure** : plus de carte sous la météo du jour ; icône agrandie (environ 75 px de large).
+- **Météo** : plus de cartes ni de traits ; icônes agrandies (environ 105 px pour les 2 prochains jours, 75 px pour les 3 suivants), jours et températures plus grands.
+- **Crypto, 1 crypto choisie** : courbe sur **30 jours**, la plus grande possible ; logo et prix sur une ligne ; variations 24 h, 7 j et 30 j sans bulle, en colonnes.
+- **Crypto, 2 ou 3 cryptos** : écran « prix en vedette » sans bulle : grand logo, prix en grand, variations 24 h et 7 j.
+- Intitulés des variations (24 h, 7 j, 30 j) dans la couleur de la variation (vert ou rouge).
+- **Prix** : au moins 4 chiffres pour toutes les cryptos (2,184 €, 0,08214 €), 2 décimales quand elles suffisent.
+
+### Mise à jour
+- Passerelle avant l'afficheur (sinon les écrans Crypto n'ont ni courbe ni variation sur 30 jours). `docker-compose.yml` inchangé.
+
+---
+
 ## [2.7.0] — 2026-10-24
 
 Pages Heure, Météo et Crypto redessinées.
@@ -161,6 +182,7 @@ Première version publiée dans ce dépôt.
 - OTA `/update` conservée.
 - Reprise automatique de la configuration du firmware « MODELROGS Discord » et de MODELROGS Display 2.0 (Wi-Fi, passerelle, services supervisés).
 
+[2.8.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.8.0
 [2.7.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.0
 [2.6.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.6.0
 [2.5.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.5.0

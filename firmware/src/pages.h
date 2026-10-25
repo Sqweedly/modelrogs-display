@@ -14,6 +14,9 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount);
 void drawDiscord(uint8_t dotIndex, uint8_t dotCount);
 void drawSupervision(uint8_t dotIndex, uint8_t dotCount);
 void drawBtc(uint8_t dotIndex, uint8_t dotCount);    // page Crypto (1 à 3 cryptos)
+// Page Crypto affichée depuis une durée de page : dessine la page dédiée suivante
+// (crypto à +/- 5 % sur 7 jours) et renvoie true, ou false s'il n'y en a plus.
+bool btcEcranSuivant(uint8_t dotIndex, uint8_t dotCount);
 void drawPlex(uint8_t dotIndex, uint8_t dotCount);
 void plexProgress();          // Plex affichée : ne redessine que la progression
 void drawAlert();

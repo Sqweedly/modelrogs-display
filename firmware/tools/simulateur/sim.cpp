@@ -192,13 +192,15 @@ const char* gwErrorText(int code) { return code == -3 ? "Passerelle injoignable"
 
 int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   if (gatewayDown) return gwLastCode = -3;
+  // Réponse du plus long préfixe correspondant (« /btc/30j » avant « /btc »)
+  const std::string* trouve = nullptr;
+  size_t lg = 0;
   for (auto& [prefix, json] : fixtures) {
-    if (path.s.rfind(prefix, 0) == 0) {
-      if (deserializeJson(doc, json)) return gwLastCode = -4;
-      return gwLastCode = (doc["ok"] | 0) ? 200 : -5;
-    }
+    if (path.s.rfind(prefix, 0) == 0 && prefix.size() > lg) { trouve = &json; lg = prefix.size(); }
   }
-  return gwLastCode = -3;
+  if (!trouve) return gwLastCode = -3;
+  if (deserializeJson(doc, *trouve)) return gwLastCode = -4;
+  return gwLastCode = (doc["ok"] | 0) ? 200 : -5;
 }
 
 // Images : converties par genimg.py avec le code de la passerelle (images.py)
@@ -253,7 +255,8 @@ int main(int argc, char** argv) {
   uiBegin();
 
   fixtures = { {"/time", FX("time")}, {"/meteo", FX("meteo")}, {"/btc", FX("crypto1")},
-               {"/discord", FX("discord")}, {"/supervision", FX("sup8")}, {"/plex", FX("plex1")} };
+               {"/discord", FX("discord")}, {"/supervision", FX("sup8")}, {"/plex", FX("plex1")},
+               {"/btc/30j", FX("crypto30j")} };
   syncTime();
   g_millis += 5000;
   pollDiscord();
@@ -277,6 +280,7 @@ int main(int argc, char** argv) {
   drawBtc(4, 6);                   save("12_crypto_2");
   fixtures["/btc"] = FX("crypto3");
   drawBtc(4, 6);                   save("13_crypto_3");
+  btcEcranSuivant(4, 6);           save("13b_crypto_dediee");
   drawPlex(5, 6);                  save("14_plex_1");
   fixtures["/plex"] = FX("plex3"); pollPlex();
   drawPlex(5, 6);                  save("15_plex_3");

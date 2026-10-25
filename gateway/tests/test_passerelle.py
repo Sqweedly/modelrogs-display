@@ -64,8 +64,14 @@ def faux_internet() -> web.Application:
             sortie.append({"id": cid, "current_price": b, "image": f"{base_faux}/logo/{cid}.png",
                            "price_change_percentage_24h_in_currency": -0.8 if cid == "ethereum" else 1.9,
                            "price_change_percentage_7d_in_currency": -3.1 if cid == "ethereum" else 7.2,
+                           "price_change_percentage_30d_in_currency": -9.4 if cid == "ethereum" else 18.6,
                            "sparkline_in_7d": {"price": [b * (1 + ((i % 7) - 3) / 100) for i in range(168)]}})
         return web.json_response(sortie)
+
+    async def cg30(r):
+        assert r.query["days"] == "30"
+        t0 = int((MAINTENANT - timedelta(days=30)).timestamp() * 1000)
+        return web.json_response({"prices": [[t0 + i * 3_600_000, 100 + i] for i in range(721)]})
 
     async def logo(r):
         im = Image.new("RGBA", (250, 250), (0, 0, 0, 0))
@@ -116,6 +122,7 @@ def faux_internet() -> web.Application:
     app.router.add_get("/geo", geo)
     app.router.add_get("/prev", prev)
     app.router.add_get("/cg/coins/markets", cg)
+    app.router.add_get("/cg/coins/{id}/market_chart", cg30)
     app.router.add_get("/logo/{nom}", logo)
     app.router.add_get("/plex/library/metadata/{n}/thumb/{t}", affiche)
     app.router.add_get("/plex/status/sessions", plex_sessions)
@@ -151,12 +158,21 @@ async def principal() -> int:
             ("/time?ville=Lyon", lambda d: d["ok"] and d["lv"] == "08:13" and d["o"] in (3600, 7200)),
             ("/meteo?ville=Lyon", lambda d: d["ok"] and d["i"] == 1 and len(d["j"]) == 5
                 and [j["d"] for j in d["j"]] == ["Sam.", "Dim.", "Lun.", "Mar.", "Mer."]),
+            # Une crypto : courbe 30 jours incluse (60 points, montante), variations 24 h / 7 j / 30 j
             ("/btc", lambda d: d["ok"] and len(d["c"]) == 1 and d["c"][0]["s"] == "BTC"
-                and d["c"][0]["px"] == "54 000 €" and len(d["c"][0]["pts"]) == 60 and d["c"][0]["i"]),
+                and d["c"][0]["px"] == "54 000 €" and len(d["c"][0]["p30"]) == 60
+                and d["c"][0]["p30"][0] == 0 and d["c"][0]["v30"] == "+18,6 %" and d["c"][0]["i"]),
+            # Deux ou trois : pas de courbe ; x = page dédiée si |7 j| >= 5 %
             ("/btc?devise=usd&ids=ethereum,ripple", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]
-                and d["c"][0]["px"].endswith("$") and len(d["c"][1]["pts"]) == 48 and d["c"][0]["u7"] == 0),
+                and d["c"][0]["px"].endswith("$") and "p30" not in d["c"][1]
+                and [c["x"] for c in d["c"]] == [0, 1] and d["c"][0]["u7"] == 0),
+            # Au moins 4 chiffres : 2,184 € ; 0,08214 €
             ("/btc?ids=bitcoin,ethereum,ripple,dogecoin,inconnu", lambda d: len(d["c"]) == 3
-                and d["c"][2]["px"] == "2,18 €" and len(d["c"][2]["pts"]) == 32),
+                and d["c"][2]["px"] == "2,184 €" and d["c"][2]["id"] == "ripple"),
+            ("/btc?ids=dogecoin", lambda d: d["c"][0]["px"] == "0,08214 €"),
+            ("/btc/30j?id=ripple&devise=eur", lambda d: d["ok"] and d["c"][0]["s"] == "XRP"
+                and len(d["c"][0]["p30"]) == 60 and d["c"][0]["x"] == 1),
+            ("/btc/30j?id=inconnu", lambda d: d["ok"] == 0),
             ("/plex", lambda d: d["ok"] and d["n"] == 0 and d["s"] == []),
             ("/supervision/services", lambda d: d["ok"] and len(d["s"]) == 15 and isinstance(d["s"][0]["id"], str)),
             ("/supervision?ids=2,3,4,5,6,7,8", lambda d: d["md"] == "t" and d["s"][0]["e"] == 1 and d["al"] is None),

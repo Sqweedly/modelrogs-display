@@ -12,11 +12,21 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [À venir]
+## [2.7.2] — 2026-10-25
+
+Discord : nom du salon et pastilles d'état à l'échelle ; Météo recentrée ; publication Docker fiabilisée.
+
+### Modifié
+- **Discord** : en haut, le nom du salon vocal (au lieu du nom du serveur), à côté de l'icône du serveur.
+- **Discord, états vocaux** : pastilles (micro coupé, casque coupé, live) proportionnelles à la photo de profil, redessinées en symbole blanc barré sur disque rouge. Elles ne paraissent plus minuscules quand une seule personne est affichée en grand.
 
 ### Corrigé
+- **Météo** : chaque rangée est répartie d'après la largeur réelle de ses jours (nom, icône, températures). Une icône étroite (brouillard) à côté d'icônes larges (nuages) ne décale plus la rangée vers la droite.
 - **Image Docker** : les étiquettes `2.7`, `2` et `latest` ne sont plus déplacées par la republication d'une ancienne version. Avant, remplacer la 2.7.0 au moment de la sortie de la 2.7.1 pouvait laisser `:2` (celle de `docker-compose.yml`) sur l'image 2.7.0. Les publications passent désormais l'une après l'autre, et chaque étiquette est vérifiée après l'envoi.
 - **Release remplacée** : les notes sont aussi mises à jour, plus seulement les fichiers.
+
+### Mise à jour
+- Passerelle (code inchangé) : `docker compose pull && docker compose up -d` remet `:2` sur la dernière version. Puis l'afficheur. `docker-compose.yml` inchangé.
 
 ## [2.7.1] — 2026-10-25
 
@@ -193,6 +203,7 @@ Première version publiée dans ce dépôt.
 - OTA `/update` conservée.
 - Reprise automatique de la configuration du firmware « MODELROGS Discord » et de MODELROGS Display 2.0 (Wi-Fi, passerelle, services supervisés).
 
+[2.7.2]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.2
 [2.7.1]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.1
 [2.7.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.0
 [2.6.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.6.0

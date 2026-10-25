@@ -201,9 +201,28 @@ static void encreTexte(const String& t, FontId f, int& dessus, int& dessous) {
   }
 }
 
+// Encre horizontale d'un texte UTF-8, depuis la plume : [gauche, droite[.
+static void encreLargeur(const String& t, FontId f, int& gauche, int& droite) {
+  int plume = 0;
+  gauche = 1 << 14; droite = -(1 << 14);
+  for (unsigned i = 0; i < t.length();) {
+    uint8_t c = t[i];
+    uint16_t u = c;
+    int n = c < 0x80 ? 1 : (c < 0xE0 ? 2 : 3);
+    if (n == 2 && i + 1 < t.length()) u = ((c & 0x1F) << 6) | (t[i + 1] & 0x3F);
+    if (n == 3 && i + 2 < t.length()) u = ((c & 0x0F) << 12) | ((t[i + 1] & 0x3F) << 6) | (t[i + 2] & 0x3F);
+    i += n;
+    GlyphBox g;
+    if (!glyphBox(f, u, g)) continue;
+    if (u != ' ' && g.w > 0) { gauche = min(gauche, plume + g.dx); droite = max(droite, plume + g.dx + g.w); }
+    plume += g.adv;
+  }
+  if (gauche > droite) gauche = droite = 0;
+}
+
 // Page Météo : 5 blocs identiques (jour, icône, min / max), 2 en haut et 3 en
-// bas. Chaque rangée est répartie sur la largeur avec des espaces égaux (bords
-// compris). En hauteur : même espace en haut et entre les rangées, 6 px au-dessus
+// bas. Chaque rangée est répartie d'après la largeur réelle de ses jours, avec
+// des espaces égaux (bords compris). En hauteur : même espace en haut et entre les rangées, 6 px au-dessus
 // des points de pagination ; l'icône prend toute la hauteur qui reste.
 static const int METEO_PTS = 225 - 6;                    // bas (exclu) de l'encre
 // « 10° / 15° » centré en cx : min (bleu) / max (ambre), même ordre partout.
@@ -247,11 +266,46 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
   const int gJI = 7, gIT = 7, e = 12;                    // jour -> icône -> températures ; espaces
   const int hB = (METEO_PTS - 3 - 2 * e) / 2;            // hauteur d'un bloc
   const int IH = hB - (jD + jB) - gJI - gIT - (tD + tB); // zone de l'icône
+  // Chaque rangée est répartie d'après l'encre réelle de ses jours (nom, icône,
+  // températures), avec des espaces égaux entre les jours et sur les bords : une
+  // icône étroite (brouillard) à côté d'une large (nuages) ne décale plus la rangée.
+  // Encre de chaque jour, relative à son centre cx : [gch, drt]
+  int gch[5] = { 0 }, drt[5] = { 0 };
   for (uint8_t k = 0; k < nj; k++) {
     JsonObject j = js[k];
-    const int rang = k < 2 ? 0 : 1, nb = rang ? 3 : 2, col = rang ? k - 2 : k;
-    const float pas = BW + (240.0f - nb * BW) / (nb + 1);
-    const int cx = 120 + (int)lroundf((col - (nb - 1) / 2.0f) * pas);
+    int iw = 0;
+    weatherIconScale(j["i"] | 2, BW, IH, &iw, nullptr);
+    int g = -iw / 2, d = iw - iw / 2;                        // icône : centrée sur son encre
+    int a, b;
+    String jour = j["d"] | "";
+    encreLargeur(jour, F_13, a, b);                          // nom : centré sur sa chasse
+    int w0 = textW(jour, F_13);
+    g = min(g, a - w0 / 2); d = max(d, b - w0 / 2);
+    // min / max : même construction que minMaxCentre
+    String mn = String((int)(j["mn"] | 0)) + "°", mx = String((int)(j["mx"] | 0)) + "°";
+    int wa = textW(mn, ft), ws = textW("/", ft), wb = textW(mx, ft), wt = wa + ws + wb + 8;
+    encreLargeur(mn, ft, a, b);
+    g = min(g, a - wt / 2);
+    encreLargeur(mx, ft, a, b);
+    d = max(d, wa + ws + 8 + b - wt / 2);
+    gch[k] = g; drt[k] = d;
+  }
+  int cxs[5] = { 0 };
+  for (uint8_t r = 0; r < 2; r++) {
+    const uint8_t k0 = r ? 2 : 0, k1 = min<uint8_t>(r ? 5 : 2, nj);
+    if (k0 >= k1) continue;
+    int somme = 0;
+    for (uint8_t k = k0; k < k1; k++) somme += drt[k] - gch[k];
+    const float g = (240.0f - somme) / (k1 - k0 + 1);
+    float x = g;
+    for (uint8_t k = k0; k < k1; k++) {
+      cxs[k] = (int)lroundf(x - gch[k]);
+      x += (drt[k] - gch[k]) + g;
+    }
+  }
+  for (uint8_t k = 0; k < nj; k++) {
+    JsonObject j = js[k];
+    const int rang = k < 2 ? 0 : 1, cx = cxs[k];
     const int y = 3 + e + rang * (hB + e);                // haut de l'encre du bloc
     drawText(j["d"] | "", cx, y - (fontAscent(F_13) - jD), F_13, TXT2, BG, TC_DATUM);
     const int yI = y + jD + jB + gJI;
@@ -267,22 +321,44 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
 
 static const uint16_t AVATAR[] = { VIOLET, VERT, AMBRE, BLEU, CORAIL };
 
-// Petites icônes d'état vocal (14 x 14), tracées par le code
-static void micCoupe(int x, int y, uint16_t c, uint16_t bg) {
-  tft.fillSmoothRoundRect(x + 4, y, 6, 9, 3, c, bg);
-  tft.drawSmoothArc(x + 7, y + 6, 6, 5, 0, 90, c, bg, false);     // support en U (0° = bas)
-  tft.drawSmoothArc(x + 7, y + 6, 6, 5, 270, 360, c, bg, false);
-  tft.drawWideLine(x + 7, y + 12, x + 7, y + 14, 1.6f, c, bg);
-  tft.drawWideLine(x + 1, y + 14, x + 13, y, 3.4f, bg, bg);
-  tft.drawWideLine(x + 1, y + 14, x + 13, y, 1.7f, c, bg);
-}
+// Pastilles d'état vocal, dessinées à l'échelle : R = rayon extérieur de la
+// pastille (anneau de fond, disque rouge, symbole blanc barré). u = R / 11 :
+// à R = 11 (avatar de 60 px), le symbole fait environ 12 px.
+enum EtatPastille : uint8_t { PASTILLE_MUET, PASTILLE_SOURD, PASTILLE_LIVE };
 
-static void casqueCoupe(int x, int y, uint16_t c, uint16_t bg) {
-  tft.drawSmoothArc(x + 7, y + 8, 7, 5, 90, 270, c, bg, true);
-  tft.fillSmoothRoundRect(x, y + 7, 4, 7, 1, c, bg);
-  tft.fillSmoothRoundRect(x + 10, y + 7, 4, 7, 1, c, bg);
-  tft.drawWideLine(x, y + 14, x + 14, y, 3.4f, bg, bg);
-  tft.drawWideLine(x, y + 14, x + 14, y, 1.7f, c, bg);
+static void pastilleEtat(int bx, int by, int R, EtatPastille quoi) {
+  const float u = R / 11.0f;
+  const int rIn = R - max(2, (int)lroundf(1.8f * u));    // anneau de fond autour du disque rouge
+  tft.fillSmoothCircle(bx, by, R, BG, BG);
+  tft.fillSmoothCircle(bx, by, rIn, ROUGE, BG);
+  if (quoi == PASTILLE_LIVE) {
+    tft.fillSmoothCircle(bx, by, max(2, (int)lroundf(3.2f * u)), TXT, ROUGE);
+    return;
+  }
+  const float ep = max(1.5f, 1.5f * u);                  // épaisseur des traits
+  if (quoi == PASTILLE_MUET) {
+    // Micro : capsule pleine, support en U, pied
+    const float cw = 4.0f * u, ch = 6.6f * u, yc = by - 5.0f * u;
+    tft.fillSmoothRoundRect((int)lroundf(bx - cw / 2), (int)lroundf(yc), max(3, (int)lroundf(cw)),
+                            max(5, (int)lroundf(ch)), max(1, (int)lroundf(cw / 2)), TXT, ROUGE);
+    const int ra = max(3, (int)lroundf(4.6f * u)), yU = (int)lroundf(by - 0.6f * u);
+    const int ri = max(1, ra - max(1, (int)lroundf(ep)));
+    tft.drawSmoothArc(bx, yU, ra, ri, 270, 360, TXT, ROUGE, true);   // 0° = bas : moitié basse
+    tft.drawSmoothArc(bx, yU, ra, ri, 0, 90, TXT, ROUGE, true);
+    tft.drawWideLine(bx, yU + ra - ep / 2, bx, by + 5.6f * u, ep, TXT, ROUGE);
+  } else {
+    // Casque : arceau (moitié haute) et deux écouteurs
+    const int ra = max(4, (int)lroundf(5.4f * u)), yA = (int)lroundf(by + 0.8f * u);
+    const int ri = max(1, ra - max(1, (int)lroundf(ep)));
+    tft.drawSmoothArc(bx, yA, ra, ri, 90, 270, TXT, ROUGE, true);
+    const int ew = max(3, (int)lroundf(3.0f * u)), eh = max(4, (int)lroundf(4.6f * u));
+    tft.fillSmoothRoundRect(bx - ra, yA - 1, ew, eh, max(1, ew / 3), TXT, ROUGE);
+    tft.fillSmoothRoundRect(bx + ra - ew + 1, yA - 1, ew, eh, max(1, ew / 3), TXT, ROUGE);
+  }
+  // Barre (haut gauche -> bas droite), séparée du symbole par un fin liseré rouge
+  const float d = 5.6f * u;
+  tft.drawWideLine(bx - d, by - d, bx + d, by + d, ep + 2.0f * max(1.0f, 0.9f * u), ROUGE, ROUGE);
+  tft.drawWideLine(bx - d, by - d, bx + d, by + d, ep, TXT, ROUGE);
 }
 
 // Pseudo de 8 caractères au plus : au-delà, 7 caractères + « … » (UTF-8 respecté).
@@ -313,15 +389,11 @@ static void avatarRond(uint8_t i, int cx, int cy, int d) {
   uint8_t e = gDisc.etat[i];
   const int k = (int)lroundf(d * 0.354f);              // point du cercle à 45°, en bas à droite
   const int bx = cx + k, by = cy + k;
-  if (e & DISC_LIVE) {
-    tft.fillSmoothCircle(bx, by, 10, BG, BG);
-    tft.fillSmoothCircle(bx, by, 8, ROUGE, BG);
-    tft.fillSmoothCircle(bx, by, 3, TXT, ROUGE);
-  } else if (e & (DISC_SOURD | DISC_MUET)) {
-    tft.fillSmoothCircle(bx, by, 11, BG, BG);
-    if (e & DISC_SOURD) casqueCoupe(bx - 7, by - 7, ROUGE_TX, BG);
-    else micCoupe(bx - 7, by - 7, ROUGE_TX, BG);
-  }
+  // Pastille proportionnelle à l'avatar : rayon 12 px (avatar de 60 px) à 26 px (142 px)
+  const int R = max(12, (int)lroundf(d * 0.18f));
+  if (e & DISC_LIVE) pastilleEtat(bx, by, R, PASTILLE_LIVE);
+  else if (e & DISC_SOURD) pastilleEtat(bx, by, R, PASTILLE_SOURD);
+  else if (e & DISC_MUET) pastilleEtat(bx, by, R, PASTILLE_MUET);
 }
 
 // Zone des avatars : du bas de l'icône du serveur (y 47) jusqu'à 6 px au-dessus
@@ -336,11 +408,11 @@ void drawDiscord(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  // En-tête : icône du serveur (40 px) et nom du serveur, centrés ensemble sur
-  // l'écran ; le nom est centré sur la hauteur de l'icône.
+  // En-tête : icône du serveur (40 px) et nom du salon vocal, centrés ensemble
+  // sur l'écran ; le nom est centré sur la hauteur de l'icône.
   const int IC = 40, IY = 7, gIN = 10;
-  String nomServeur = fitText(gDisc.serveur[0] ? gDisc.serveur : "Discord", F_18, 212 - IC - gIN);
-  const int xI = 120 - (IC + gIN + textW(nomServeur, F_18)) / 2;
+  String nomSalon = fitText(gDisc.canal[0] ? gDisc.canal : "Discord", F_18, 212 - IC - gIN);
+  const int xI = 120 - (IC + gIN + textW(nomSalon, F_18)) / 2;
   if (!gwImage(gDisc.icone, xI, IY, IC, IC, BG, 11)) {
     card(xI, IY, IC, IC, 11, BLURPLE);
     headsetIcon(xI + IC / 2, IY + IC / 2, TXT, BLURPLE);
@@ -350,7 +422,7 @@ void drawDiscord(uint8_t dotIndex, uint8_t dotCount) {
     glyphBox(F_18, 'H', gH);
     // Centré sur la hauteur des majuscules (les jambages éventuels dépassent dessous)
     int base = IY + IC / 2 + (gH.dy + 1) / 2;
-    drawText(nomServeur, xI + IC + gIN, base - fontAscent(F_18), F_18, TXT, BG);
+    drawText(nomSalon, xI + IC + gIN, base - fontAscent(F_18), F_18, TXT, BG);
   }
 
   // Avatars : 6 au plus ; au-delà, 5 avatars et une pastille « +N ».

@@ -15,7 +15,7 @@ static String ancien(const String& s, FontId f, int maxW) {
 int main() {
   uiBegin();
   const char* textes[] = {"Nicolas le très long pseudo", "Home Assistant", "Vaultwarden", "Éclaircies", "Mosquitto broker MQTT",
-    "ÉÈÀÇ très accentué", "a", "", "Riot Shits", "Salon vocal général de l'équipe", "Passerelle injoignable", "x y z w v u t s"};
+    "ÉÈÀÇ très accentué", "a", "", "Serveur de test", "Salon vocal général de l'équipe", "Passerelle injoignable", "x y z w v u t s"};
   int largeurs[] = {20, 40, 75, 110, 160, 190, 212};
   FontId fonts[] = {F_11, F_13, F_16, F_18, F_32};
   int diff = 0, total = 0;

@@ -258,6 +258,9 @@ static void renderModules(Chunks& c) {
         bool all = true;
         for (JsonObject param : mod["p"].as<JsonArray>()) all &= renderField(c, p, param);
         if (all) c << F("<input type='hidden' name='pm") << (long)p << F("' value='1'>");
+        if (p == PG_SUP)
+          c << F("<p class='note'>Tous les services de la page de statut Uptime Kuma sont suivis, "
+                 "y compris ceux ajoutés ou retirés ensuite.</p>");
       }
     }
     c << F("</div>");

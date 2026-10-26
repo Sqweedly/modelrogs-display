@@ -12,6 +12,23 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.8.1] — 2026-10-26
+
+Retouches Plex et Discord, supervision sans réglage, guide du développeur.
+
+### Modifié
+- **Supervision** : plus de choix des services dans l'interface web. Tout ce qu'affiche la page de statut Uptime Kuma est suivi ; un service ajouté ou retiré dans Kuma apparaît ou disparaît de lui-même (une minute environ). La route `/supervision/services` est retirée ; le paramètre `ids` envoyé par une ancienne configuration est ignoré.
+- **Plex, une lecture** : le nom de qui regarde est centré sur la colonne de droite et descendu un peu, au lieu d'être aligné sur le haut de l'affiche.
+- **Discord** : l'icône du serveur passe dans le coin haut gauche ; le nom du salon est centré sur l'espace restant à sa droite (16 px s'il est trop long en 18 px).
+
+### Ajouté
+- **Guide du développeur** (`docs/DEVELOPPEMENT.md`) pour reprendre le projet depuis un clone vierge : outils, compilation et flash du firmware avec VS Code + PlatformIO, passerelle lancée sur un PC sans Docker, tests, simulateur d'écrans, régénération des polices Inter, publication dans un autre dépôt.
+- **`.vscode/extensions.json`** : VS Code propose PlatformIO IDE et Python à l'ouverture du dépôt.
+- **`platformio.ini`** : en-tête réécrit pour un tiers (compilation, découpage de la flash et OTA).
+
+### Mise à jour
+- Passerelle d'abord (`docker compose pull && docker compose up -d`, le log doit afficher `Passerelle 2.8.1`), puis l'afficheur. Un afficheur 2.8.0 fonctionne avec la nouvelle passerelle : son ancien choix de services est simplement ignoré.
+
 ## [2.8.0] — 2026-10-25
 
 Panne et Supervision repensées, Plex redessiné, version de la passerelle fiable.
@@ -227,6 +244,7 @@ Première version publiée dans ce dépôt.
 - OTA `/update` conservée.
 - Reprise automatique de la configuration du firmware « MODELROGS Discord » et de MODELROGS Display 2.0 (Wi-Fi, passerelle, services supervisés).
 
+[2.8.1]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.8.1
 [2.8.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.8.0
 [2.7.2]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.2
 [2.7.1]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.1

@@ -44,8 +44,8 @@ Chaque module est décrit par une fiche (`gateway/app/modules/`) :
 |---|---|---|
 | `id`, `nom` | identifiant et libellé | `supervision`, « Supervision » |
 | `requis` | variables d'environnement obligatoires | `KUMA_URL`, `KUMA_STATUS_SLUG` |
-| `params` | réglages à proposer dans l'interface de l'afficheur | `ids` : « tous » par défaut, ou cases à cocher (liste lue sur `/supervision/services`, 48 au maximum) |
-| `routes` | adresses HTTP servies | `/supervision`, `/supervision/services` |
+| `params` | réglages à proposer dans l'interface de l'afficheur | aucun : tout ce qu'affiche la page de statut Kuma est suivi |
+| `routes` | adresses HTTP servies | `/supervision` |
 | `demarrer` / `arreter` / `etat` | tâche de fond éventuelle | (Discord uniquement) |
 
 **Le manifeste `/modules`** rend l'ensemble modulaire. L'afficheur l'interroge pour savoir :
@@ -64,7 +64,7 @@ Chaque module est décrit par une fiche (`gateway/app/modules/`) :
 ]}
 ```
 
-L'afficheur ne connaît ni CoinGecko ni Kuma : il affiche les champs décrits par la passerelle, enregistre les choix sous forme d'une courte chaîne (`ids=bitcoin,ethereum&devise=eur`, `ids=3,7,12`) et la renvoie telle quelle à chaque appel (`/btc?ids=bitcoin,ethereum&devise=eur`).
+L'afficheur ne connaît ni CoinGecko ni Kuma : il affiche les champs décrits par la passerelle, enregistre les choix sous forme d'une courte chaîne (`ids=bitcoin,ethereum&devise=eur`) et la renvoie telle quelle à chaque appel (`/btc?ids=bitcoin,ethereum&devise=eur`).
 
 **Types de champs** :
 - `text` : zone de texte ;
@@ -157,17 +157,16 @@ Voir le parcours d'une requête (section 4) : depuis la 2.7.0, la réponse ne co
 - Le module garde l'identifiant `btc` (route `/btc`) pour rester compatible ; `crypto` est accepté dans `MODULES`.
 - Une clé CoinGecko « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.
 
-### Supervision (`/supervision?ids=` et `/supervision/services`)
+### Supervision (`/supervision`)
 
 - La passerelle lit l'**API publique de la page de statut Kuma**, la même que celle qui affiche la page dans le navigateur. Elle n'a donc besoin ni d'identifiant ni de mot de passe Kuma.
-- **`/supervision/services`** renvoie toutes les sondes de la page (identifiant et nom), pour les cases à cocher de l'afficheur.
-- **`/supervision?ids=3,7,12`** (ou **`ids=*`**, ou sans `ids` : toutes les sondes de la page, réglage par défaut) :
-  1. lit les derniers battements de chaque sonde choisie ;
+- **`/supervision`** suit **toutes les sondes de la page de statut** (depuis la 2.8.1, plus de choix sur l'afficheur ; un ancien `?ids=` est ignoré) :
+  1. lit les derniers battements de chaque sonde ;
   2. traduit l'état Kuma en état d'écran : en ligne → OK, hors ligne → panne, en attente → instable, maintenance → maintenance ;
   3. **trie les problèmes en premier** ;
   4. n'envoie que les **services en défaut** (12 au plus), chacun avec ses minutes dans l'état actuel (`m`, et `b` = 1 si le début est plus ancien que l'historique de Kuma), plus les compteurs (OK, pannes, instables, maintenances) ;
   5. calcule l'**alerte** : la panne la plus ancienne, sa durée en minutes et le nombre total de pannes.
-- Pour ajouter un service, il suffit de l'ajouter à la page de statut dans Kuma : avec le réglage par défaut (« Tous les services »), il apparaît sur l'écran sans toucher à l'afficheur.
+- Pour ajouter ou retirer un service, il suffit de l'ajouter à la page de statut dans Kuma ou de l'en retirer : l'écran suit sans toucher à l'afficheur.
 - **Délai d'apparition : une minute environ.** Kuma garde lui-même ses réponses de page de statut en cache quelques minutes ; la passerelle ajoute à ses requêtes un paramètre qui change à chaque appel (`?_=<heure>`), ignoré par Kuma, pour toujours obtenir la liste à jour. Elle relit la liste chaque minute.
 
 ### Discord (`/discord?salon=` et `/discord/salons`)
@@ -264,7 +263,7 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 docker compose logs -f gateway                    # démarrage, modules, erreurs de sources
 curl http://IP_SERVEUR:8080/health                # état de chaque module, bot Discord compris
 curl http://IP_SERVEUR:8080/modules               # ce que voit l'afficheur
-curl "http://IP_SERVEUR:8080/supervision?ids=1,2" # exactement ce que reçoit l'écran
+curl "http://IP_SERVEUR:8080/supervision" # exactement ce que reçoit l'écran
 docker stats modelrogs-gateway                    # mémoire et processeur
 ```
 

@@ -6,8 +6,8 @@
 #   3. chmod 600 docker-compose.yml     (il contient les jetons Discord et Plex)
 #   4. docker compose up -d
 #
-# Les réglages personnels (ville, devise, salon vocal, services
-# supervisés) se font ensuite dans l'interface de l'afficheur.
+# Les réglages personnels (ville, devise, salon vocal) se font ensuite
+# dans l'interface de l'afficheur.
 # NE JAMAIS publier ce fichier une fois les jetons renseignés.
 # =====================================================================
 
@@ -43,7 +43,7 @@ services:
       MODULES: heure,meteo,crypto,supervision,discord,plex
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
-      # Page de statut regroupant TOUTES les sondes cochables depuis l'afficheur
+      # Page de statut Kuma : toutes ses sondes sont suivies par l'afficheur
       # (http://kuma:3001/status/modelrogs  ->  slug = modelrogs)
       KUMA_URL: http://192.168.1.10:3001
       KUMA_STATUS_SLUG: modelrogs

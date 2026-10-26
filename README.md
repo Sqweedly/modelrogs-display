@@ -35,7 +35,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 **Répartition des réglages**
 
 - **`docker-compose.yml`** (serveur) : modules actifs, **secrets et accès**, c'est-à-dire les jetons Discord et Plex et les adresses de Kuma et Plex.
-- **Interface de l'afficheur** : **préférences** (ville, cryptos et devise, salon vocal, services supervisés, pages, nuit, luminosité).
+- **Interface de l'afficheur** : **préférences** (ville, cryptos et devise, salon vocal, pages, nuit, luminosité).
 
 Aucun secret ne transite par l'afficheur, dont le point d'accès est ouvert.
 
@@ -215,7 +215,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - **Général** : adresse de la passerelle (`http://IP_SERVEUR:8080`) et ville.
 - **Pages et modules** : la liste suit les modules de la passerelle.
   - Coche les pages à afficher.
-  - Renseigne les réglages demandés : cryptos (3 au maximum) et devise pour Crypto, salon vocal pour Discord, services de la supervision : par défaut **tous ceux de la page de statut Kuma**, y compris ceux ajoutés plus tard ; décoche « Tous les services… » pour en choisir 48 au maximum.
+  - Renseigne les réglages demandés : cryptos (3 au maximum) et devise pour Crypto, salon vocal pour Discord, rien à choisir pour la supervision : **tous les services de la page de statut Kuma** sont suivis, y compris ceux ajoutés ou retirés ensuite.
   - Un module retiré de `MODULES` apparaît grisé. Un module mal configuré affiche la variable manquante.
 - **Nuit et luminosité** : plage horaire, luminosité de jour et de nuit (0 = écran éteint).
 - **État** :
@@ -228,7 +228,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 **Comportement**
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
-- Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. En haut, l'icône du serveur et le nom du salon ; dessous, les photos de profil avec le pseudo (8 caractères au plus) et l'état (micro ou casque coupé, LIVE), en pastille proportionnelle à la photo. Les photos sont aussi grandes que possible : une seule en grand, 2 côte à côte, 2 × 2 pour 3 ou 4 personnes, 3 colonnes sur 2 lignes pour 5 ou 6 ; au-delà de 6, 5 photos et une pastille « +N ».
+- Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. En haut, l'icône du serveur dans le coin gauche et le nom du salon centré sur l'espace restant ; dessous, les photos de profil avec le pseudo (8 caractères au plus) et l'état (micro ou casque coupé, LIVE), en pastille proportionnelle à la photo. Les photos sont aussi grandes que possible : une seule en grand, 2 côte à côte, 2 × 2 pour 3 ou 4 personnes, 3 colonnes sur 2 lignes pour 5 ou 6 ; au-delà de 6, 5 photos et une pastille « +N ».
 - Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : grande affiche, qui regarde, bibliothèque, épisode, mode (direct, flux direct, transcodage, en pause), titre et progression. Plusieurs : une ligne par lecture avec son affiche (3 au plus, puis « + N autres lectures »).
 - Crypto : 1 crypto choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque crypto qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 €).
 - **Panne** : bloc de deux écrans, affiché immédiatement puis **après chaque page** jusqu'au retour à la normale :
@@ -286,8 +286,7 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 | `/meteo?ville=` | Météo du jour (page Heure) + 5 jours (page Météo) |
 | `/btc?ids=bitcoin,ethereum&devise=eur` | Cryptos choisies (3 au plus, Bitcoin par défaut) ; courbe 30 jours si une seule |
 | `/btc/30j?id=ripple&devise=eur` | Une crypto sur 30 jours (page dédiée) |
-| `/supervision?ids=3,7` | État des services choisis ; `ids=*` ou sans `ids` : tous les services de la page de statut |
-| `/supervision/services` | Liste des sondes Kuma |
+| `/supervision` | État de tous les services de la page de statut Kuma (services en défaut et compteurs) |
 | `/discord?salon=<id>` | Présents dans le salon |
 | `/discord/salons` | Liste des salons vocaux |
 | `/plex` | Lectures Plex en cours |
@@ -301,7 +300,7 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 
 Ajouter une nouvelle page demande un module dans la passerelle et un écran dans le firmware.
 
-**Outils**
+**Outils** (guide complet pour reprendre le projet depuis zéro, avec VS Code : [docs/DEVELOPPEMENT.md](docs/DEVELOPPEMENT.md))
 - **Tests de la passerelle** : `cd gateway && python -m tests.test_passerelle`. Ils sont lancés par GitHub à chaque envoi et avant chaque publication.
 - **Test de conservation de la configuration du firmware** : `firmware/tools/simulateur/test_config.cpp`, lancé lui aussi par GitHub.
 - **Aperçu des écrans sur PC** : `firmware/tools/simulateur/apercu.sh`.

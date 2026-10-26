@@ -408,21 +408,23 @@ void drawDiscord(uint8_t dotIndex, uint8_t dotCount) {
     return;
   }
 
-  // En-tête : icône du serveur (40 px) et nom du salon vocal, centrés ensemble
-  // sur l'écran ; le nom est centré sur la hauteur de l'icône.
-  const int IC = 40, IY = 7, gIN = 10;
-  String nomSalon = fitText(gDisc.canal[0] ? gDisc.canal : "Discord", F_18, 212 - IC - gIN);
-  const int xI = 120 - (IC + gIN + textW(nomSalon, F_18)) / 2;
-  if (!gwImage(gDisc.icone, xI, IY, IC, IC, BG, 11)) {
-    card(xI, IY, IC, IC, 11, BLURPLE);
-    headsetIcon(xI + IC / 2, IY + IC / 2, TXT, BLURPLE);
+  // En-tête : icône du serveur (40 px) dans le coin haut gauche ; nom du salon
+  // centré sur l'espace restant à droite de l'icône et sur la hauteur de l'icône.
+  const int IC = 40, IX = 5, IY = 5, gIN = 8;
+  const int xNom = IX + IC + gIN, wNom = 240 - IX - xNom;
+  const char* salon = gDisc.canal[0] ? gDisc.canal : "Discord";
+  const FontId fN = textW(salon, F_18) <= wNom ? F_18 : F_16;
+  String nomSalon = fitText(salon, fN, wNom);
+  if (!gwImage(gDisc.icone, IX, IY, IC, IC, BG, 11)) {
+    card(IX, IY, IC, IC, 11, BLURPLE);
+    headsetIcon(IX + IC / 2, IY + IC / 2, TXT, BLURPLE);
   }
   {
     GlyphBox gH;
-    glyphBox(F_18, 'H', gH);
+    glyphBox(fN, 'H', gH);
     // Centré sur la hauteur des majuscules (les jambages éventuels dépassent dessous)
     int base = IY + IC / 2 + (gH.dy + 1) / 2;
-    drawText(nomSalon, xI + IC + gIN, base - fontAscent(F_18), F_18, TXT, BG);
+    drawText(nomSalon, xNom + (wNom - textW(nomSalon, fN)) / 2, base - fontAscent(fN), fN, TXT, BG);
   }
 
   // Avatars : 6 au plus ; au-delà, 5 avatars et une pastille « +N ».
@@ -1086,7 +1088,9 @@ static void plexUne() {
   const int hA = hautTitre - gAT - haut, wA = hA * 2 / 3;
   plexAffiche(l, 14, haut, wA, hA, 10);
   const int xC = 14 + wA + 12, wC = 226 - xC;
-  drawText(fitText(l.user, F_16, wC), xC, baseDepuisHaut(l.user, F_16, haut), F_16, PLEX, BG);
+  // Qui regarde : centré sur la colonne de droite, un peu sous le haut de l'affiche
+  String u = fitText(l.user, F_16, wC);
+  drawText(u, xC + (wC - textW(u, F_16)) / 2, baseDepuisHaut(u, F_16, haut + 14), F_16, PLEX, BG);
   const char* mode = plexMode(l);
   uint16_t cm = l.mode == 2 ? AMBRE : VERT;
   const FontId fP = (textW(mode, F_13) + 14 <= wC && textW("En pause", F_13) + 14 <= wC) ? F_13 : F_11;

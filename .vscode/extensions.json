@@ -1,0 +1,8 @@
+{
+  // VS Code propose ces extensions à l'ouverture du dépôt.
+  // PlatformIO IDE : compiler et flasher le firmware (ouvrir le dossier « firmware »).
+  "recommendations": [
+    "platformio.platformio-ide",
+    "ms-python.python"
+  ]
+}

@@ -150,7 +150,6 @@ async def principal() -> int:
 
     echecs = 0
     async with TestClient(TestServer(creer_app())) as c:
-        tous = ",".join(str(i) for i in range(1, 16))
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
             ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex"]
@@ -174,18 +173,15 @@ async def principal() -> int:
                 and len(d["c"][0]["p30"]) == 60 and d["c"][0]["x"] == 1),
             ("/btc/30j?id=inconnu", lambda d: d["ok"] == 0),
             ("/plex", lambda d: d["ok"] and d["n"] == 0 and d["s"] == []),
-            ("/supervision/services", lambda d: d["ok"] and len(d["s"]) == 15 and isinstance(d["s"][0]["id"], str)),
-            ("/supervision?ids=2,3,4,5,6,7,8", lambda d: d["md"] == "t" and d["s"][0]["e"] == 1 and d["al"] is None
+            # Toutes les sondes de la page de statut, défauts seuls envoyés (pannes d'abord)
+            ("/supervision", lambda d: d["tot"] == 15 and d["md"] == "r" and d["pa"] == 2
+                and d["al"]["n"] == "NAS" and d["al"]["m"] == 4
+                and {"n": "NAS", "e": 2, "m": 4, "b": 0} in d["s"]
                 and all(x["e"] != 0 for x in d["s"]) and len(d["s"]) == d["pa"] + d["in"] + d["ma"]),
-            ("/supervision?ids=1,2,3,4,5,6,7,8", lambda d: d["al"]["n"] == "NAS" and d["al"]["m"] == 4
-                and d["s"][0]["n"] == "NAS" and d["s"][0]["m"] == 4 and d["s"][0]["b"] == 0
-                and d["s"][1]["e"] == 1 and d["s"][1]["b"] == 1),
-            ("/supervision?ids=" + tous, lambda d: d["md"] == "r" and len(d["s"]) == 3 and d["pa"] == 2),
-            ("/supervision", lambda d: d["tot"] == 15 and d["md"] == "r" and d["al"]["n"] == "NAS"),
-            ("/supervision?ids=*", lambda d: d["tot"] == 15 and d["pa"] == 2),
-            ("/supervision?ids=%2A", lambda d: d["tot"] == 15),
-            ("/supervision?ids=*,3", lambda d: d["tot"] == 15),
-            ("/modules", lambda d: next(m for m in d["m"] if m["id"] == "supervision")["p"][0]["tous"]),
+            # Ancienne configuration de l'afficheur : le choix de services est ignoré
+            ("/supervision?ids=2,3,4", lambda d: d["tot"] == 15 and d["pa"] == 2),
+            ("/supervision?ids=*", lambda d: d["tot"] == 15),
+            ("/modules", lambda d: next(m for m in d["m"] if m["id"] == "supervision")["p"] == []),
             ("/discord?salon=1", lambda d: d["ok"] == 0 and "Non configuré" in d["err"]),
         ]
         for chemin, verif in cas:
@@ -195,6 +191,11 @@ async def principal() -> int:
             ok = r.status == 200 and len(texte.encode()) < 2048 and verif(d)
             echecs += not ok
             print(f"{'OK ' if ok else 'ÉCHEC'} {chemin:40s} {len(texte.encode()):5d} o  {texte[:110]}")
+
+        r = await c.get("/supervision/services")
+        ok = r.status == 404
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} /supervision/services retiré -> {r.status}")
 
         # --- Plex : une lecture (affiche), puis trois (liste, sans affiche)
         from app.cache import cache as C
@@ -271,13 +272,11 @@ async def principal() -> int:
         from app.modules import supervision as S
         NOMS.append("Nouvelle sonde")
         C._valeurs["kuma-sondes"] = (time.time() - S.TTL_SONDES - 1, C._valeurs["kuma-sondes"][1])
-        liste = await (await c.get("/supervision/services")).json()
         etat = await (await c.get("/supervision")).json()
-        ok = (S.TTL_SONDES <= 60 and any(s["n"] == "Nouvelle sonde" for s in liste["s"])
-              and etat["tot"] == 16 and all(q.get("_") for q in REQUETES_KUMA))
+        ok = S.TTL_SONDES <= 60 and etat["tot"] == 16 and all(q.get("_") for q in REQUETES_KUMA)
         echecs += not ok
-        print(f"{'OK ' if ok else 'ÉCHEC'} sonde ajoutée dans Kuma -> {len(liste['s'])} services listés, "
-              f"tot={etat['tot']}, Kuma interrogé sans son cache")
+        print(f"{'OK ' if ok else 'ÉCHEC'} sonde ajoutée dans Kuma -> tot={etat['tot']}, "
+              f"Kuma interrogé sans son cache")
         NOMS.pop()
 
         APPELS_GEO.clear()

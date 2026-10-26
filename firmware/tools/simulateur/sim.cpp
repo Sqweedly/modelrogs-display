@@ -282,6 +282,8 @@ int main(int argc, char** argv) {
   drawBtc(4, 6);                   save("13_crypto_3");
   btcEcranSuivant(4, 6);           save("13b_crypto_dediee");
   drawPlex(5, 6);                  save("14_plex_1");
+  fixtures["/plex"] = FX("plex1s"); pollPlex();
+  drawPlex(5, 6);                  save("14b_plex_serie");
   fixtures["/plex"] = FX("plex3"); pollPlex();
   drawPlex(5, 6);                  save("15_plex_3");
   fixtures["/discord"] = FX("discord11"); pollDiscord();

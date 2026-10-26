@@ -24,7 +24,6 @@ _KUMA = {0: PANNE, 1: OK, 2: INSTABLE, 3: MAINTENANCE}
 
 MAX_TUILES = 12      # au-delà : mode « résumé » (compteur + problèmes), pour les anciens afficheurs
 MAX_PROBLEMES = 12   # services en défaut envoyés (l'écran en montre 6, ou 5 + « autres »)
-MAX_CHOIX = 48       # services cochables sur l'afficheur
 
 
 # Liste des sondes relue chaque minute : une sonde ajoutée ou retirée de la page
@@ -103,34 +102,18 @@ def _minutes_en_panne(historique: list[dict]) -> int:
     return _minutes_dans_etat(historique)[0]
 
 
-async def liste_services(session: aiohttp.ClientSession, q: dict) -> dict:
-    """Liste dynamique pour l'interface de l'afficheur : toutes les sondes."""
-    sondes, perime = await _sondes(session)
-    return {
-        "ok": 1,
-        "s": [{"id": str(s["id"]), "n": s["nom"][:40]}
-              for s in sorted(sondes, key=lambda s: s["nom"].lower())],
-        "p": int(perime),
-    }
-
-
 async def etat(session: aiohttp.ClientSession, q: dict) -> dict:
     """État des sondes, prêt à afficher.
 
-    ?ids=3,7,12 : sondes choisies sur l'afficheur ;
-    ?ids=* ou ids absent/vide : toutes les sondes de la page de statut Kuma,
-    y compris celles ajoutées plus tard (réglage par défaut).
+    Depuis la 2.8.1, toutes les sondes de la page de statut Kuma sont suivies,
+    y compris celles ajoutées ou retirées ensuite. Le paramètre ?ids= envoyé
+    par les anciennes configurations de l'afficheur est ignoré.
     """
-    valeurs = [x.strip() for x in q.get("ids", "").split(",") if x.strip()]
-    tous = not valeurs or "*" in valeurs
-    choisis = {int(x) for x in valeurs if x.isdigit()}
     sondes, perime1 = await _sondes(session)
     battements, perime2 = await _battements(session)
 
     services = []
     for sonde in sondes:
-        if not tous and sonde["id"] not in choisis:
-            continue
         historique = battements.get(str(sonde["id"])) or []
         statut = historique[-1].get("status") if historique else None
         e = _KUMA.get(statut, INSTABLE)
@@ -168,10 +151,7 @@ MODULE = Module(
     id="supervision",
     nom="Supervision",
     requis=["KUMA_URL", "KUMA_STATUS_SLUG"],
-    # « tous » : case « tout ce qu'affiche la page de statut » (valeur « * »),
-    # cochée par défaut ; décochée, on choisit les services un par un.
-    params=[{"k": "ids", "l": "Services affichés", "t": "multi",
-             "src": "/supervision/services", "max": MAX_CHOIX,
-             "tous": "Tous les services de la page de statut Kuma (y compris ceux ajoutés plus tard)"}],
-    routes={"/supervision": etat, "/supervision/services": liste_services},
+    # Pas de réglage : tout ce qu'affiche la page de statut Kuma est suivi.
+    params=[],
+    routes={"/supervision": etat},
 )

@@ -9,7 +9,8 @@
 //   jusqu'au premier Enregistrer ; ensuite, démarrage direct sur les pages
 // - Mode secours : après 3 plantages au démarrage, seuls le Wi-Fi,
 //   l'interface web et l'OTA tournent (l'OTA reste toujours joignable)
-// - Pages en rotation : Heure, Météo, Discord, Supervision, Crypto, Plex
+// - Pages en rotation : Heure, Météo, Discord, Supervision, Crypto, Actions,
+//   Devises, Commodities, Plex
 //   (+ écran d'alerte prioritaire en cas de panne). Discord et Plex ne
 //   s'affichent que s'il y a quelqu'un / une lecture, et passent devant
 //   dès une arrivée / le début d'une lecture.
@@ -90,12 +91,19 @@ static bool pageAvailable(uint8_t p) {
   return true;
 }
 
+// Rang d'une page dans l'ordre d'affichage (ROTATION)
+static uint8_t rang(uint8_t p) {
+  for (uint8_t i = 0; i < PG_COUNT; i++) if (ROTATION[i] == p) return i;
+  return 0;
+}
+
 // Position de la page p dans la rotation (points en bas de l'écran)
 static void positionPage(uint8_t p, uint8_t& idx, uint8_t& cnt) {
   idx = cnt = 0;
   for (uint8_t i = 0; i < PG_COUNT; i++) {
-    if (pageAvailable(i) || i == p) {
-      if (i == p) idx = cnt;
+    const uint8_t q = ROTATION[i];
+    if (pageAvailable(q) || q == p) {
+      if (q == p) idx = cnt;
       cnt++;
     }
   }
@@ -114,7 +122,10 @@ static void showPage(uint8_t p, bool restartTimer = true) {
     case PG_METEO:   drawMeteo(idx, cnt); break;
     case PG_DISCORD: drawDiscord(idx, cnt); drawnDiscVersion = gDisc.version; break;
     case PG_SUP:     drawSupervision(idx, cnt); drawnSupVersion = gSup.version; break;
-    case PG_BTC:     drawBtc(idx, cnt); break;
+    case PG_BTC:
+    case PG_ACTIONS:
+    case PG_DEVISES:
+    case PG_COMMO:   drawCours(p, idx, cnt); break;
     case PG_PLEX:
       drawPlex(idx, cnt);
       drawnPlexVersion = gPlex.version;
@@ -124,8 +135,9 @@ static void showPage(uint8_t p, bool restartTimer = true) {
 }
 
 static void nextPage() {
+  const int depart = curPage >= 0 ? rang(curPage) : -1;
   for (uint8_t k = 1; k <= PG_COUNT; k++) {
-    uint8_t p = (curPage + k + PG_COUNT) % PG_COUNT;
+    uint8_t p = ROTATION[(depart + k + PG_COUNT) % PG_COUNT];
     if (pageAvailable(p)) {
       showPage(p);
       return;
@@ -303,7 +315,8 @@ void loop() {
     alertShown = blocSup = false;
     alertActive = false;               // une panne en cours sera réaffichée aussitôt
     if (forcedPage < 0) {
-      curPage = (curPage >= 0 ? curPage - 1 : -1);   // reprendre la rotation
+      // reprendre la rotation sur la même page : on part de la page précédente
+      curPage = curPage >= 0 ? ROTATION[(rang(curPage) + PG_COUNT - 1) % PG_COUNT] : -1;
       nextPage();
     }
   }
@@ -387,11 +400,11 @@ void loop() {
     return;
   }
   if (now - pageSince >= dureePage) {
-    // Crypto : pages dédiées (+/- 5 % sur 7 jours) avant de passer à la suite
-    if (curPage == PG_BTC) {
+    // Pages de cours : pages dédiées (+/- 5 % sur 7 jours) avant de passer à la suite
+    if (pageCours(curPage)) {
       uint8_t idx, cnt;
-      positionPage(PG_BTC, idx, cnt);
-      if (btcEcranSuivant(idx, cnt)) {
+      positionPage(curPage, idx, cnt);
+      if (coursEcranSuivant(curPage, idx, cnt)) {
         pageSince = millis();
         return;
       }

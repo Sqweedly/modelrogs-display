@@ -250,7 +250,6 @@ int main(int argc, char** argv) {
   loadConfig();                    // valeurs par défaut (EEPROM vide)
   strcpy(cfg.ville, "Lyon");
   strcpy(cfg.gateway, "http://passerelle:8080");
-  strcpy(cfg.pSup, "ids=1,2,3,4,5,6,7,8");
   strcpy(cfg.pDiscord, "salon=42");
   uiBegin();
 
@@ -273,14 +272,28 @@ int main(int argc, char** argv) {
   drawSupervision(3, 5);           save("06_supervision_resume");
   fixtures["/supervision"] = FX("supalert"); pollSup();
   drawAlert();                     save("07_alerte");
-  drawBtc(4, 5);                   save("08_crypto_1");
+  drawCours(PG_BTC, 4, 5);         save("08_crypto_1");
   fixtures["/discord"] = FX("discord6"); pollDiscord();
   drawDiscord(2, 5);               save("09_discord_7");
   fixtures["/btc"] = FX("crypto2");
-  drawBtc(4, 6);                   save("12_crypto_2");
+  drawCours(PG_BTC, 4, 6);         save("12_crypto_2");
   fixtures["/btc"] = FX("crypto3");
-  drawBtc(4, 6);                   save("13_crypto_3");
-  btcEcranSuivant(4, 6);           save("13b_crypto_dediee");
+  drawCours(PG_BTC, 4, 6);         save("13_crypto_3");
+  coursEcranSuivant(PG_BTC, 4, 6); save("13b_crypto_dediee");
+  // Pages de cours 2.9 (même rendu que Crypto, en dollars)
+  const char* const COURS[][3] = {
+    {"/actions", "actions1", "20_actions_1"}, {"/actions", "actions2", "21_actions_2"},
+    {"/actions", "actions3", "22_actions_3"}, {"/actions", "actions3e", "23_actions_introuvable"},
+    {"/actions", "actions2e", "23b_actions_introuvable_2"}, {"/actions", "actions1e", "23c_actions_introuvable_seule"},
+    {"/devises", "devises2", "24_devises_2"}, {"/devises", "devises3", "25_devises_3"},
+    {"/commodities", "commo1", "26_commodities_1"}, {"/commodities", "commo3", "27_commodities_3"},
+    {"/commodities", "commo3b", "28_commodities_3b"},
+  };
+  for (auto& k : COURS) {
+    fixtures[k[0]] = FX(k[1]);
+    uint8_t page = strcmp(k[0], "/actions") == 0 ? PG_ACTIONS : strcmp(k[0], "/devises") == 0 ? PG_DEVISES : PG_COMMO;
+    drawCours(page, 5, 9); save(k[2]);
+  }
   drawPlex(5, 6);                  save("14_plex_1");
   fixtures["/plex"] = FX("plex1s"); pollPlex();
   drawPlex(5, 6);                  save("14b_plex_serie");

@@ -12,6 +12,28 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.9.0] — 2026-10-27
+
+Trois nouvelles pages de cours (Actions, Devises, Commodities), toutes en dollars avec leurs logos, et un réglage commun aux quatre pages de cours.
+
+### Ajouté
+- **Pages Actions, Devises et Commodities** : même présentation que Crypto. Une valeur : page sur 30 jours avec courbe ; deux ou trois : « prix en vedette », puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours.
+  - Cours : Yahoo Finance (sans clé, gardés 5 minutes par valeur) ; devises : taux de la BCE en secours.
+  - Logos des actions : Logo.dev (clé `LOGO_DEV_TOKEN` facultative), sinon logos inclus pour les grandes actions américaines ; drapeaux des devises et icônes des matières premières inclus dans l'image de la passerelle. À défaut : pastille de couleur avec le code.
+- **Réglage des pages de cours** dans l'interface de l'afficheur : 3 listes déroulantes (les 10 valeurs principales) et une saisie libre, sur deux colonnes. Les 3 premières valeurs, dans l'ordre des champs, sont affichées.
+- **Valeurs par défaut dans `docker-compose.yml`** : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`. L'interface de l'afficheur passe avant.
+- **Saisie inconnue** : elle reste à sa place à l'écran, avec « ? », son code et « Introuvable » ; seule, elle donne une page d'erreur.
+
+### Modifié
+- **Crypto** : prix en dollars (le choix de la devise disparaît) ; la liste proposée suit les 10 premières capitalisations, hors stablecoins et jetons adossés ; la saisie accepte n'importe quelle crypto CoinGecko (identifiant ou symbole).
+- **Rotation** : Heure, Météo, Discord, Supervision, Crypto, Actions, Devises, Commodities, Plex.
+- **Configuration de l'afficheur** (structure 5) : reprise automatique d'une 2.2 à 2.8, validation comprise ; les cryptos déjà choisies passent dans les 3 listes ; les nouvelles pages sont activées (affichées seulement si leur module est actif sur la passerelle).
+
+### Mise à jour
+- Dans `docker-compose.yml`, ajouter `actions,devises,commodities` à `MODULES`, et si besoin `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`, `LOGO_DEV_TOKEN` (voir le fichier de la release). Puis `docker compose pull && docker compose up -d` : le log doit afficher `Passerelle 2.9.0`.
+- Ensuite, l'afficheur (`/update`), puis un passage dans son interface pour choisir les valeurs.
+- Un afficheur 2.8 fonctionne avec la nouvelle passerelle : ses cryptos sont affichées, en dollars ; ses réglages Crypto ne se modifient qu'une fois l'afficheur mis à jour.
+
 ## [2.8.1] — 2026-10-26
 
 Retouches Plex et Discord, supervision sans réglage, guide du développeur.
@@ -244,6 +266,7 @@ Première version publiée dans ce dépôt.
 - OTA `/update` conservée.
 - Reprise automatique de la configuration du firmware « MODELROGS Discord » et de MODELROGS Display 2.0 (Wi-Fi, passerelle, services supervisés).
 
+[2.9.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.9.0
 [2.8.1]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.8.1
 [2.8.0]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.8.0
 [2.7.2]: https://github.com/Sqweedly/modelrogs-display/releases/tag/v2.7.2

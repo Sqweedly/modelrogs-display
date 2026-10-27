@@ -6,13 +6,16 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 |---|---|---|
 | `heure` | Jour, date (JJ/MM/AA), heure, et la météo du jour (icône, température, min / max) | — |
 | `meteo` | Prévisions sur 5 jours : 5 blocs identiques (jour, icône ajustée, min / max), 2 en haut et 3 en bas | — |
-| `crypto` | 1 à 3 cryptos (BTC, ETH, XRP…) avec logos officiels ; courbe sur 30 jours pour une crypto seule ou en forte variation | — |
+| `crypto` | 1 à 3 cryptos avec logos officiels, en dollars ; courbe sur 30 jours pour une crypto seule ou en forte variation | — |
+| `actions` | 1 à 3 actions (Apple, LVMH…), même présentation, avec leurs logos | Clé Logo.dev facultative |
+| `devises` | 1 à 3 devises cotées en dollars (EUR, GBP…), avec leur drapeau | — |
+| `commodities` | 1 à 3 matières premières (or, pétrole, café…), avec leur icône | — |
 | `supervision` | Services Uptime Kuma en défaut (+ écran PANNE en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
 | `plex` | Lectures en cours avec leur affiche ; une seule : grande affiche, qui regarde, bibliothèque et mode de lecture | Plex dans `docker-compose.yml` |
 
 ```
- Internet (Open-Meteo, CoinGecko, Discord)        Réseau local
+ Internet (Open-Meteo, CoinGecko, Yahoo, Discord)        Réseau local
               │                                     │
               ▼                                     ▼
    ┌──────────────────────────────┐        ┌──────────────────┐
@@ -35,7 +38,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 **Répartition des réglages**
 
 - **`docker-compose.yml`** (serveur) : modules actifs, **secrets et accès**, c'est-à-dire les jetons Discord et Plex et les adresses de Kuma et Plex.
-- **Interface de l'afficheur** : **préférences** (ville, cryptos et devise, salon vocal, pages, nuit, luminosité).
+- **Interface de l'afficheur** : **préférences** (ville, valeurs des pages de cours, salon vocal, pages, nuit, luminosité).
 
 Aucun secret ne transite par l'afficheur, dont le point d'accès est ouvert.
 
@@ -105,7 +108,7 @@ Si une étape échoue, rien n'est publié. Le numéro de version vient uniquemen
 ### Module `supervision` : page de statut Uptime Kuma
 
 1. Dans Kuma : **Status Pages → New Status Page**, avec le slug `modelrogs`.
-2. Ajoute les sondes à superviser. Par défaut, l'afficheur montre **tout ce qu'affiche cette page** ; tu peux ensuite restreindre la liste dans son interface. Pour le NAS, une sonde **Ping** suffit.
+2. Ajoute les sondes à superviser : l'afficheur suit **tout ce qu'affiche cette page**. Pour le NAS, une sonde **Ping** suffit.
 3. Vérifie que `http://<kuma>:3001/status/modelrogs` s'ouvre.
 
 ### Module `discord` : le bot
@@ -116,6 +119,13 @@ Si une étape échoue, rien n'est publié. Le numéro de version vient uniquemen
 4. Dans Discord, active **Paramètres → Avancés → Mode développeur**, puis fais un clic droit sur ton serveur → **Copier l'identifiant du serveur**.
 
 Le salon vocal se choisit ensuite **dans l'interface de l'afficheur**, dans une liste. L'icône du serveur et les photos de profil s'affichent automatiquement.
+
+### Module `actions` : logos (facultatif)
+
+1. Crée un compte gratuit sur https://logo.dev (offre « Community »).
+2. Copie la **clé publique** (elle commence par `pk_`) dans `LOGO_DEV_TOKEN` du `docker-compose.yml`.
+
+Sans clé, les grandes actions américaines gardent leur logo (inclus dans la passerelle) ; les autres affichent une pastille avec leur code. La passerelle garde chaque logo en mémoire : quelques requêtes suffisent, très loin du quota gratuit.
 
 ### Module `plex` : adresse et jeton
 
@@ -215,7 +225,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - **Général** : adresse de la passerelle (`http://IP_SERVEUR:8080`) et ville.
 - **Pages et modules** : la liste suit les modules de la passerelle.
   - Coche les pages à afficher.
-  - Renseigne les réglages demandés : cryptos (3 au maximum) et devise pour Crypto, salon vocal pour Discord, rien à choisir pour la supervision : **tous les services de la page de statut Kuma** sont suivis, y compris ceux ajoutés ou retirés ensuite.
+  - Renseigne les réglages demandés : pour Crypto, Actions, Devises et Commodities, 3 listes (les 10 valeurs principales) et une saisie libre, 3 valeurs retenues dans l'ordre des champs (rien de choisi : valeurs du `docker-compose.yml`) ; salon vocal pour Discord ; rien à choisir pour la supervision : **tous les services de la page de statut Kuma** sont suivis, y compris ceux ajoutés ou retirés ensuite.
   - Un module retiré de `MODULES` apparaît grisé. Un module mal configuré affiche la variable manquante.
 - **Nuit et luminosité** : plage horaire, luminosité de jour et de nuit (0 = écran éteint).
 - **État** :
@@ -230,7 +240,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
 - Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. En haut, l'icône du serveur dans le coin gauche et le nom du salon centré sur l'espace restant ; dessous, les photos de profil avec le pseudo (8 caractères au plus) et l'état (micro ou casque coupé, LIVE), en pastille proportionnelle à la photo. Les photos sont aussi grandes que possible : une seule en grand, 2 côte à côte, 2 × 2 pour 3 ou 4 personnes, 3 colonnes sur 2 lignes pour 5 ou 6 ; au-delà de 6, 5 photos et une pastille « +N ».
 - Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : grande affiche, qui regarde, bibliothèque, épisode, mode (direct, flux direct, transcodage, en pause), titre et progression. Plusieurs : une ligne par lecture avec son affiche (3 au plus, puis « + N autres lectures »).
-- Crypto : 1 crypto choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque crypto qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 €).
+- Crypto, Actions, Devises, Commodities (tous les prix en dollars) : 1 valeur choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque valeur qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 $). Une valeur saisie inconnue s'affiche avec « ? », son code et « Introuvable ». Logos : CoinGecko pour les cryptos, Logo.dev pour les actions (clé `LOGO_DEV_TOKEN`, facultative), drapeaux et icônes inclus dans la passerelle pour les devises et matières premières ; à défaut, une pastille avec le code.
 - **Panne** : bloc de deux écrans, affiché immédiatement puis **après chaque page** jusqu'au retour à la normale :
   1. écran **PANNE** rouge : grand triangle d'alerte et « N services sur M en panne » ;
   2. récapitulatif **Supervision** : compteur « 1/8 KO » et la liste des services en défaut (pannes d'abord) avec leur temps d'indisponibilité, 6 au plus, ou 5 et « + N autres ».
@@ -284,8 +294,12 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 | `/modules` | Manifeste : modules actifs, état de configuration, réglages à proposer |
 | `/time?ville=` | Heure locale, lever et coucher du soleil. Toujours disponible : sert aussi à la plage nocturne |
 | `/meteo?ville=` | Météo du jour (page Heure) + 5 jours (page Météo) |
-| `/btc?ids=bitcoin,ethereum&devise=eur` | Cryptos choisies (3 au plus, Bitcoin par défaut) ; courbe 30 jours si une seule |
-| `/btc/30j?id=ripple&devise=eur` | Une crypto sur 30 jours (page dédiée) |
+| `/btc?s1=bitcoin&s2=&s3=&m=pepe` | Cryptos choisies (3 au plus ; rien : `CRYPTOS` du compose) ; courbe 30 jours si une seule |
+| `/btc/30j?id=ripple` | Une crypto sur 30 jours (page dédiée) |
+| `/btc/liste` | Les 10 premières cryptos (listes de l'interface) |
+| `/actions?s1=AAPL&m=BNP.PA`, `/actions/30j?id=` | Actions (symboles Yahoo), même format |
+| `/devises?s1=EUR`, `/devises/30j?id=` | Devises cotées en dollars |
+| `/commodities?s1=GC%3DF`, `/commodities/30j?id=` | Matières premières (contrats Yahoo) |
 | `/supervision` | État de tous les services de la page de statut Kuma (services en défaut et compteurs) |
 | `/discord?salon=<id>` | Présents dans le salon |
 | `/discord/salons` | Liste des salons vocaux |
@@ -295,10 +309,14 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 
 **Types de réglages** compris par l'afficheur dans le manifeste :
 - `text` : zone de texte ;
-- `select` : liste déroulante, avec options fixes `o` ou liste dynamique `src` ;
+- `select` : liste déroulante, avec options fixes `o` ou liste dynamique `src` (sinon celles du module) ; `ph` : texte de l'option vide ;
 - `multi` : cases à cocher, avec liste dynamique `src` ; si `tous` est fourni, une case « tout » (valeur `*`, cochée par défaut) remplace la sélection.
 
+Options : `g` = 1 place le champ dans une grille de 2 colonnes ; au niveau du module, `o` / `src` (liste commune), `nt` (consigne) et `df` (valeurs par défaut du compose).
+
 Ajouter une nouvelle page demande un module dans la passerelle et un écran dans le firmware.
+
+**Sources des cours** : CoinGecko (cryptos), Yahoo Finance (actions, devises, matières premières ; API non officielle, sans clé, appelée au plus une fois toutes les 5 minutes par valeur), BCE via Frankfurter (devises, en secours). Logos provided by Logo.dev.
 
 **Outils** (guide complet pour reprendre le projet depuis zéro, avec VS Code : [docs/DEVELOPPEMENT.md](docs/DEVELOPPEMENT.md))
 - **Tests de la passerelle** : `cd gateway && python -m tests.test_passerelle`. Ils sont lancés par GitHub à chaque envoi et avant chaque publication.

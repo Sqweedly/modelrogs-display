@@ -113,6 +113,9 @@ static const char STYLE[] PROGMEM =
   ".sm{display:inline-block;width:auto;padding:8px 12px;margin:4px 6px 0 0;font-size:14px;"
   "background:#2A3140;color:var(--txt);border-radius:8px;text-decoration:none;border:0}"
   ".kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}.kv b{color:var(--mut);font-weight:500}"
+  ".g2{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}.g2 select,.g2 input{margin-top:0}"
+  ".lab{color:var(--mut);font-size:13px;margin:8px 0 6px}"
+  ".badge{display:inline-block;background:#2A3140;color:var(--mut);border-radius:6px;padding:2px 7px;font-size:12px}"
   ".ok{color:var(--ok)}.warn{color:var(--warn)}.ko{color:var(--ko)}.note{color:var(--mut);font-size:13px;margin:6px 0 0}"
   "a{color:var(--acc)}"
   "</style>";
@@ -129,44 +132,60 @@ static int fetchList(const char* src, JsonDocument& list) {
   return gwGet(src, list, &filter, true);
 }
 
+static void erreurListe(Chunks& c, int code, JsonDocument& list) {
+  c << F("<p class='warn'>Liste indisponible : ")
+    << (code == -5 ? esc(list["err"] | "erreur") : String(gwErrorText(code)))
+    << F(". Réglage actuel conservé.</p>");
+}
+
 // Affiche un champ ; false si impossible (liste injoignable, type inconnu) :
 // les réglages de ce module ne seront alors pas modifiés à l'enregistrement.
-static bool renderField(Chunks& c, uint8_t page, JsonObject param) {
+// optionsModule : liste commune aux listes déroulantes du module (pages de cours).
+static bool renderField(Chunks& c, uint8_t page, JsonObject param, JsonArray optionsModule) {
   const char* key = param["k"] | "";
   const char* type = param["t"] | "";
   if (!key[0]) return false;
   String name = fieldName(page, key);
   String value = modParam(page, key);
   if (!value.length()) value = (const char*)(param["d"] | "");
+  const char* ph = param["ph"] | "";
 
-  c << F("<label>") << esc(param["l"] | key) << F("</label>");
+  const char* libelle = param["l"] | "";
+  if (libelle[0]) c << F("<label>") << esc(libelle) << F("</label>");
 
   if (strcmp(type, "text") == 0) {
-    c << F("<input type='text' name='") << name << F("' value='") << esc(value) << F("'>");
+    c << F("<input type='text' name='") << name << F("' value='") << esc(value) << F("'");
+    if (ph[0]) c << F(" placeholder='") << esc(ph) << F("'");
+    c << F(">");
     return true;
   }
 
   JsonDocument list;
   JsonArray options = param["o"].as<JsonArray>();
+  if (options.isNull() && !param["src"].is<const char*>()) options = optionsModule;
   if (options.isNull()) {
     const char* src = param["src"] | "";
     int code = src[0] ? fetchList(src, list) : -2;
     if (code != 200) {
-      c << F("<p class='warn'>Liste indisponible : ")
-        << (code == -5 ? esc(list["err"] | "erreur") : String(gwErrorText(code)))
-        << F(". Réglage actuel conservé.</p>");
+      erreurListe(c, code, list);
       return false;
     }
     options = list["s"].as<JsonArray>();
   }
 
   if (strcmp(type, "select") == 0) {
-    c << F("<select name='") << name << F("'><option value=''>— choisir —</option>");
+    c << F("<select name='") << name << F("'><option value=''>") << (ph[0] ? esc(ph) : String(F("— choisir —")))
+      << F("</option>");
+    bool trouve = false;
     for (JsonObject o : options) {
       String id = (const char*)(o["id"] | "");
+      trouve |= id == value;
       c << F("<option value='") << esc(id) << F("'") << (id == value ? F(" selected") : F("")) << F(">")
         << esc(o["n"] | id.c_str()) << F("</option>");
     }
+    // Valeur choisie qui n'est plus proposée (ex. crypto sortie du top 10) : gardée
+    if (value.length() && !trouve)
+      c << F("<option value='") << esc(value) << F("' selected>") << esc(value) << F("</option>");
     c << F("</select>");
     return true;
   }
@@ -230,7 +249,8 @@ static void renderModules(Chunks& c) {
            "connecté au Wi-Fi maison et l'adresse de la passerelle renseignée.</p>");
   }
 
-  for (uint8_t p = 0; p < PG_COUNT; p++) {
+  for (uint8_t i = 0; i < PG_COUNT; i++) {
+    const uint8_t p = ROTATION[i];
     JsonObject mod;
     if (code == 200) {
       for (JsonObject m : man["m"].as<JsonArray>()) {
@@ -255,8 +275,29 @@ static void renderModules(Chunks& c) {
         c << F("<p class='warn'>Non configuré sur la passerelle : ") << esc(mod["err"] | "")
           << F("</p>");
       } else {
+        // Liste commune aux listes déroulantes du module (pages de cours)
+        JsonDocument listeModule;
+        JsonArray optionsModule = mod["o"].as<JsonArray>();
         bool all = true;
-        for (JsonObject param : mod["p"].as<JsonArray>()) all &= renderField(c, p, param);
+        if (optionsModule.isNull() && mod["src"].is<const char*>()) {
+          int code = fetchList(mod["src"] | "", listeModule);
+          if (code == 200) optionsModule = listeModule["s"].as<JsonArray>();
+          else { erreurListe(c, code, listeModule); all = false; }
+        }
+        if (all) {
+          const char* nt = mod["nt"] | "";
+          if (nt[0]) c << F("<p class='lab'>") << esc(nt) << F("</p>");
+          bool grille = false;
+          for (JsonObject param : mod["p"].as<JsonArray>()) {
+            bool g = param["g"] | 0;
+            if (g != grille) { c << (g ? F("<div class='g2'>") : F("</div>")); grille = g; }
+            all &= renderField(c, p, param, optionsModule);
+          }
+          if (grille) c << F("</div>");
+          const char* df = mod["df"] | "";
+          if (df[0]) c << F("<p class='note'>Vide : valeurs du docker-compose <span class='badge'>") << esc(df)
+                       << F("</span></p>");
+        }
         if (all) c << F("<input type='hidden' name='pm") << (long)p << F("' value='1'>");
         if (p == PG_SUP)
           c << F("<p class='note'>Tous les services de la page de statut Uptime Kuma sont suivis, "
@@ -273,7 +314,9 @@ static void renderModules(Chunks& c) {
          "à chaque arrivée. Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture "
          "commence. Une panne affiche l'écran PANNE puis le récapitulatif des services en défaut, "
          "aussitôt puis après chaque page, jusqu'au retour à la normale. Sans panne, Supervision "
-         "n'apparaît que si un service est instable ou si Kuma ne répond pas.</p></section>");
+         "n'apparaît que si un service est instable ou si Kuma ne répond pas. Crypto, Actions, Devises, "
+         "Commodities : prix en dollars ; une valeur = courbe sur 30 jours ; deux ou trois = prix en "
+         "vedette, puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours.</p></section>");
 }
 
 // --------------------------------------------------------------- page « / »
@@ -332,7 +375,8 @@ static void handleRoot() {
     << F("<b>Version</b><span>") << FW_VERSION << F("</span></div>");
 
   c << F("<p class='note'>Afficher maintenant :</p>");
-  for (uint8_t p = 0; p < PG_COUNT; p++) {
+  for (uint8_t i = 0; i < PG_COUNT; i++) {
+    const uint8_t p = ROTATION[i];
     if (!moduleUsable(p)) continue;
     c << F("<a class='sm' href='/show?p=") << (long)p << F("'>") << PAGE_NAMES[p] << F("</a>");
   }
@@ -457,8 +501,8 @@ static void handleSave() {
   for (uint8_t p = 0; p < PG_COUNT; p++) {
     // Seules les pages affichées dans le formulaire sont modifiées.
     if (server.hasArg(String("pk") + p)) {
-      if (server.hasArg(String("pg") + p)) cfg.pages |= 1 << p;
-      else cfg.pages &= ~(1 << p);
+      if (server.hasArg(String("pg") + p)) cfg.pages |= 1u << p;
+      else cfg.pages &= ~(1u << p);
     }
     if (server.hasArg(String("pm") + p)) saveModuleParams(p);
   }

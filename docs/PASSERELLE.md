@@ -8,7 +8,7 @@ La passerelle est un seul programme Python, lancé dans un conteneur Docker. Ell
                         ┌──────────── conteneur modelrogs-gateway ────────────┐
                         │  un seul processus Python, port 8080                │
  SmallTV (ESP8266) ───► │  ┌───────────────┐   ┌──────────┐   ┌───────────┐  │ ──► Open-Meteo (HTTPS)
-  HTTP, réseau local    │  │ serveur web   │──►│  modules │──►│  cache    │  │ ──► CoinGecko  (HTTPS)
+  HTTP, réseau local    │  │ serveur web   │──►│  modules │──►│  cache    │  │ ──► CoinGecko, Yahoo, BCE (HTTPS)
   GET /meteo, /btc,     │  │ (aiohttp)     │   │          │   │ mémoire + │  │ ──► Uptime Kuma (LAN)
   /img…                 │  └───────────────┘   └────┬─────┘   │ /cache    │  │ ──► Plex (LAN)
                         │                           │         └───────────┘  │
@@ -54,26 +54,29 @@ Chaque module est décrit par une fiche (`gateway/app/modules/`) :
 - quels champs il doit afficher dans son interface web.
 
 ```json
-{"ok":1,"v":"2.6.0","m":[
-  {"id":"btc","n":"Crypto","ok":1,"err":"",
-   "p":[{"k":"ids","l":"Cryptos affichées (3 au maximum)","t":"multi","max":3,"d":"bitcoin",
-         "o":[{"id":"bitcoin","n":"Bitcoin (BTC)"},{"id":"ethereum","n":"Ethereum (ETH)"},…]},
-        {"k":"devise","l":"Devise","t":"select","d":"eur",
-         "o":[{"id":"eur","n":"Euro (€)"},{"id":"usd","n":"Dollar ($)"}]}]},
+{"ok":1,"v":"2.9.0","m":[
+  {"id":"actions","n":"Actions","ok":1,"err":"",
+   "p":[{"k":"s1","t":"select","g":1,"ph":"1. —"},{"k":"s2","t":"select","g":1,"ph":"2. —"},
+        {"k":"s3","t":"select","g":1,"ph":"3. —"},{"k":"m","t":"text","g":1,"ph":"ex. BNP.PA, ^FCHI"}],
+   "nt":"3 au plus, dans l'ordre : listes 1 à 3, puis saisie","df":"AAPL, MC.PA",
+   "o":[{"id":"AAPL","n":"Apple"},{"id":"MSFT","n":"Microsoft"},…]},
+  {"id":"btc","n":"Crypto","ok":1,"err":"","p":[…],"nt":"…","df":"bitcoin","src":"/btc/liste"},
   {"id":"discord","n":"Discord","ok":0,"err":"DISCORD_TOKEN manquant","p":[…]}
 ]}
 ```
 
-L'afficheur ne connaît ni CoinGecko ni Kuma : il affiche les champs décrits par la passerelle, enregistre les choix sous forme d'une courte chaîne (`ids=bitcoin,ethereum&devise=eur`) et la renvoie telle quelle à chaque appel (`/btc?ids=bitcoin,ethereum&devise=eur`).
+L'afficheur ne connaît ni Yahoo ni Kuma : il affiche les champs décrits par la passerelle, enregistre les choix sous forme d'une courte chaîne (`s1=AAPL&s2=MC.PA&m=BNP.PA`) et la renvoie telle quelle à chaque appel (`/actions?s1=AAPL&s2=MC.PA&m=BNP.PA`).
 
 **Types de champs** :
 - `text` : zone de texte ;
-- `select` : liste déroulante, avec options fixes `o` ou liste dynamique `src` ;
+- `select` : liste déroulante, avec options fixes `o` ou liste dynamique `src` ; sans l'un ni l'autre, la liste commune du module (`o` ou `src` au niveau du module) ; `ph` : texte de l'option vide (ou indication d'une zone de texte) ;
 - `multi` : cases à cocher, avec liste dynamique `src` ; si `tous` est fourni, une case « tout » (valeur `*`, cochée par défaut) remplace la sélection.
+
+`g` = 1 place les champs consécutifs dans une grille de 2 colonnes. Au niveau du module, `nt` est une consigne affichée au-dessus des champs et `df` les valeurs utilisées quand rien n'est choisi (celles du `docker-compose.yml`).
 
 **Où vont les réglages :**
 - **les secrets et les accès** (jeton Discord, adresse de Kuma) sont dans le `docker-compose.yml`, côté serveur ;
-- **les préférences** (ville, devise, salon, services) sont dans l'afficheur.
+- **les préférences** (ville, salon, valeurs des pages de cours) sont dans l'afficheur ; pour les pages de cours, les valeurs du `docker-compose.yml` servent quand l'afficheur n'en envoie aucune.
 
 L'afficheur, dont le point d'accès est ouvert, ne voit donc jamais un secret.
 
@@ -81,24 +84,24 @@ L'afficheur, dont le point d'accès est ouvert, ne voit donc jamais un secret.
 
 Exemple : affichage de la page Crypto avec Bitcoin seul.
 
-1. **L'afficheur appelle** `GET http://IP_SERVEUR:8080/btc?ids=bitcoin&devise=eur`.
+1. **L'afficheur appelle** `GET http://IP_SERVEUR:8080/btc?s1=bitcoin`.
 2. **Le serveur web** route la requête vers le module `btc` (« Crypto »), après avoir vérifié qu'il est configuré.
-3. **Le cache** est consulté avec la clé `crypto-eur` :
+3. **Le cache** est consulté avec la clé `crypto-top` :
    - si la donnée a moins de 10 minutes, elle est utilisée telle quelle ;
-   - sinon, la passerelle fait **un seul appel** CoinGecko `/coins/markets` pour **toutes** les cryptos proposées : prix, variations 24 h, 7 jours et 30 jours, adresse du logo officiel. Quel que soit le choix fait sur l'afficheur, CoinGecko n'est donc appelé qu'une fois toutes les 10 minutes par devise.
-   - Une seule crypto étant choisie, la passerelle ajoute sa **courbe sur 30 jours** (`/coins/bitcoin/market_chart?days=30`, environ 720 prix horaires, gardés 30 minutes).
+   - sinon, la passerelle fait **un seul appel** CoinGecko `/coins/markets` qui ramène les **50 premières capitalisations** : prix en dollars, variations 24 h, 7 jours et 30 jours, adresse du logo officiel. Une crypto hors de ce classement (saisie manuelle) fait l'objet d'un appel à part, gardé lui aussi 10 minutes ;
+   - une seule crypto étant choisie, la passerelle ajoute sa **courbe sur 30 jours** (`/coins/bitcoin/market_chart?days=30`, environ 720 prix horaires, gardés 30 minutes).
 4. **La mise en forme** :
-   - prix formaté à la française, avec au moins 4 chiffres (`57 864 €`, `142,35 €`, `2,184 €`) ;
+   - prix formaté à la française, en dollars, avec au moins 4 chiffres (`57 864 $`, `142,35 $`, `2,184 $`) ;
    - variations sur 24 h, 7 jours et 30 jours, avec le signe et une virgule décimale ;
    - réduction de la courbe à **60 points** par moyenne de paquets, le dernier point restant le prix actuel ;
    - **normalisation de 0 à 100** : l'afficheur n'a plus qu'à les étirer à la hauteur de son graphique ;
-   - logo : l'adresse est enregistrée et remplacée par un **jeton court** (`"i"`), que l'afficheur utilisera sur `/img` (section 6) ;
-   - `x` : 1 si la variation sur 7 jours atteint ±5 % (page dédiée quand plusieurs cryptos sont affichées).
+   - logo : l'adresse est enregistrée et remplacée par un **jeton court** (`"i"`), que l'afficheur utilisera sur `/img` (section 6) ; `f` indique sa forme (0 logo rond, 1 logo posé sur un disque, 2 image découpée en rond) ;
+   - `x` : 1 si la variation sur 7 jours atteint ±5 % (page dédiée quand plusieurs valeurs sont affichées).
 5. **La réponse**, environ 300 octets :
    ```json
-   {"ok":1,"c":[{"id":"bitcoin","s":"BTC","n":"Bitcoin","px":"57 864 €",
+   {"ok":1,"c":[{"id":"bitcoin","s":"BTC","px":"57 864 $",
     "v24":"-0,1 %","u24":0,"v7":"+7,2 %","u7":1,"v30":"+18,6 %","u30":1,"x":1,
-    "i":"3f9c0a1b2c4d","p30":[0,10,14,…,89]}],"p":0}
+    "i":"3f9c0a1b2c4d","f":0,"p30":[0,10,14,…,89]}],"p":0}
    ```
 6. **L'afficheur dessine.** Il n'a fait aucun calcul ; seul le logo est demandé à part, déjà converti.
 
@@ -110,7 +113,9 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
 |---|---|---|
 | Géocodage d'une ville (coordonnées, fuseau) | 1 an | oui |
 | Météo | 15 min | non |
-| Cours et variations des cryptos (toutes à la fois) | 10 min | oui |
+| Cours et variations des cryptos (50 premières à la fois) | 10 min | oui |
+| Cours d'une action, d'une devise ou d'une matière première (Yahoo, BCE) | 5 min | oui |
+| Symbole inconnu de Yahoo | 1 h (aucun nouvel appel) | non |
 | Courbe sur 30 jours d'une crypto | 30 min | oui |
 | Liste des sondes Kuma | 1 min | non |
 | États des sondes Kuma | 30 s | non |
@@ -146,16 +151,36 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
   - un **code d'icône** de 0 à 8, que l'afficheur dessine. La nuit, le soleil devient une lune.
 - Les températures sont arrondies au degré.
 
-### Crypto (`/btc?ids=&devise=` et `/btc/30j?id=&devise=`)
+### Pages de cours : Crypto, Actions, Devises, Commodities
 
-Voir le parcours d'une requête (section 4) : depuis la 2.7.0, la réponse ne contient plus de courbe sur 7 jours, mais les variations 24 h, 7 j et 30 j de chaque crypto.
-- **Réglages de l'afficheur** : jusqu'à **3 cryptos** parmi une liste (Bitcoin, Ethereum, XRP, Solana, BNB, Cardano, Dogecoin, TRON, Litecoin, Polkadot), et la devise (`eur` ou `usd`). Sans choix, Bitcoin.
-- **Une crypto choisie** : la réponse contient sa **courbe sur 30 jours** (`p30`, 60 points normalisés), tirée de CoinGecko `/coins/<id>/market_chart?days=30` et gardée 30 minutes.
-- **Deux ou trois** : pas de courbe (écran « prix en vedette »). Chaque crypto porte `x: 1` si sa variation sur 7 jours atteint **+5 % ou −5 %** : l'afficheur lui consacre alors une page supplémentaire, qu'il demande à **`/btc/30j?id=<id>`** (même contenu qu'une crypto seule, courbe sur 30 jours comprise).
-- **Prix** : au moins 4 chiffres, 2 décimales quand elles suffisent (`57 864 €`, `142,35 €`, `2,184 €`, `0,08214 €`).
-- **Logos officiels** : ceux que CoinGecko fournit avec les cours, convertis par la passerelle (voir « Images »).
-- Le module garde l'identifiant `btc` (route `/btc`) pour rester compatible ; `crypto` est accepté dans `MODULES`.
-- Une clé CoinGecko « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.
+Routes : `/btc`, `/actions`, `/devises`, `/commodities`, chacune avec sa page dédiée `/<page>/30j?id=<id>`. Tous les prix sont **en dollars**.
+
+- **Sélection**, la même pour les quatre pages : `?s1=&s2=&s3=` (les trois listes de l'interface) puis `?m=` (saisie libre, une ou plusieurs valeurs séparées par des virgules ou des espaces). Les **3 premières** valeurs, dans l'ordre des champs, sont retenues. Si l'afficheur n'envoie rien, la passerelle prend la variable du compose : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`.
+- **Une valeur** : la réponse contient sa **courbe sur 30 jours** (`p30`, normalisée de 0 à 100).
+- **Deux ou trois** : pas de courbe (écran « prix en vedette »). Chaque valeur porte `x: 1` si sa variation sur 7 jours atteint **+5 % ou −5 %** : l'afficheur lui consacre alors une page supplémentaire, qu'il demande à **`/<page>/30j?id=<id>`**.
+- **Valeur inconnue** : elle reste à sa place dans la réponse, sous la forme `{"id":"XYZ","s":"XYZ","e":1}` (`e: 2` : source momentanément sans réponse). L'afficheur montre « ? », le code et « Introuvable ».
+- **Prix** : au moins 4 chiffres, 2 décimales quand elles suffisent (`57 864 $`, `142,35 $`, `2,184 $`, `0,08214 $`).
+- `s` : code court, écrit dans la pastille qui remplace un logo absent (`MC` pour `MC.PA`).
+
+**Crypto** (`/btc`, module `btc` ; `crypto` est accepté dans `MODULES`)
+- Source : CoinGecko (voir le parcours d'une requête, section 4). Une clé « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.
+- **Listes de l'interface** : `/btc/liste`, les **10 premières capitalisations**, hors stablecoins (USDT, USDC…) et jetons adossés (WBTC, stETH…), relue toutes les 10 minutes.
+- **Saisie** : identifiant CoinGecko (`pepe`) ou symbole (`PEPE`, reconnu parmi les 50 premières).
+- **Logos** : ceux que CoinGecko fournit avec les cours.
+- Un afficheur 2.8 envoie encore `?ids=bitcoin,ethereum&devise=eur` : les cryptos sont reprises, la devise ignorée.
+
+**Actions, Devises, Commodities** (module `cotations.py`)
+- Source : **Yahoo Finance** (`/v8/finance/chart/<symbole>?range=1mo&interval=1d`, sans clé) : cours actuel et clôtures quotidiennes du mois, **gardés 5 minutes par valeur**. C'est une API non officielle : la passerelle se présente comme un navigateur, et un symbole inconnu n'est redemandé qu'au bout d'une heure.
+- **Variations** : 24 h = depuis la clôture précédente ; 7 j et 30 j = depuis la clôture d'il y a 7 et 30 jours. Elles sont calculées dans la devise de cotation.
+- **Conversion en dollars** : les cotations en cents (`USX` : blé, maïs, soja, café) sont divisées par 100 ; les autres devises (LVMH en euros, Londres en pence) sont converties au taux du jour (`EURUSD=X`…).
+- **Actions** : symboles Yahoo (`AAPL`, `MC.PA` pour Paris, `^FCHI` pour le CAC 40). Liste : Apple, Microsoft, Nvidia, Alphabet, Amazon, Meta, Tesla, TotalEnergies, LVMH, Airbus.
+- **Devises** : code ISO, coté en dollars (`EURUSD=X`). Si Yahoo ne répond pas, la passerelle prend les taux quotidiens de la **BCE** (Frankfurter, `FRANKFURTER_URL`, sans clé). Liste : EUR, GBP, JPY, CHF, CNY, CAD, AUD, HKD, SGD, INR.
+- **Commodities** : contrats à terme Yahoo. Liste : or `GC=F`, argent `SI=F`, cuivre `HG=F`, pétrole `CL=F`, gaz naturel `NG=F`, blé `ZW=F`, maïs `ZC=F`, soja `ZS=F`, café `KC=F`, cacao `CC=F`.
+- **Logos** :
+  - actions : **Logo.dev** si la clé `LOGO_DEV_TOKEN` est renseignée (`/ticker/<symbole>?format=png&theme=dark&fallback=404`), puis les logos inclus dans `gateway/app/icones/actions/`, puis le dépôt GitHub `nvstly/icons` pour les actions cotées aux États-Unis ;
+  - devises : drapeaux inclus (`icones/devises/`, une trentaine de devises) ;
+  - matières premières : icônes incluses (`icones/commodities/`).
+  - Les licences et la façon d'ajouter une icône sont décrites dans `gateway/app/icones/LICENCES.md`.
 
 ### Supervision (`/supervision`)
 
@@ -193,12 +218,12 @@ C'est le seul module qui **ne va pas chercher** l'information à chaque appel :
 ### Images (`/img`)
 
 L'ESP8266 n'a pas la mémoire pour décoder un JPEG ou un PNG confortablement. La passerelle fait donc tout le travail, avec la bibliothèque **Pillow** :
-1. un module enregistre l'adresse d'une image (affiche Plex, logo CoinGecko, photo ou icône Discord) et met un **jeton** de 12 caractères dans sa réponse ;
+1. un module enregistre l'adresse d'une image (affiche Plex, logo CoinGecko ou Logo.dev, photo ou icône Discord, icône incluse dans l'image Docker) et met un **jeton** de 12 caractères dans sa réponse. Un jeton peut regrouper **plusieurs sources**, essayées dans l'ordre (ex. Logo.dev, puis icône incluse) ;
 2. l'afficheur demande `/img?t=<jeton>&w=78&h=117&f=000000&r=8` : taille exacte, couleur du fond de l'écran sous l'image, rayon des coins (`r` = moitié de la taille pour un cercle), `m=a` pour un logo à garder entier ;
 3. la passerelle télécharge l'image (une fois), la recadre, arrondit les coins avec un bord lissé, la pose sur le fond et renvoie **w × h pixels RGB565 bruts** (2 octets par pixel, ordre de l'ESP) : 18 Ko pour une affiche, 1,8 Ko pour un logo ;
 4. l'afficheur les envoie à l'écran **ligne par ligne au fil de la réception** : il n'utilise qu'une ligne de mémoire (moins de 320 octets), jamais l'image entière.
 
-Une image indisponible renvoie une erreur HTTP ; l'afficheur dessine alors un remplaçant (pastille de couleur avec l'initiale).
+Une image indisponible renvoie une erreur HTTP ; l'afficheur dessine alors un remplaçant (pastille de couleur avec le code). L'échec est mémorisé une heure : pas de nouvelle tentative à chaque affichage.
 
 ## 7. Mise en forme des textes
 
@@ -238,10 +263,10 @@ Ce jeu de caractères doit rester identique à celui des polices du firmware (`f
 | Sens | Destination | Protocole |
 |---|---|---|
 | Entrant | afficheur → passerelle, port 8080 | HTTP (réseau local) |
-| Sortant | Open-Meteo, CoinGecko | HTTPS |
+| Sortant | Open-Meteo, CoinGecko, Yahoo Finance, BCE (Frankfurter) | HTTPS |
 | Sortant | Discord | WebSocket sécurisé (HTTPS) |
 | Sortant | Uptime Kuma, Plex | HTTP sur le réseau local |
-| Sortant | Images : CDN Discord, CoinGecko | HTTPS |
+| Sortant | Images : CDN Discord, CoinGecko, Logo.dev, GitHub (nvstly/icons) | HTTPS |
 
 Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers Internet.
 
@@ -254,7 +279,7 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 | `/discord` | toutes les 5 s | Réagir vite aux arrivées (réponse instantanée, depuis la mémoire) |
 | `/supervision` | toutes les 30 s | Alerte rapide en cas de panne |
 | `/plex` | toutes les 5 s | Montrer la page dès le début d'une lecture, suivre la progression |
-| `/meteo`, `/btc` | à chaque affichage de la page | Données en cache côté passerelle |
+| `/meteo`, `/btc`, `/actions`, `/devises`, `/commodities` | à chaque affichage de la page | Données en cache côté passerelle |
 | `/img` | à chaque dessin d'une page avec image | Images converties gardées en mémoire par la passerelle |
 
 ## 10. Observer la passerelle

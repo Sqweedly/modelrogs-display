@@ -736,14 +736,49 @@ static void courbe(JsonArray pts, int x0, int x1, int haut, int bas, uint16_t li
   }
 }
 
-// Logo officiel (CoinGecko, via la passerelle) ou pastille de couleur avec l'initiale.
+// Couleur de la pastille de remplacement : fixe pour un même code
+static uint16_t accentCode(const char* s) {
+  static const uint16_t P[6] = { VIOLET, BLEU, CORAIL, XRP, ETH, AMBRE };
+  uint32_t h = 0;
+  while (*s) h = h * 31 + (uint8_t)*s++;
+  return P[h % 6];
+}
+
+// Logo (via la passerelle) selon sa forme « f » :
+//   0 logo rond (crypto, CoinGecko) ; 1 logo ou icône posé sur un disque gris
+//   foncé (actions, matières premières) ; 2 image découpée en rond (drapeaux,
+//   lingots). Sans image : pastille de couleur avec le code (4 caractères au
+//   plus). Valeur introuvable (« e ») : disque gris avec « ? ».
 static void logoCrypto(JsonObject c, int x, int y, int d, uint16_t fond) {
   const char* sym = c["s"] | "?";
-  if (gwImage(c["i"] | "", x, y, d, d, fond, d / 2, true)) return;
-  uint16_t a = accentCrypto(sym);
-  tft.fillSmoothCircle(x + d / 2, y + d / 2, d / 2, a, fond);
-  drawText(firstChar(sym), x + d / 2, y + d / 2 + 1, d >= 28 ? F_18 : F_13, SOMBRE, a, MC_DATUM);
+  const int cx = x + d / 2, cy = y + d / 2;
+  if (c["e"] | 0) {
+    tft.fillSmoothCircle(cx, cy, d / 2, DIM, fond);
+    drawText("?", cx, cy + 1, F_18, TXT, DIM, MC_DATUM);
+    return;
+  }
+  const int forme = c["f"] | 0;
+  if (forme == 1) {
+    tft.fillSmoothCircle(cx, cy, d / 2, CARD, fond);
+    const int di = (d * 64 / 100) & ~1;
+    if (gwImage(c["i"] | "", cx - di / 2, cy - di / 2, di, di, CARD, 0, true)) return;
+  } else if (gwImage(c["i"] | "", x, y, d, d, fond, d / 2, forme == 0)) {
+    return;
+  }
+  uint16_t a = (strcmp(sym, "BTC") == 0 || strcmp(sym, "ETH") == 0 || strcmp(sym, "XRP") == 0)
+               ? accentCrypto(sym) : accentCode(sym);
+  tft.fillSmoothCircle(cx, cy, d / 2, a, fond);
+  String t = String(sym).substring(0, 4);
+  FontId f = F_11;
+  for (FontId g : { F_18, F_16, F_13, F_11 }) { f = g; if (textW(t, g) <= d * 78 / 100) break; }
+  drawText(t, cx, cy + 1, f, SOMBRE, a, MC_DATUM);
 }
+
+// Valeur sans cours : « Introuvable » (saisie inconnue) ou « Indisponible »
+static const char* texteErreur(JsonObject c) { return (c["e"] | 0) == 2 ? "Indisponible" : "Introuvable"; }
+static uint16_t couleurErreur(JsonObject c) { return (c["e"] | 0) == 2 ? AMBRE : ROUGE_TX; }
+// Le code saisi s'écrit dans la police du prix, sauf en 26 px (chiffres seulement)
+static FontId policeCode(FontId fp) { return fp == F_26 ? F_18 : fp; }
 
 // Variations en colonnes, sans bulle : intitulé au-dessus (24 h, 7 j, 30 j),
 // valeur dessous, les deux dans la couleur de la variation (vert / rouge).
@@ -802,7 +837,16 @@ static int largeurVariation(JsonArray cs, uint8_t n, const char* lab, const char
 // Une crypto sur 30 jours : page unique (1 crypto choisie) ou page dédiée
 // (variation sur 7 jours de +/- 5 % ou plus). Logo et prix sur une ligne,
 // trois variations, puis la plus grande courbe possible.
-static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool perime) {
+static uint16_t accentPage(uint8_t page, JsonArray cs) {
+  switch (page) {
+    case PG_ACTIONS: return BLEU;
+    case PG_DEVISES: return VERT;
+    case PG_COMMO:   return AMBRE;
+    default:         return accentCrypto(cs[0]["s"] | "");
+  }
+}
+
+static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool perime, uint16_t accent) {
   tft.fillScreen(BG);
   // Logo + prix centrés ensemble sur l'écran ; prix centré sur la hauteur du logo
   String px = fitText(c["px"] | "", F_32, 212 - 36 - 12);
@@ -819,13 +863,21 @@ static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool 
   drawText("30 J", 120, yF, F_32, tft.alphaBlend(70, TXT, fondF), fondF, TC_DATUM);
   courbe(c["p30"], 14, 220, haut, bas, ligne, BG, false, 2.5f, true);
   staleMark(perime);
-  pageDots(dotIndex, dotCount, accentCrypto(c["s"] | ""));
+  pageDots(dotIndex, dotCount, accent);
 }
 
-// Pages dédiées en attente (identifiants CoinGecko), affichées après l'écran
-// « prix en vedette » par btcEcranSuivant().
-static char    dediees[3][16];
-static uint8_t nbDediees = 0, prochaineDediee = 0;
+// Pages dédiées en attente (identifiants de la passerelle), affichées après
+// l'écran « prix en vedette » par coursEcranSuivant().
+static char    dediees[3][24];
+static uint8_t nbDediees = 0, prochaineDediee = 0, pageDediees = PG_BTC;
+
+static void noterDediee(JsonObject c) {
+  if ((c["x"] | 0) && !(c["e"] | 0) && nbDediees < 3) {
+    strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
+    dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';
+    if (dediees[nbDediees][0]) nbDediees++;
+  }
+}
 
 // « Prix en vedette » à 2 cryptos (place disponible : une moitié d'écran
 // chacune). Par crypto :
@@ -834,7 +886,7 @@ static uint8_t nbDediees = 0, prochaineDediee = 0;
 //  - ligne 2 : « 24 h … » et « 7 j … » centrés sur l'écran, dans la plus
 //    grande police qui tient (16, 13 ou 11 px), colonnes communes aux deux.
 // Les deux blocs et les trois espaces (haut, milieu, bas) sont égaux.
-static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool perime) {
+static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool perime, uint16_t accent) {
   const int L = 56, gapH = 12, gapLV = 12, ecartVar = 16;
   FontId fp = F_18;
   for (FontId f : { F_32, F_26, F_18 }) {
@@ -870,44 +922,57 @@ static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool p
     logoCrypto(c, x0, haut, L, BG);
     // prix : encre (hp px au-dessus de la ligne de base) centrée sur le logo
     int base = haut + L / 2 + hp / 2;
-    drawText(fitText(c["px"] | "", fp, 212 - L - gapH), x0 + L + gapH, base - fontAscent(fp), fp, TXT, BG);
     int yv = haut + L + gapLV + gv.h - fontAscent(fv);  // ligne de base des variations
+    if (c["e"] | 0) {        // code saisi à la place du prix, erreur à la place des variations
+      const FontId fc = policeCode(fp);
+      drawText(fitText(c["s"] | "?", fc, 212 - L - gapH), x0 + L + gapH, base - fontAscent(fc), fc, TXT, BG);
+      drawText(texteErreur(c), 120, yv, fv, couleurErreur(c), BG, TC_DATUM);
+      continue;
+    }
+    drawText(fitText(c["px"] | "", fp, 212 - L - gapH), x0 + L + gapH, base - fontAscent(fp), fp, TXT, BG);
     groupeVariation(c, "24 h ", "v24", "u24", x24, yv, fv);
     groupeVariation(c, "7 j ", "v7", "u7", x7, yv, fv);
-    if ((c["x"] | 0) && nbDediees < 3) {
-      strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
-      dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';
-      if (dediees[nbDediees][0]) nbDediees++;
-    }
+    noterDediee(c);
   }
   staleMark(perime);
-  pageDots(dotIndex, dotCount, accentCrypto(cs[0]["s"] | ""));
+  pageDots(dotIndex, dotCount, accent);
 }
 
-// Crypto :
-//   1 crypto     -> page sur 30 jours
+// Pages de cours (Crypto, Actions, Devises, Commodities), toutes en dollars :
+//   1 valeur     -> page sur 30 jours
 //   2 ou 3       -> « prix en vedette » (logo, prix, variations 24 h et 7 j),
-//                   puis une page dédiée par crypto dont |7 j| >= 5 %
-void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
+//                   puis une page dédiée par valeur dont |7 j| >= 5 %
+// Une valeur saisie inconnue reste à sa place : « ? », son code et
+// « Introuvable » ; seule, elle donne une page d'erreur.
+void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   nbDediees = prochaineDediee = 0;
+  pageDediees = page;
   JsonDocument doc;
-  int code = gwGet(modulePath(PG_BTC), doc);
-  if (code != 200) {
+  int code = gwGet(modulePath(page), doc);
+  if (code != 200 || doc["c"].as<JsonArray>().size() == 0) {
     tft.fillScreen(BG);
-    errorPage("Crypto", code == -5 ? String(doc["err"] | "") : String(gwErrorText(code)));
-    pageDots(dotIndex, dotCount, BTC);
+    errorPage(PAGE_NAMES[page], code == -5 ? String(doc["err"] | "")
+                                : code == 200 ? String("Aucune valeur") : String(gwErrorText(code)));
+    pageDots(dotIndex, dotCount, accentPage(page, doc["c"].as<JsonArray>()));
     return;
   }
   JsonArray cs = doc["c"].as<JsonArray>();
   uint8_t n = min<size_t>(cs.size(), 3);
   bool perime = doc["p"] | 0;
+  const uint16_t accent = accentPage(page, cs);
   if (n <= 1) {
-    pageCrypto30(cs[0], dotIndex, dotCount, perime);
+    if (cs[0]["e"] | 0) {
+      tft.fillScreen(BG);
+      errorPage(PAGE_NAMES[page], String(cs[0]["s"] | "?") + ((cs[0]["e"] | 0) == 2 ? " indisponible" : " introuvable"));
+      pageDots(dotIndex, dotCount, accent);
+      return;
+    }
+    pageCrypto30(cs[0], dotIndex, dotCount, perime, accent);
     return;
   }
 
   if (n == 2) {
-    vedetteDeux(cs, dotIndex, dotCount, perime);
+    vedetteDeux(cs, dotIndex, dotCount, perime, accent);
     return;
   }
 
@@ -968,29 +1033,32 @@ void drawBtc(uint8_t dotIndex, uint8_t dotCount) {
     int haut = 3 + reste + espaceV + k * (d + desc + espaceV);   // haut de l'encre de la ligne
     logoCrypto(c, x0, haut, d, BG);
     // Ligne de base du prix à haut + hp ; celle des variations au bas du logo
-    drawText(fitText(c["px"] | "", fp, wTexte), xt, haut + hp - fontAscent(fp), fp, TXT, BG);
     int yv = haut + d - fontAscent(fv);
+    if (c["e"] | 0) {
+      const FontId fc = policeCode(fp);
+      drawText(fitText(c["s"] | "?", fc, wTexte), xt, haut + hp - fontAscent(fc), fc, TXT, BG);
+      drawText(texteErreur(c), xt, yv, fv, couleurErreur(c), BG);
+      continue;
+    }
+    drawText(fitText(c["px"] | "", fp, wTexte), xt, haut + hp - fontAscent(fp), fp, TXT, BG);
     groupeVariation(c, "24 h ", "v24", "u24", xt, yv, fv);
     groupeVariation(c, "7 j ", "v7", "u7", xt + w24 + ecartVar, yv, fv);
-    if ((c["x"] | 0) && nbDediees < 3) {
-      strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
-      dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';
-      if (dediees[nbDediees][0]) nbDediees++;
-    }
+    noterDediee(c);
   }
   staleMark(perime);
-  pageDots(dotIndex, dotCount, accentCrypto(cs[0]["s"] | ""));
+  pageDots(dotIndex, dotCount, accent);
 }
 
-bool btcEcranSuivant(uint8_t dotIndex, uint8_t dotCount) {
+bool coursEcranSuivant(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
+  if (page != pageDediees) return false;
   while (prochaineDediee < nbDediees) {
     const char* id = dediees[prochaineDediee++];
-    String devise = modParam(PG_BTC, "devise");
     JsonDocument doc;
-    if (gwGet(String("/btc/30j?id=") + id + "&devise=" + (devise.length() ? devise : String("eur")), doc) != 200) {
+    if (gwGet(String("/") + PAGE_IDS[page] + "/30j?id=" + urlEncode(id), doc) != 200) {
       continue;                 // indisponible : page suivante
     }
-    pageCrypto30(doc["c"][0], dotIndex, dotCount, doc["p"] | 0);
+    JsonArray cs = doc["c"].as<JsonArray>();
+    pageCrypto30(cs[0], dotIndex, dotCount, doc["p"] | 0, accentPage(page, cs));
     return true;
   }
   return false;

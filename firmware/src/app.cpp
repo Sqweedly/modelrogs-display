@@ -27,13 +27,13 @@ void fetchModules() {
   JsonDocument doc;
   if (gwGet("/modules", doc, &filter) != 200) return;   // on garde la dernière connaissance
 
-  uint8_t present = 0, ok = 0;
+  uint16_t present = 0, ok = 0;
   for (JsonObject m : doc["m"].as<JsonArray>()) {
     const char* id = m["id"] | "";
     for (uint8_t p = 0; p < PG_COUNT; p++) {
       if (strcmp(id, PAGE_IDS[p]) == 0) {
-        present |= 1 << p;
-        if (m["ok"] | 0) ok |= 1 << p;
+        present |= 1u << p;
+        if (m["ok"] | 0) ok |= 1u << p;
       }
     }
   }
@@ -45,7 +45,7 @@ void fetchModules() {
 
 bool moduleUsable(uint8_t page) {
   if (!gMods.known) return true;          // passerelle pas encore interrogée
-  return gMods.ok & (1 << page);
+  return gMods.ok & (1u << page);
 }
 
 bool discordConfigured() { return modParam(PG_DISCORD, "salon").length() > 0; }

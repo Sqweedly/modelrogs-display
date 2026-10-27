@@ -19,7 +19,10 @@ firmware/                  Firmware de l'afficheur (ESP8266, PlatformIO)
   tools/make_fonts.py      Régénère les polices (facultatif, voir § 6)
   tools/simulateur/        Aperçu des écrans sur PC, sans flasher (voir § 5)
 gateway/                   Passerelle Python (aiohttp), un module par page
-  app/modules/             heure, meteo, btc (crypto), supervision, discord_vocal, plex
+  app/modules/             heure, meteo, btc (crypto), cotations (actions, devises,
+                           commodities), cours (outils communs), supervision,
+                           discord_vocal, plex
+  app/icones/              Drapeaux, icônes et logos inclus dans l'image (LICENCES.md)
   tests/                   Tests automatiques (sans accès Internet)
   Dockerfile
 docker-compose.yml         Modèle de déploiement de la passerelle (sans jetons)
@@ -91,7 +94,8 @@ Les autres modules demandent leurs variables (les mêmes que dans `docker-compos
 | `supervision` | `KUMA_URL`, `KUMA_STATUS_SLUG` |
 | `discord` | `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `DISCORD_MEMBERS_INTENT`) |
 | `plex` | `PLEX_URL`, `PLEX_TOKEN` |
-| tous | `TZ`, `VILLE_DEFAUT`, `COINGECKO_KEY` (facultatif) |
+| `crypto`, `actions`, `devises`, `commodities` | facultatives : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY` |
+| tous | `TZ`, `VILLE_DEFAUT` |
 
 Ne jamais enregistrer de jeton dans un fichier suivi par git.
 
@@ -114,7 +118,7 @@ Puis, dans `docker-compose.yml`, remplacer `image:` par `modelrogs-gateway:dev` 
 
 ### Ajouter une page
 
-Une page = un module dans `gateway/app/modules/` (fiche `MODULE` : nom, variables requises, réglages proposés à l'afficheur, routes) **et** un écran dans `firmware/src/pages.cpp`, appelé par la rotation de `main.cpp`. Le format des réponses et des réglages est décrit dans `docs/PASSERELLE.md`.
+Une page = un module dans `gateway/app/modules/` (fiche `MODULE` : nom, variables requises, réglages proposés à l'afficheur, routes) **et** un écran dans `firmware/src/pages.cpp`, appelé par la rotation de `main.cpp`. Côté firmware, une page ajoutée prend un identifiant dans `PageId` (`config.h`), un nom et un identifiant de module (`PAGE_NAMES`, `PAGE_IDS`), une place dans l'ordre d'affichage (`ROTATION`) et, si elle a des réglages, un tampon dans `Config` : toute modification de `Config` augmente `CONFIG_VERSION` et ajoute une migration dans `config.cpp`, vérifiée par `test_config.cpp`. Le format des réponses et des réglages est décrit dans `docs/PASSERELLE.md`.
 
 ## 5. Simulateur d'écrans
 

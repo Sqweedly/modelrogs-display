@@ -6,8 +6,8 @@
 #   3. chmod 600 docker-compose.yml     (il contient les jetons Discord et Plex)
 #   4. docker compose up -d
 #
-# Les réglages personnels (ville, devise, salon vocal) se font ensuite
-# dans l'interface de l'afficheur.
+# Les réglages personnels (ville, salon vocal, valeurs des pages de cours)
+# se font ensuite dans l'interface de l'afficheur.
 # NE JAMAIS publier ce fichier une fois les jetons renseignés.
 # =====================================================================
 
@@ -37,10 +37,10 @@ services:
 
       # ---------------------------------------------------------------
       # MODULES ACTIFS — retirer un nom désactive le module.
-      # Disponibles : heure, meteo, crypto, supervision, discord, plex
-      # (« btc », l'ancien nom de crypto, reste accepté)
+      # Disponibles : heure, meteo, crypto, actions, devises, commodities,
+      # supervision, discord, plex   (« btc », l'ancien nom de crypto, reste accepté)
       # ---------------------------------------------------------------
-      MODULES: heure,meteo,crypto,supervision,discord,plex
+      MODULES: heure,meteo,crypto,actions,devises,commodities,supervision,discord,plex
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
       # Page de statut Kuma : toutes ses sondes sont suivies par l'afficheur
@@ -65,8 +65,20 @@ services:
       PLEX_URL: http://192.168.1.10:32400
       PLEX_TOKEN: "colle-ici-le-jeton-plex"
 
-      # --- Module « crypto » (facultatif) -----------------------------
-      # Les cryptos (3 au plus) et la devise se choisissent sur l'afficheur.
+      # --- Pages de cours : crypto, actions, devises, commodities -------
+      # Tous les prix sont en dollars. 3 valeurs au plus par page, séparées par
+      # des virgules. Valeurs par défaut : celles choisies dans l'interface de
+      # l'afficheur passent avant (3 listes + une saisie libre par page).
+      CRYPTOS: bitcoin,ethereum         # identifiants CoinGecko (ou symboles : BTC, ETH)
+      ACTIONS: AAPL,MC.PA               # symboles Yahoo Finance (Paris : .PA ; indices : ^FCHI)
+      DEVISES: EUR,GBP                  # codes ISO, cotés en dollars
+      COMMODITIES: GC=F,CL=F            # contrats Yahoo : GC=F or, SI=F argent, HG=F cuivre,
+                                        # CL=F pétrole, NG=F gaz, ZW=F blé, ZC=F maïs,
+                                        # ZS=F soja, KC=F café, CC=F cacao
+      # Logos des actions : clé publique gratuite Logo.dev (compte « Community »),
+      # commence par pk_. Sans clé : logos des grandes actions américaines inclus,
+      # sinon une pastille avec le code.
+      # LOGO_DEV_TOKEN: "pk_..."
       # COINGECKO_KEY: ""           # clé « Demo » si l'API refuse les requêtes anonymes
 
     # Durcissement

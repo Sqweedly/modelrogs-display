@@ -18,7 +18,7 @@ from aiohttp import web
 
 from .cache import SourceIndisponible, cache
 from . import images
-from .modules import Module, btc, discord_vocal, meteo, plex, supervision
+from .modules import Module, btc, cotations, discord_vocal, meteo, plex, supervision
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("passerelle")
@@ -31,9 +31,10 @@ PORT = int(os.environ.get("PORT", "8080"))
 
 CATALOGUE: dict[str, Module] = {m.id: m for m in (
     meteo.MODULE_HEURE, meteo.MODULE_METEO, discord_vocal.MODULE, supervision.MODULE, btc.MODULE, plex.MODULE,
+    cotations.MODULE_ACTIONS, cotations.MODULE_DEVISES, cotations.MODULE_COMMODITIES,
 )}
 # Autres noms acceptés dans MODULES
-ALIAS = {"crypto": "btc"}
+ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities"}
 
 SESSION = web.AppKey("session", aiohttp.ClientSession)
 ACTIFS = web.AppKey("actifs", list)
@@ -90,7 +91,8 @@ async def route_modules(request: web.Request) -> web.Response:
     liste = []
     for m in request.app[ACTIFS]:
         erreur = m.erreur_config()
-        liste.append({"id": m.id, "n": m.nom, "ok": int(not erreur), "err": erreur, "p": m.params})
+        liste.append({"id": m.id, "n": m.nom, "ok": int(not erreur), "err": erreur, "p": m.params,
+                      **m.manifeste()})
     return _json({"ok": 1, "v": VERSION, "m": liste})
 
 

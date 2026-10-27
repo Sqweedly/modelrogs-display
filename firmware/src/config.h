@@ -20,7 +20,7 @@
 //    structure l'incrémente ET ajoute une migration dans config.cpp.
 //    Pour ajouter un réglage sans migration, prendre de la place dans `reserve`.
 #define PRODUCT_MAGIC   0x5044524DUL   // "MRDP"
-#define CONFIG_VERSION  4
+#define CONFIG_VERSION  5
 #define LEGACY_MAGIC    0x4D524447UL   // "MRDG" : firmware Discord (v1), Display 2.0/2.1 (v2, v3)
 
 // Une page = un module de la passerelle (même identifiant que /modules).
@@ -31,11 +31,18 @@ enum PageId : uint8_t {
   PG_SUP,
   PG_BTC,       // page « Crypto » (identifiant « btc » conservé)
   PG_PLEX,
+  PG_ACTIONS,   // 2.9 : pages de cours (même rendu que Crypto)
+  PG_DEVISES,
+  PG_COMMO,
   PG_COUNT
 };
 
 extern const char* const PAGE_NAMES[PG_COUNT];   // libellés affichés
 extern const char* const PAGE_IDS[PG_COUNT];     // identifiants des modules
+// Ordre d'affichage (rotation et interface) : les pages de cours se suivent.
+extern const uint8_t ROTATION[PG_COUNT];
+// Pages de cours : Crypto, Actions, Devises, Commodities
+bool pageCours(uint8_t page);
 
 struct Config {
   uint32_t magic;
@@ -48,7 +55,7 @@ struct Config {
   char gateway[96];     // ex. http://192.168.1.44:8080
   char ville[48];       // utilisée par l'heure et la météo
 
-  uint8_t  pages;       // bit n = page n affichée
+  uint16_t pages;       // bit n = page n affichée
   uint8_t  pageSec;     // durée d'affichage d'une page (s)
 
   uint8_t  nightOn;
@@ -57,22 +64,21 @@ struct Config {
   uint8_t  brightDay;   // 5..100 %
   uint8_t  brightNight; // 0..100 % (0 = écran éteint)
 
+  uint8_t validated;    // 1 = configuration validée dans l'interface (bouton Enregistrer)
+
   // Réglages de chaque module, sous forme de requête « cle=valeur&... »
-  // décrite par le manifeste de la passerelle (ex. "ids=3,7,12").
+  // décrite par le manifeste de la passerelle (ex. "s1=AAPL&s2=MC.PA&m=BNP.PA").
   char pHeure[24];
   char pMeteo[24];
   char pDiscord[40];
-  char pSup[300];
-  char pBtc[24];         // réglages Crypto jusqu'en 2.5 (repris dans pCrypto)
+  char pSup[8];         // la Supervision n'a plus de réglage (2.8.1)
+  char pPlex[4];        // la page Plex n'a pas de réglage
+  char pCrypto[72];     // pages de cours : 3 listes (s1, s2, s3) + saisie (m)
+  char pActions[72];
+  char pDevises[72];
+  char pCommo[72];
 
-  uint8_t validated;    // 1 = configuration validée dans l'interface (bouton Enregistrer)
-
-  // --- Ajouts 2.6, pris dans l'ancienne réserve (63 octets) : même structure,
-  //     pas de migration. ext26 = 1 une fois ces champs initialisés.
-  char    pCrypto[52];  // « ids=bitcoin,ethereum,ripple&devise=eur »
-  char    pPlex[4];     // la page Plex n'a pas de réglage
-  uint8_t ext26;
-  uint8_t reserve[6];   // place libre pour de futurs réglages (initialisée à 0)
+  uint8_t reserve[64];  // place libre pour de futurs réglages (initialisée à 0)
 };
 
 extern Config cfg;

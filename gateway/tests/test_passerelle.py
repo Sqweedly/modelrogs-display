@@ -1,6 +1,7 @@
 """Test de bout en bout de la passerelle, sans Internet.
 
-Un faux serveur local imite Open-Meteo, CoinGecko et Uptime Kuma.
+Un faux serveur local imite Open-Meteo, CoinGecko, Yahoo Finance, la BCE
+(Frankfurter), logo.dev, Uptime Kuma et Plex.
 Lancement :  python -m tests.test_passerelle   (depuis le dossier gateway/)
 """
 
@@ -19,6 +20,7 @@ from PIL import Image, ImageDraw
 
 MAINTENANT = datetime.now(timezone.utc)
 APPELS_GEO: list[str] = []
+APPELS_YAHOO: list[str] = []
 PLEX: list[dict] = []
 base_faux = ""
 REQUETES_KUMA: list[dict] = []
@@ -52,21 +54,68 @@ def faux_internet() -> web.Application:
                       "sunrise": ["2026-10-23T08:13", "", "", "", "", ""],
                       "sunset": ["2026-10-23T18:39", "", "", "", "", ""]}})
 
+    # CoinGecko : 50 premières capitalisations (ordre), ou identifiants demandés
+    CRYPTOS = [("bitcoin", "btc", "Bitcoin", 62100), ("ethereum", "eth", "Ethereum", 2773.8),
+               ("tether", "usdt", "Tether", 1.0), ("ripple", "xrp", "XRP", 2.5116),
+               ("binancecoin", "bnb", "BNB", 690), ("usd-coin", "usdc", "USDC", 1.0),
+               ("solana", "sol", "Solana", 180), ("staked-ether", "steth", "Lido Staked Ether", 2770),
+               ("tron", "trx", "TRON", 0.32), ("dogecoin", "doge", "Dogecoin", 0.094461),
+               ("cardano", "ada", "Cardano", 0.71), ("wrapped-bitcoin", "wbtc", "Wrapped Bitcoin", 62000),
+               ("hyperliquid", "hype", "Hyperliquid", 41), ("chainlink", "link", "Chainlink", 18.4),
+               ("stellar", "xlm", "Stellar", 0.39), ("sui", "sui", "Sui", 3.6)]
+    HORS_TOP = [("pepe", "pepe", "Pepe", 0.0000102)]
+
     async def cg(r):
-        assert r.query["vs_currency"] in ("eur", "usd") and r.query["sparkline"] == "true"
-        usd = r.query["vs_currency"] == "usd"
-        bases = {"bitcoin": 54000, "ethereum": 2412, "ripple": 2.184, "dogecoin": 0.08214}
+        assert r.query["vs_currency"] == "usd" and "sparkline" not in r.query
+        if "ids" in r.query:
+            demandes = r.query["ids"].split(",")
+            liste = [c for c in CRYPTOS + HORS_TOP if c[0] in demandes]
+        else:
+            assert r.query["order"] == "market_cap_desc"
+            liste = CRYPTOS
         sortie = []
-        for cid in r.query["ids"].split(","):
-            if cid not in bases:
-                continue
-            b = bases[cid] * (1.15 if usd else 1)
-            sortie.append({"id": cid, "current_price": b, "image": f"{base_faux}/logo/{cid}.png",
+        for cid, sym, nom, b in liste:
+            sortie.append({"id": cid, "symbol": sym, "name": nom, "current_price": b,
+                           "image": f"{base_faux}/logo/{cid}.png",
                            "price_change_percentage_24h_in_currency": -0.8 if cid == "ethereum" else 1.9,
-                           "price_change_percentage_7d_in_currency": -3.1 if cid == "ethereum" else 7.2,
-                           "price_change_percentage_30d_in_currency": -9.4 if cid == "ethereum" else 18.6,
-                           "sparkline_in_7d": {"price": [b * (1 + ((i % 7) - 3) / 100) for i in range(168)]}})
+                           "price_change_percentage_7d_in_currency": 0.01 if sym.startswith("usd") or sym == "usdt"
+                           else (-3.1 if cid == "ethereum" else 7.2),
+                           "price_change_percentage_30d_in_currency": -9.4 if cid == "ethereum" else 18.6})
         return web.json_response(sortie)
+
+    # Yahoo Finance : clôtures quotidiennes sur un mois (22 séances), montantes
+    COTES = {"AAPL": (240.0, 268.4, "USD"), "MC.PA": (600.0, 640.0, "EUR"), "EURUSD=X": (1.12, 1.16, "USD"),
+             "JPYUSD=X": (0.0064, 0.006612, "USD"), "NFLX": (1100.0, 1210.0, "USD"), "GC=F": (3800.0, 4112.0, "USD"), "ZW=F": (560.0, 541.25, "USX")}
+    APPELS_YAHOO.clear()
+
+    async def yahoo(r):
+        sym = r.match_info["sym"]
+        APPELS_YAHOO.append(sym)
+        assert r.query["range"] == "1mo" and r.query["interval"] == "1d" and "Mozilla" in r.headers["User-Agent"]
+        if sym == "KRWUSD=X":
+            return web.Response(status=503)
+        if sym not in COTES:
+            return web.json_response({"chart": {"result": None, "error": {"code": "Not Found"}}}, status=404)
+        debut, fin, dev = COTES[sym]
+        t0 = int((MAINTENANT - timedelta(days=30)).timestamp())
+        temps = [t0 + i * 86400 * 30 // 21 for i in range(22)]
+        closes = [debut + (fin - debut) * i / 21 for i in range(22)]
+        return web.json_response({"chart": {"result": [{
+            "meta": {"currency": dev, "symbol": sym, "regularMarketPrice": fin},
+            "timestamp": temps, "indicators": {"quote": [{"close": closes}]}}], "error": None}})
+
+    async def bce(r):
+        assert r.query["to"] == "USD"
+        if r.query["from"] != "KRW":
+            return web.json_response({"message": "not found"}, status=404)
+        jours = [(MAINTENANT.date() - timedelta(days=30 - i)).isoformat() for i in range(31)]
+        return web.json_response({"base": "KRW", "rates": {j: {"USD": 0.00070 + i * 0.000001} for i, j in enumerate(jours)}})
+
+    async def logodev(r):
+        assert r.query["token"] == "pk_test" and r.query["fallback"] == "404" and r.query["theme"] == "dark"
+        if r.match_info["sym"] != "MC.PA":
+            return web.Response(status=404)
+        return await logo(r)
 
     async def cg30(r):
         assert r.query["days"] == "30"
@@ -123,6 +172,9 @@ def faux_internet() -> web.Application:
     app.router.add_get("/prev", prev)
     app.router.add_get("/cg/coins/markets", cg)
     app.router.add_get("/cg/coins/{id}/market_chart", cg30)
+    app.router.add_get("/yf/v8/finance/chart/{sym}", yahoo)
+    app.router.add_get("/bce/{periode}", bce)
+    app.router.add_get("/ld/ticker/{sym}", logodev)
     app.router.add_get("/logo/{nom}", logo)
     app.router.add_get("/plex/library/metadata/{n}/thumb/{t}", affiche)
     app.router.add_get("/plex/status/sessions", plex_sessions)
@@ -140,10 +192,13 @@ async def principal() -> int:
     os.environ.update({
         "OPEN_METEO_GEO_URL": base + "/geo", "OPEN_METEO_URL": base + "/prev", "COINGECKO_URL": base + "/cg",
         "PLEX_URL": base + "/plex", "PLEX_TOKEN": "jeton-plex",
+        "YAHOO_URL": base + "/yf", "FRANKFURTER_URL": base + "/bce", "LOGO_DEV_URL": base + "/ld",
+        "LOGO_DEV_TOKEN": "pk_test", "NVSTLY_URL": base + "/nv",
+        "ACTIONS": "AAPL", "DEVISES": "EUR, JPY",
         "KUMA_URL": base + "/kuma", "KUMA_STATUS_SLUG": "modelrogs",
         "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris",
         # Discord demandé mais non configuré : doit être signalé, pas planter
-        "MODULES": "heure,meteo,crypto,supervision,discord,plex,inconnu",
+        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,devises,commodities,inconnu",
     })
     os.environ.pop("DISCORD_TOKEN", None)
     from app.main import creer_app   # importé après la configuration
@@ -152,26 +207,61 @@ async def principal() -> int:
     async with TestClient(TestServer(creer_app())) as c:
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
-            ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex"]
+            ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex",
+                                                                  "actions", "devises", "commodities"]
                 and next(m for m in d["m"] if m["id"] == "discord")["ok"] == 0),
+            # Cours : 3 listes + saisie ; 10 options ; valeurs du compose annoncées
+            ("/modules", lambda d: all(
+                [p["k"] for p in m["p"]] == ["s1", "s2", "s3", "m"] and m["nt"]
+                for m in d["m"] if m["id"] in ("btc", "actions", "devises", "commodities"))
+                and next(m for m in d["m"] if m["id"] == "btc")["src"] == "/btc/liste"
+                and len(next(m for m in d["m"] if m["id"] == "actions")["o"]) == 10
+                and next(m for m in d["m"] if m["id"] == "devises")["df"] == "EUR, JPY"
+                and next(m for m in d["m"] if m["id"] == "commodities")["o"][0] == {"id": "GC=F", "n": "Or"}),
             ("/time?ville=Lyon", lambda d: d["ok"] and d["lv"] == "08:13" and d["o"] in (3600, 7200)),
             ("/meteo?ville=Lyon", lambda d: d["ok"] and d["i"] == 1 and len(d["j"]) == 5
                 and [j["d"] for j in d["j"]] == ["Sam.", "Dim.", "Lun.", "Mar.", "Mer."]),
-            # Une crypto : courbe 30 jours incluse (60 points, montante), variations 24 h / 7 j / 30 j
+            # Crypto en dollars. Une seule (CRYPTOS absent : Bitcoin) : courbe 30 jours
             ("/btc", lambda d: d["ok"] and len(d["c"]) == 1 and d["c"][0]["s"] == "BTC"
-                and d["c"][0]["px"] == "54 000 €" and len(d["c"][0]["p30"]) == 60
+                and d["c"][0]["px"] == "62 100 $" and len(d["c"][0]["p30"]) == 60 and d["c"][0]["f"] == 0
                 and d["c"][0]["p30"][0] == 0 and d["c"][0]["v30"] == "+18,6 %" and d["c"][0]["i"]),
             # Deux ou trois : pas de courbe ; x = page dédiée si |7 j| >= 5 %
-            ("/btc?devise=usd&ids=ethereum,ripple", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]
-                and d["c"][0]["px"].endswith("$") and "p30" not in d["c"][1]
+            ("/btc?s1=ethereum&s2=ripple", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]
+                and d["c"][0]["px"] == "2 774 $" and "p30" not in d["c"][1]
                 and [c["x"] for c in d["c"]] == [0, 1] and d["c"][0]["u7"] == 0),
-            # Au moins 4 chiffres : 2,184 € ; 0,08214 €
-            ("/btc?ids=bitcoin,ethereum,ripple,dogecoin,inconnu", lambda d: len(d["c"]) == 3
-                and d["c"][2]["px"] == "2,184 €" and d["c"][2]["id"] == "ripple"),
-            ("/btc?ids=dogecoin", lambda d: d["c"][0]["px"] == "0,08214 €"),
-            ("/btc/30j?id=ripple&devise=eur", lambda d: d["ok"] and d["c"][0]["s"] == "XRP"
+            # Ordre des champs, 3 au plus ; symbole saisi reconnu ; au moins 4 chiffres
+            ("/btc?s1=&s2=ripple&s3=&m=DOGE,%20bitcoin,%20eth", lambda d: [c["id"] for c in d["c"]]
+                == ["ripple", "dogecoin", "bitcoin"] and d["c"][0]["px"] == "2,512 $" and d["c"][1]["px"] == "0,09446 $"),
+            # Hors des 50 premières (identifiant CoinGecko) ; saisie inconnue signalée
+            ("/btc?m=pepe,zzzz", lambda d: d["c"][0]["px"] == "0,00001020 $" and d["c"][1] == {"id": "zzzz", "s": "ZZZZ", "e": 1}),
+            ("/btc?m=zzzz", lambda d: d["ok"] and d["c"] == [{"id": "zzzz", "s": "ZZZZ", "e": 1}]),
+            # Afficheur 2.8 : ?ids= et devise ignorée
+            ("/btc?ids=ethereum,ripple&devise=eur", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]),
+            # Liste proposée : 10 premières, sans stablecoins ni jetons enveloppés
+            ("/btc/liste", lambda d: [x["id"] for x in d["s"]] == ["bitcoin", "ethereum", "ripple", "binancecoin", "solana",
+                                                                  "tron", "dogecoin", "cardano", "hyperliquid", "chainlink"]
+                and d["s"][0]["n"] == "Bitcoin (BTC)"),
+            ("/btc/30j?id=ripple", lambda d: d["ok"] and d["c"][0]["s"] == "XRP"
                 and len(d["c"][0]["p30"]) == 60 and d["c"][0]["x"] == 1),
             ("/btc/30j?id=inconnu", lambda d: d["ok"] == 0),
+            # Actions : ACTIONS du compose (une seule : courbe) ; euros convertis en dollars
+            ("/actions", lambda d: d["ok"] and [c["id"] for c in d["c"]] == ["AAPL"] and d["c"][0]["px"] == "268,40 $"
+                and len(d["c"][0]["p30"]) == 22 and d["c"][0]["f"] == 1 and d["c"][0]["v30"] == "+11,8 %"),
+            ("/actions?s1=AAPL&s2=MC.PA&m=XYZ", lambda d: [c.get("e", 0) for c in d["c"]] == [0, 0, 1]
+                and d["c"][1]["px"] == "742,40 $" and d["c"][1]["s"] == "MC" and d["c"][2]["s"] == "XYZ"
+                and "p30" not in d["c"][0]),
+            ("/actions/30j?id=MC.PA", lambda d: d["ok"] and len(d["c"][0]["p30"]) == 22),
+            ("/actions/30j?id=XYZ", lambda d: d["ok"] == 0),
+            # Devises : DEVISES du compose ; KRW sans Yahoo -> taux BCE ; drapeaux inclus
+            ("/devises", lambda d: [c["px"] for c in d["c"]] == ["1,160 $", "0,006612 $"]
+                and all(c["i"] and c["f"] == 2 for c in d["c"])),
+            ("/devises?m=krw", lambda d: d["c"][0]["s"] == "KRW" and d["c"][0]["px"] == "0,0007300 $"
+                and d["c"][0]["v24"] == "+0,1 %" and d["c"][0]["i"]),
+            ("/devises?s1=EUR&m=XXX", lambda d: d["c"][1]["e"] == 1),
+            # Commodities : cotation en cents -> dollars ; icônes incluses
+            ("/commodities?s1=GC=F&s2=ZW%3DF&s3=CL=F", lambda d: [c.get("px") for c in d["c"]] == ["4 112 $", "5,413 $", None]
+                and d["c"][2] == {"id": "CL=F", "s": "WTI", "e": 1} and d["c"][0]["i"] and d["c"][0]["f"] == 2
+                and d["c"][1]["v30"] == "-3,3 %" and d["c"][1]["u30"] == 0),
             ("/plex", lambda d: d["ok"] and d["n"] == 0 and d["s"] == []),
             # Toutes les sondes de la page de statut, défauts seuls envoyés (pannes d'abord)
             ("/supervision", lambda d: d["tot"] == 15 and d["md"] == "r" and d["pa"] == 2
@@ -188,7 +278,8 @@ async def principal() -> int:
             r = await c.get(chemin)
             texte = await r.text()
             d = json.loads(texte)
-            ok = r.status == 200 and len(texte.encode()) < 2048 and verif(d)
+            # Réponses lues par l'afficheur : moins de 2 Ko (manifeste de l'interface : 4 Ko)
+            ok = r.status == 200 and len(texte.encode()) < (4096 if chemin == "/modules" else 2048) and verif(d)
             echecs += not ok
             print(f"{'OK ' if ok else 'ÉCHEC'} {chemin:40s} {len(texte.encode()):5d} o  {texte[:110]}")
 
@@ -259,6 +350,33 @@ async def principal() -> int:
         ok = r.status == 200 and len(corps) == 1800 and int.from_bytes(corps[:2], "little") == (0x1C & 0xF8) << 8 | (0x21 & 0xFC) << 3 | 0x2C >> 3
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} logo crypto 30x30 sur fond carte -> {len(corps)} o")
+
+        # --- Logos des cours : logo.dev, sinon icône incluse ; échec mémorisé
+        d = await (await c.get("/actions?s1=MC.PA&s2=AAPL&s3=NFLX")).json()
+        etats = []
+        for e in d["c"]:
+            r = await c.get(f"/img?t={e['i']}&w=36&h=36&f=1C212C&m=a")
+            etats.append(r.status)
+        r2 = await c.get(f"/img?t={d['c'][2]['i']}&w=36&h=36&f=1C212C&m=a")
+        # MC.PA : logo.dev ; AAPL : absent de logo.dev -> icône incluse ;
+        # NFLX : ni l'un ni l'autre (nvstly injoignable ici) -> 502 puis 404 immédiat
+        ok = etats == [200, 200, 502] and r2.status == 404
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} logos d'actions -> {etats}, puis {r2.status}")
+
+        d = await (await c.get("/devises?s1=GBP&s2=KRW&m=XYZ")).json()
+        r = await c.get(f"/img?t={d['c'][1]['i']}&w=56&h=56&f=000000&r=28")
+        corps = await r.read()
+        centre = int.from_bytes(corps[(28 * 56 + 28) * 2:(28 * 56 + 29) * 2], "little")
+        ok = r.status == 200 and len(corps) == 56 * 56 * 2 and centre != 0 and int.from_bytes(corps[:2], "little") == 0
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} drapeau inclus 56x56 découpé en rond -> {r.status}")
+
+        APPELS_YAHOO.clear()
+        await c.get("/actions?m=XYZ"); await c.get("/actions?m=XYZ")
+        ok = APPELS_YAHOO == []
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} symbole inconnu mémorisé -> {len(APPELS_YAHOO)} appel(s) à Yahoo")
         r = await c.get("/img?t=inconnu&w=30&h=30")
         ok = r.status == 404
         echecs += not ok

@@ -3,12 +3,21 @@
 
 Config cfg;
 static_assert(sizeof(Config) <= EEPROM_SIZE, "Config trop grande pour l'EEPROM");
-// Les ajouts 2.6 occupent exactement l'ancienne réserve : la structure (version 4) ne change pas.
-static_assert(offsetof(Config, reserve) + sizeof(Config::reserve) - offsetof(Config, pCrypto) == 63,
-              "les ajouts doivent tenir dans l'ancienne réserve de 63 octets");
+static_assert(PG_COUNT <= 16, "pages : masque de 16 bits");
 
-const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Crypto", "Plex" };
-const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc", "plex" };
+const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Crypto", "Plex",
+                                           "Actions", "Devises", "Commodities" };
+const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc", "plex",
+                                           "actions", "devises", "commodities" };
+const uint8_t ROTATION[PG_COUNT] = { PG_HEURE, PG_METEO, PG_DISCORD, PG_SUP, PG_BTC, PG_ACTIONS,
+                                     PG_DEVISES, PG_COMMO, PG_PLEX };
+// Pages ajoutées en 2.9 : activées à la mise à jour (affichées seulement si
+// le module est actif sur la passerelle)
+static const uint16_t PAGES_29 = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO);
+
+bool pageCours(uint8_t page) {
+  return page == PG_BTC || page == PG_ACTIONS || page == PG_DEVISES || page == PG_COMMO;
+}
 
 // --- Anciennes structures, lues une seule fois lors de la mise à jour ------
 
@@ -41,6 +50,33 @@ struct ConfigV2 {            // MODELROGS Display 2.0.x
   uint8_t  brightNight;
   uint8_t  supCount;
   uint16_t supIds[48];
+};
+
+struct ConfigV4 {            // MODELROGS Display 2.2 à 2.8
+  uint32_t magic;
+  uint16_t version;
+  char wifiSsid[33];
+  char wifiPass[65];
+  char apSsid[33];
+  char gateway[96];
+  char ville[48];
+  uint8_t  pages;
+  uint8_t  pageSec;
+  uint8_t  nightOn;
+  uint16_t nightStart;
+  uint16_t nightEnd;
+  uint8_t  brightDay;
+  uint8_t  brightNight;
+  char pHeure[24];
+  char pMeteo[24];
+  char pDiscord[40];
+  char pSup[300];
+  char pBtc[24];         // réglages Crypto jusqu'en 2.5
+  uint8_t validated;
+  char    pCrypto[52];   // réglages Crypto 2.6 à 2.8 : « ids=bitcoin,ethereum&devise=eur »
+  char    pPlex[4];
+  uint8_t ext26;         // 1 = pCrypto renseigné
+  uint8_t reserve[6];
 };
 
 struct ConfigV3 {            // MODELROGS Display 2.1.x (= v4 sans validated/reserve)
@@ -85,21 +121,29 @@ static void setDefaults() {
   cfg.nightEnd = 7 * 60;
   cfg.brightDay = LUMINOSITE_DEFAUT;
   cfg.brightNight = 20;
-  copyStr(cfg.pCrypto, sizeof(cfg.pCrypto), "devise=eur");
-  cfg.ext26 = 1;
+  // Pages de cours : réglages vides = valeurs du docker-compose de la passerelle
 }
 
-// Première mise en route d'un firmware 2.6 sur une configuration plus ancienne :
-// réglages Crypto repris de pBtc, page Plex activée (affichée seulement pendant
-// une lecture, et si le module est actif sur la passerelle). Renvoie true si
-// la configuration a changé.
-static bool initExt26() {
-  if (cfg.ext26 == 1) return false;
-  memset(cfg.pCrypto, 0, sizeof(cfg.pCrypto) + sizeof(cfg.pPlex) + sizeof(cfg.reserve) + 1);
-  copyStr(cfg.pCrypto, sizeof(cfg.pCrypto), cfg.pBtc[0] ? cfg.pBtc : "devise=eur");
-  cfg.pages |= 1 << PG_PLEX;
-  cfg.ext26 = 1;
-  return true;
+// Réglages Crypto d'avant la 2.9 (« ids=bitcoin,ethereum,ripple&devise=eur »)
+// -> 3 listes (« s1=bitcoin&s2=ethereum&s3=ripple ») ; la devise disparaît
+// (tous les prix sont en dollars).
+static void reprendreCrypto(const char* ancien) {
+  cfg.pCrypto[0] = '\0';
+  const char* p = strstr(ancien, "ids=");
+  if (!p || (p != ancien && p[-1] != '&')) return;
+  p += 4;
+  String out;
+  uint8_t n = 0;
+  while (*p && *p != '&' && n < 3) {
+    const char* fin = p;
+    while (*fin && *fin != ',' && *fin != '&') fin++;
+    if (fin > p && *p != '*') {
+      if (out.length()) out += '&';
+      out += "s" + String(++n) + "=" + String(p).substring(0, fin - p);
+    }
+    p = *fin == ',' ? fin + 1 : fin;
+  }
+  copyStr(cfg.pCrypto, sizeof(cfg.pCrypto), out.c_str());
 }
 
 // http://192.168.1.44:5090/snapshot -> http://192.168.1.44:8080
@@ -126,7 +170,7 @@ static void sanitize() {
   terminate(cfg.ville, sizeof(cfg.ville));
   for (uint8_t p = 0; p < PG_COUNT; p++) terminate(modParams(p), modParamsSize(p));
   if (cfg.apSsid[0] == '\0') copyStr(cfg.apSsid, sizeof(cfg.apSsid), AP_DEFAUT);
-  cfg.pages &= (1 << PG_COUNT) - 1;
+  cfg.pages &= (1u << PG_COUNT) - 1;
   cfg.pageSec = constrain(cfg.pageSec, 5, 120);
   cfg.nightStart %= 1440;
   cfg.nightEnd %= 1440;
@@ -157,8 +201,9 @@ static void copyV3(const ConfigV3& o) {
   copyStr(cfg.pHeure, sizeof(cfg.pHeure), o.pHeure);
   copyStr(cfg.pMeteo, sizeof(cfg.pMeteo), o.pMeteo);
   copyStr(cfg.pDiscord, sizeof(cfg.pDiscord), o.pDiscord);
-  copyStr(cfg.pSup, sizeof(cfg.pSup), o.pSup);
-  copyStr(cfg.pBtc, sizeof(cfg.pBtc), o.pBtc);
+  char ancien[sizeof(o.pBtc) + 1];
+  copyStr(ancien, sizeof(ancien), o.pBtc);
+  reprendreCrypto(ancien);
 }
 
 void loadConfig() {
@@ -172,19 +217,46 @@ void loadConfig() {
   //     y compris la validation.
   if (magic == PRODUCT_MAGIC && version == CONFIG_VERSION) {
     EEPROM.get(0, cfg);
-    bool maj = initExt26();
     sanitize();
     Serial.println(F("EEPROM : configuration chargee."));
-    if (maj) saveConfig();   // la validation est conservée
     return;
   }
 
   setDefaults();
 
+  // --- Même firmware, 2.2 à 2.8 (structure 4) : tout est repris, y compris la
+  //     validation ; Crypto passe au nouveau format, pages de cours activées.
+  if (magic == PRODUCT_MAGIC && version == 4) {
+    ConfigV4 old;
+    EEPROM.get(0, old);
+    copyStr(cfg.wifiSsid, sizeof(cfg.wifiSsid), old.wifiSsid);
+    copyStr(cfg.wifiPass, sizeof(cfg.wifiPass), old.wifiPass);
+    copyStr(cfg.apSsid, sizeof(cfg.apSsid), old.apSsid);
+    copyStr(cfg.gateway, sizeof(cfg.gateway), old.gateway);
+    copyStr(cfg.ville, sizeof(cfg.ville), old.ville);
+    cfg.pages = old.pages | PAGES_29 | (old.ext26 == 1 ? 0 : 1 << PG_PLEX);
+    cfg.pageSec = old.pageSec;
+    cfg.nightOn = old.nightOn;
+    cfg.nightStart = old.nightStart;
+    cfg.nightEnd = old.nightEnd;
+    cfg.brightDay = old.brightDay;
+    cfg.brightNight = old.brightNight;
+    copyStr(cfg.pHeure, sizeof(cfg.pHeure), old.pHeure);
+    copyStr(cfg.pMeteo, sizeof(cfg.pMeteo), old.pMeteo);
+    copyStr(cfg.pDiscord, sizeof(cfg.pDiscord), old.pDiscord);
+    old.pCrypto[sizeof(old.pCrypto) - 1] = '\0';
+    old.pBtc[sizeof(old.pBtc) - 1] = '\0';
+    reprendreCrypto(old.ext26 == 1 ? old.pCrypto : old.pBtc);
+    cfg.validated = old.validated == 1;
+    Serial.println(F("EEPROM : reprise de la configuration 2.2-2.8."));
+    saveConfig();
+    return;
+  }
+
   // --- Même firmware, structure future ou inconnue (retour à une version
   //     plus ancienne) : rien n'est lisible, on repart des valeurs par défaut.
-  //     Les futures versions ajouteront ici leurs migrations (version 4 -> 5...),
-  //     en conservant cfg.validated.
+  //     Les futures versions ajouteront leurs migrations (version 5 -> 6...)
+  //     au-dessus, en conservant cfg.validated.
   if (magic == PRODUCT_MAGIC) {
     Serial.println(F("EEPROM : structure inconnue -> valeurs par defaut."));
 
@@ -212,12 +284,6 @@ void loadConfig() {
     cfg.nightEnd = old.nightEnd;
     cfg.brightDay = old.brightDay;
     cfg.brightNight = old.brightNight;
-    String ids = "ids=";
-    for (uint8_t i = 0; i < old.supCount && i < 48; i++) {
-      if (i) ids += ',';
-      ids += old.supIds[i];
-    }
-    if (old.supCount) copyStr(cfg.pSup, sizeof(cfg.pSup), ids.c_str());
     apresMigration();
     Serial.println(F("EEPROM : reprise de la configuration 2.0 (a valider)."));
 
@@ -238,8 +304,7 @@ void loadConfig() {
     Serial.println(F("EEPROM : configuration absente -> valeurs par defaut."));
   }
 
-  cfg.ext26 = 0;       // reprise des réglages Crypto (pBtc) d'une configuration migrée
-  initExt26();
+  cfg.pages |= (1 << PG_PLEX) | PAGES_29;   // pages apparues depuis (si le module est actif)
   cfg.validated = 0;   // firmware différent ou jamais validé : validation requise
   saveConfig();
 }
@@ -254,7 +319,7 @@ void saveConfig() {
 }
 
 bool pageEnabled(uint8_t page) {
-  return page < PG_COUNT && (cfg.pages & (1 << page));
+  return page < PG_COUNT && (cfg.pages & (1u << page));
 }
 
 char* modParams(uint8_t page) {
@@ -264,6 +329,9 @@ char* modParams(uint8_t page) {
     case PG_DISCORD: return cfg.pDiscord;
     case PG_SUP:     return cfg.pSup;
     case PG_PLEX:    return cfg.pPlex;
+    case PG_ACTIONS: return cfg.pActions;
+    case PG_DEVISES: return cfg.pDevises;
+    case PG_COMMO:   return cfg.pCommo;
     default:         return cfg.pCrypto;
   }
 }
@@ -275,6 +343,9 @@ size_t modParamsSize(uint8_t page) {
     case PG_DISCORD: return sizeof(cfg.pDiscord);
     case PG_SUP:     return sizeof(cfg.pSup);
     case PG_PLEX:    return sizeof(cfg.pPlex);
+    case PG_ACTIONS: return sizeof(cfg.pActions);
+    case PG_DEVISES: return sizeof(cfg.pDevises);
+    case PG_COMMO:   return sizeof(cfg.pCommo);
     default:         return sizeof(cfg.pCrypto);
   }
 }

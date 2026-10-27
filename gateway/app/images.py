@@ -12,6 +12,11 @@ La passerelle fait donc tout le travail :
 
 L'afficheur dessine ces lignes au fur et à mesure de leur réception, sans
 jamais garder l'image entière en mémoire.
+
+Un jeton peut désigner plusieurs sources, essayées dans l'ordre (ex. logo.dev,
+puis icône incluse dans l'image Docker, puis dépôt GitHub). Une source locale
+s'écrit « fichier:<chemin> ». Si aucune ne répond, l'échec est mémorisé une
+heure : l'afficheur dessine alors sa pastille de remplacement sans attendre.
 """
 
 import asyncio
@@ -19,6 +24,8 @@ import hashlib
 import io
 import sys
 import logging
+import time
+from pathlib import Path
 from array import array
 from collections import OrderedDict
 
@@ -33,8 +40,11 @@ MAX_SOURCES = 300         # jetons connus
 MAX_ORIGINAUX = 40        # images téléchargées gardées en mémoire
 MAX_RENDUS = 120          # images converties gardées en mémoire
 TAILLE_MAX_SOURCE = 4 * 1024 * 1024
+DUREE_ECHEC = 3600        # secondes : image introuvable, pas de nouvel essai avant
+ICONES = Path(__file__).resolve().parent / "icones"   # icônes incluses dans l'image Docker
 
-_sources: "OrderedDict[str, tuple[str, dict]]" = OrderedDict()
+_sources: "OrderedDict[str, tuple[list[str], dict]]" = OrderedDict()
+_echecs: dict[str, float] = {}
 _originaux: "OrderedDict[str, bytes]" = OrderedDict()
 _rendus: "OrderedDict[tuple, bytes]" = OrderedDict()
 _verrous: dict[str, asyncio.Lock] = {}
@@ -47,38 +57,61 @@ def _ranger(dico: OrderedDict, cle, valeur, maximum: int) -> None:
         dico.popitem(last=False)
 
 
-def enregistrer(url: str | None, entetes: dict | None = None) -> str:
-    """Adresse d'image -> jeton court à transmettre à l'afficheur ("" si aucune)."""
-    if not url:
+def enregistrer(url: str | list[str] | None, entetes: dict | None = None) -> str:
+    """Adresse(s) d'image -> jeton court à transmettre à l'afficheur ("" si aucune).
+    Plusieurs adresses : essayées dans l'ordre."""
+    urls = [u for u in ([url] if isinstance(url, str) else (url or [])) if u]
+    if not urls:
         return ""
-    jeton = hashlib.sha1(url.encode("utf-8")).hexdigest()[:12]
-    _ranger(_sources, jeton, (url, entetes or {}), MAX_SOURCES)
+    jeton = hashlib.sha1("|".join(urls).encode("utf-8")).hexdigest()[:12]
+    _ranger(_sources, jeton, (urls, entetes or {}), MAX_SOURCES)
     return jeton
+
+
+def icone(categorie: str, nom: str) -> str:
+    """Source « fichier: » d'une icône incluse, "" si le fichier n'existe pas."""
+    chemin = ICONES / categorie / f"{nom}.png"
+    return f"fichier:{chemin}" if chemin.is_file() else ""
+
+
+async def _telecharger(session: aiohttp.ClientSession, url: str, entetes: dict) -> bytes:
+    if url.startswith("fichier:"):
+        return Path(url[len("fichier:"):]).read_bytes()
+    # Lecture jusqu'à la fin du fichier : un serveur réel envoie l'image en
+    # plusieurs morceaux (content.read(n) ne rendrait que le premier).
+    morceaux, taille = [], 0
+    async with session.get(url, headers=entetes) as reponse:
+        reponse.raise_for_status()
+        async for morceau in reponse.content.iter_chunked(64 * 1024):
+            taille += len(morceau)
+            if taille > TAILLE_MAX_SOURCE:
+                raise ValueError("image trop lourde")
+            morceaux.append(morceau)
+    donnees = b"".join(morceaux)
+    Image.open(io.BytesIO(donnees)).verify()   # une page d'erreur n'est pas une image
+    return donnees
 
 
 async def _original(session: aiohttp.ClientSession, jeton: str) -> bytes:
     if jeton in _originaux:
         _originaux.move_to_end(jeton)
         return _originaux[jeton]
-    url, entetes = _sources[jeton]
+    urls, entetes = _sources[jeton]
     verrou = _verrous.setdefault(jeton, asyncio.Lock())
     try:
         async with verrou:
             if jeton in _originaux:
                 return _originaux[jeton]
-            # Lecture jusqu'à la fin du fichier : un serveur réel envoie l'image en
-            # plusieurs morceaux (content.read(n) ne rendrait que le premier).
-            morceaux, taille = [], 0
-            async with session.get(url, headers=entetes) as reponse:
-                reponse.raise_for_status()
-                async for morceau in reponse.content.iter_chunked(64 * 1024):
-                    taille += len(morceau)
-                    if taille > TAILLE_MAX_SOURCE:
-                        raise ValueError("image trop lourde")
-                    morceaux.append(morceau)
-            donnees = b"".join(morceaux)
-            _ranger(_originaux, jeton, donnees, MAX_ORIGINAUX)
-            return donnees
+            erreur: Exception = ValueError("aucune source")
+            for url in urls:
+                try:
+                    donnees = await _telecharger(session, url, entetes)
+                except Exception as exc:  # noqa: BLE001 — source suivante
+                    erreur = exc
+                    continue
+                _ranger(_originaux, jeton, donnees, MAX_ORIGINAUX)
+                return donnees
+            raise erreur
     finally:
         if not verrou.locked():
             _verrous.pop(jeton, None)
@@ -139,6 +172,8 @@ async def route_image(request: web.Request, session: aiohttp.ClientSession) -> w
     jeton = q.get("t", "")
     if jeton not in _sources:
         return web.Response(status=404, text="image inconnue")
+    if time.time() - _echecs.get(jeton, 0) < DUREE_ECHEC:
+        return web.Response(status=404, text="image introuvable")
     w = _entier(q, "w", 32, 1, MAX_COTE)
     h = _entier(q, "h", 32, 1, MAX_COTE)
     rayon = _entier(q, "r", 0, 0, MAX_COTE)
@@ -159,6 +194,9 @@ async def route_image(request: web.Request, session: aiohttp.ClientSession) -> w
                 None, convertir, donnees, w, h, tuple(fond), rayon, ajuster)
         except Exception as exc:  # noqa: BLE001 — l'afficheur dessine alors un remplaçant
             log.warning("Image %s indisponible : %s", jeton, exc)
+            _echecs[jeton] = time.time()
+            if len(_echecs) > MAX_SOURCES:
+                _echecs.pop(next(iter(_echecs)))
             return web.Response(status=502, text="image indisponible")
         _ranger(_rendus, cle, corps, MAX_RENDUS)
     return web.Response(body=corps, content_type="application/octet-stream",

@@ -94,6 +94,8 @@ def faux_internet() -> web.Application:
         assert r.query["range"] == "1mo" and r.query["interval"] == "1d" and "Mozilla" in r.headers["User-Agent"]
         if sym == "KRWUSD=X":
             return web.Response(status=503)
+        if sym == "REFUS":
+            return web.Response(status=429, text="Too Many Requests")
         if sym not in COTES:
             return web.json_response({"chart": {"result": None, "error": {"code": "Not Found"}}}, status=404)
         debut, fin, dev = COTES[sym]
@@ -377,6 +379,31 @@ async def principal() -> int:
         ok = APPELS_YAHOO == []
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} symbole inconnu mémorisé -> {len(APPELS_YAHOO)} appel(s) à Yahoo")
+
+        # --- Sans curl_cffi (armv7) : même résultat avec aiohttp
+        from app.modules import cotations as CO
+        sauve = CO._CurlSession
+        CO._CurlSession = None
+        C._valeurs["yahoo-AAPL"] = (0, C._valeurs["yahoo-AAPL"][1])      # cours expiré : nouvel appel
+        APPELS_YAHOO.clear()
+        d = await (await c.get("/actions?s1=AAPL")).json()
+        CO._CurlSession = sauve
+        ok = APPELS_YAHOO == ["AAPL"] and d["c"][0]["px"] == "268,40 $"
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Yahoo sans curl_cffi (aiohttp) -> {d['c'][0].get('px')}")
+
+        # --- Refus de Yahoo (429) : cause affichée, plus d'appel pendant 15 min,
+        #     dernière valeur connue gardée (marquée périmée)
+        APPELS_YAHOO.clear()
+        d1 = await (await c.get("/actions?s1=REFUS")).json()
+        C._valeurs["yahoo-AAPL"] = (0, C._valeurs["yahoo-AAPL"][1])        # cours AAPL expiré
+        d2 = await (await c.get("/actions?s1=AAPL")).json()
+        d3 = await (await c.get("/commodities?s1=GC=F")).json()
+        ok = (d1 == {"ok": 0, "err": "Yahoo refuse l'accès (429)"} and APPELS_YAHOO == ["REFUS"]
+              and d2["ok"] == 1 and d2["p"] == 1 and d2["c"][0]["px"] == "268,40 $" and d3["ok"] == 1)
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} refus Yahoo -> {d1}, appels {APPELS_YAHOO}, cours gardés p={d2.get('p')}")
+        CO._refus["jusqua"] = 0
         r = await c.get("/img?t=inconnu&w=30&h=30")
         ok = r.status == 404
         echecs += not ok

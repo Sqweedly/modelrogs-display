@@ -18,11 +18,14 @@ Trois nouvelles pages de cours (Actions, Devises, Commodities), toutes en dollar
 
 ### Ajouté
 - **Pages Actions, Devises et Commodities** : même présentation que Crypto. Une valeur : page sur 30 jours avec courbe ; deux ou trois : « prix en vedette », puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours.
-  - Cours : Yahoo Finance (sans clé, gardés 5 minutes par valeur) ; devises : taux de la BCE en secours.
+  - Cours : Yahoo Finance (sans clé, gardés 5 minutes par valeur), appelé avec curl_cffi, qui se connecte comme Chrome : Yahoo refuse les autres programmes (erreur 429). En armv7 (Raspberry Pi 32 bits), curl_cffi n'existe pas : appel classique, avec ce risque de refus. Devises : taux de la BCE en secours.
+  - Yahoo refuse l'accès : la cause s'affiche (« Yahoo refuse l'accès (429) »), plus aucun appel pendant 15 minutes, et les derniers cours connus restent affichés, marqués périmés.
   - Logos des actions : Logo.dev (clé `LOGO_DEV_TOKEN` facultative), sinon logos inclus pour les grandes actions américaines ; drapeaux des devises et icônes des matières premières inclus dans l'image de la passerelle. À défaut : pastille de couleur avec le code.
 - **Réglage des pages de cours** dans l'interface de l'afficheur : 3 listes déroulantes (les 10 valeurs principales) et une saisie libre, sur deux colonnes. Les 3 premières valeurs, dans l'ordre des champs, sont affichées.
 - **Valeurs par défaut dans `docker-compose.yml`** : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`. L'interface de l'afficheur passe avant.
 - **Saisie inconnue** : elle reste à sa place à l'écran, avec « ? », son code et « Introuvable » ; seule, elle donne une page d'erreur.
+- **Tailles fixes** sur les écrans de 2 et 3 valeurs : logos, prix et variations gardent la même taille quelles que soient les valeurs ; seul un prix trop long passe en plus petit, sur sa ligne.
+- **Très petits prix** : à partir de 4 zéros après la virgule, ces zéros sont remplacés par leur nombre en indice (« 0,000004540 $ » s'écrit « 0,0₅4540 $ »).
 
 ### Modifié
 - **Crypto** : prix en dollars (le choix de la devise disparaît) ; la liste proposée suit les 10 premières capitalisations, hors stablecoins et jetons adossés ; la saisie accepte n'importe quelle crypto CoinGecko (identifiant ou symbole).

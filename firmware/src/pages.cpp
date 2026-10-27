@@ -796,31 +796,30 @@ static void colonnesVariations(JsonObject c, int x0, int x1, int y, FontId fl, F
   }
 }
 
-// Texte de chiffres dont l'encre est centrée verticalement sur cy (hauteur d'un « 0 »)
-static int drawTextCentreV(const String& t, int x, int cy, FontId f, uint16_t coul) {
-  GlyphBox g;
-  glyphBox(f, '0', g);
-  int y = cy - g.h / 2 - (fontAscent(f) - g.dy);
-  return drawText(t, x, y, f, coul, BG);
+// Prix très petit : à partir de 4 zéros après la virgule, ces zéros sont
+// remplacés par leur nombre en indice : « 0,000004540 $ » -> « 0,0₅4540 $ ».
+static bool decouperPrix(const char* px, String& avant, String& zeros, String& apres) {
+  if (strncmp(px, "0,", 2) != 0) return false;
+  int n = 0;
+  while (px[2 + n] == '0') n++;
+  if (n < 4) return false;
+  avant = "0,0"; zeros = String(n); apres = String(px + 2 + n);
+  return true;
 }
-
-// Hauteur de l'encre des prix au-dessus de la ligne de base : celle du
-// caractère le plus haut réellement affiché (« $ » dépasse les chiffres).
-// basPrix : ce qui descend sous la ligne de base (virgule, « $ »).
-static int hautPrix(JsonArray cs, uint8_t n, FontId f, int* basPrix = nullptr) {
-  int h = 0, b = 0;
-  for (uint8_t k = 0; k < n; k++) {
-    const char* p = cs[k]["px"] | "";
-    while (*p) {
-      uint16_t u = (uint8_t)*p++;
-      if ((u & 0xE0) == 0xC0 && *p) { u = ((u & 0x1F) << 6) | (*p++ & 0x3F); }
-      else if ((u & 0xF0) == 0xE0 && p[0] && p[1]) { u = ((u & 0x0F) << 12) | ((p[0] & 0x3F) << 6) | (p[1] & 0x3F); p += 2; }
-      GlyphBox g;
-      if (u != ' ' && glyphBox(f, u, g)) { h = max(h, g.dy); b = max(b, g.h - g.dy); }
-    }
-  }
-  if (basPrix) *basPrix = b;
-  return h;
+static FontId policeIndice(FontId f) { return f == F_18 ? F_11 : F_13; }
+static int largeurPrix(const char* px, FontId f) {
+  String a, z, b;
+  if (!decouperPrix(px, a, z, b)) return textW(px, f);
+  return textW(a, f) + 1 + textW(z, policeIndice(f)) + 1 + textW(b, f);
+}
+static void dessinerPrix(const char* px, int x, int base, FontId f) {
+  String a, z, b;
+  if (!decouperPrix(px, a, z, b)) { drawText(px, x, base - fontAscent(f), f, TXT, BG); return; }
+  x += drawText(a, x, base - fontAscent(f), f, TXT, BG) + 1;
+  FontId fi = policeIndice(f);
+  GlyphBox g0; glyphBox(fi, '0', g0);
+  x += drawText(z, x, base + g0.h / 2 - fontAscent(fi), fi, MUTED, BG) + 1;   // indice : à cheval sur la ligne de base
+  drawText(b, x, base - fontAscent(f), f, TXT, BG);
 }
 
 // « 24 h +1,9 % » : intitulé et valeur dans la couleur de la variation
@@ -848,11 +847,16 @@ static uint16_t accentPage(uint8_t page, JsonArray cs) {
 
 static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool perime, uint16_t accent) {
   tft.fillScreen(BG);
-  // Logo + prix centrés ensemble sur l'écran ; prix centré sur la hauteur du logo
-  String px = fitText(c["px"] | "", F_32, 212 - 36 - 12);
-  int x0 = 120 - (36 + 12 + textW(px, F_32)) / 2;
+  // Logo + prix centrés ensemble sur l'écran ; prix centré sur la hauteur du
+  // logo (32 px, ou 26 / 18 px s'il est trop long)
+  const char* px = c["px"] | "";
+  FontId fp = F_18;
+  for (FontId f : { F_32, F_26, F_18 }) { fp = f; if (largeurPrix(px, f) <= 212 - 36 - 12) break; }
+  int x0 = 120 - (36 + 12 + min(212 - 36 - 12, largeurPrix(px, fp))) / 2;
   logoCrypto(c, x0, 10, 36, BG);
-  drawTextCentreV(px, x0 + 36 + 12, 10 + 18, F_32, TXT);
+  GlyphBox g0;
+  glyphBox(fp, '0', g0);
+  dessinerPrix(px, x0 + 36 + 12, 10 + 18 + (g0.h + 1) / 2, fp);
   colonnesVariations(c, 14, 226, 54, F_11, F_16, 15, true);
   // Courbe sur 30 jours, avec « 30 J » en filigrane dans le graphique :
   // dégradé, puis filigrane, puis la ligne qui repasse devant.
@@ -881,18 +885,19 @@ static void noterDediee(JsonObject c) {
 
 // « Prix en vedette » à 2 cryptos (place disponible : une moitié d'écran
 // chacune). Par crypto :
-//  - ligne 1 : logo de 56 px et prix (32, 26 ou 18 px selon la largeur),
-//    centrés ensemble horizontalement, le prix centré sur la hauteur du logo ;
+//  - ligne 1 : logo de 56 px et prix en 32 px (26 ou 18 px pour un prix trop
+//    long, sur sa ligne seulement), centrés ensemble horizontalement, le prix
+//    centré sur la hauteur du logo ;
 //  - ligne 2 : « 24 h … » et « 7 j … » centrés sur l'écran, dans la plus
 //    grande police qui tient (16, 13 ou 11 px), colonnes communes aux deux.
 // Les deux blocs et les trois espaces (haut, milieu, bas) sont égaux.
 static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool perime, uint16_t accent) {
   const int L = 56, gapH = 12, gapLV = 12, ecartVar = 16;
-  FontId fp = F_18;
-  for (FontId f : { F_32, F_26, F_18 }) {
-    int wp = max(textW(cs[0]["px"] | "", f), textW(cs[1]["px"] | "", f));
-    fp = f;
-    if (L + gapH + wp <= 212) break;
+  const FontId fp = F_32;
+  FontId fpk[2];
+  for (uint8_t k = 0; k < 2; k++) {
+    fpk[k] = F_18;
+    for (FontId f : { F_32, F_26, F_18 }) { fpk[k] = f; if (L + gapH + largeurPrix(cs[k]["px"] | "", f) <= 212) break; }
   }
   FontId fv = F_11;
   int w24 = 0, w7 = 0;
@@ -909,9 +914,11 @@ static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool p
   const int hBloc = L + gapLV + gv.h + desc;            // encre d'un bloc
   // Espaces égaux au-dessus et entre les blocs ; 6 px au-dessus des points
   const int espace = (216 - 2 * hBloc) / 2, reste = (216 - 2 * hBloc) - 2 * espace;
-  const int hp = hautPrix(cs, 2, fp);
+  GlyphBox gD;
+  glyphBox(F_32, '$', gD);
+  const int hp = gD.dy;
   int wpMax = 0;
-  for (uint8_t k = 0; k < 2; k++) wpMax = max<int>(wpMax, textW(cs[k]["px"] | "", fp));
+  for (uint8_t k = 0; k < 2; k++) wpMax = max<int>(wpMax, largeurPrix(cs[k]["px"] | "", fpk[k]));
   const int x0 = 120 - (L + gapH + min(wpMax, 212 - L - gapH)) / 2;   // logo + prix centrés
   const int x24 = 120 - (w24 + ecartVar + w7) / 2, x7 = x24 + w24 + ecartVar;
 
@@ -929,7 +936,7 @@ static void vedetteDeux(JsonArray cs, uint8_t dotIndex, uint8_t dotCount, bool p
       drawText(texteErreur(c), 120, yv, fv, couleurErreur(c), BG, TC_DATUM);
       continue;
     }
-    drawText(fitText(c["px"] | "", fp, 212 - L - gapH), x0 + L + gapH, base - fontAscent(fp), fp, TXT, BG);
+    dessinerPrix(c["px"] | "", x0 + L + gapH, base, fpk[k]);
     groupeVariation(c, "24 h ", "v24", "u24", x24, yv, fv);
     groupeVariation(c, "7 j ", "v7", "u7", x7, yv, fv);
     noterDediee(c);
@@ -979,43 +986,36 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   // « Prix en vedette ». Chaque ligne = logo + bloc de texte (prix, puis
   // « 24 h … » et « 7 j … » sur une ligne). Le diamètre du logo est égal à la
   // hauteur du bloc de texte (haut du prix -> bas des chiffres des variations) :
-  // logo et texte ont le même haut et le même bas. Polices : les plus grandes
-  // qui tiennent pour toutes les cryptos de l'écran. Le groupe logo + texte est
-  // centré horizontalement ; les lignes sont réparties avec des espaces égaux.
-  static const FontId PRIX[3] = { F_32, F_26, F_18 };
-  static const FontId VAR[3]  = { F_16, F_13, F_11 };
-  // gapPV : du bas de la virgule (ou du « $ ») au haut des variations
-  const int gapH = 12, ecartVar = 12, gapPV = n == 2 ? 12 : 7;
-  FontId fp = F_18, fv = F_11;
-  int d = 0, wTexte = 0, w24 = 0, w7 = 0;
-  bool trouve = false;
-  for (int ip = 0; ip < 3 && !trouve; ip++) {
-    for (int iv = (n == 2 ? 0 : 1); iv < 3 && !trouve; iv++) {
-      GlyphBox gv;
-      glyphBox(VAR[iv], '0', gv);
-      int bp = 0;
-      int dd = hautPrix(cs, n, PRIX[ip], &bp) + bp + gapPV + gv.h;
-      int wp = 0;
-      for (uint8_t k = 0; k < n; k++) wp = max<int>(wp, textW(cs[k]["px"] | "", PRIX[ip]));
-      int a = largeurVariation(cs, n, "24 h ", "v24", VAR[iv]), b = largeurVariation(cs, n, "7 j ", "v7", VAR[iv]);
-      int wt = max(wp, a + ecartVar + b);
-      if (dd + gapH + wt <= 212) {
-        fp = PRIX[ip]; fv = VAR[iv]; d = dd; wTexte = wt; w24 = a; w7 = b; trouve = true;
-      }
-    }
+  // logo et texte ont le même haut et le même bas. Tailles fixes (prix 32 px,
+  // variations 13 px) : l'écran garde le même aspect quelles que soient les
+  // valeurs. Le groupe logo + texte est centré horizontalement ; les lignes
+  // sont réparties avec des espaces égaux.
+  // Tailles fixes : logo, hauteur de ligne et polices ne dépendent pas des
+  // valeurs affichées. Seul un prix trop long passe en 26 puis 18 px, sur la
+  // même ligne de base.
+  // gapH 11 px : un prix de 10 caractères (0,006612 $) tient encore en 26 px
+  const int gapH = 11, ecartVar = 12, gapPV = 7;
+  const FontId fp = F_32;
+  GlyphBox gD, gv0;
+  glyphBox(F_32, '$', gD);
+  glyphBox(F_13, '0', gv0);
+  const int hp = gD.dy, bp = gD.h - gD.dy;
+  const int d = hp + bp + gapPV + gv0.h;
+  const int W = 212 - d - gapH;
+  FontId fpk[3];
+  int wTexte = 0;
+  FontId fv = F_13;
+  int w24 = largeurVariation(cs, n, "24 h ", "v24", F_13), w7 = largeurVariation(cs, n, "7 j ", "v7", F_13);
+  if (w24 + ecartVar + w7 > W) {
+    fv = F_11; w24 = largeurVariation(cs, n, "24 h ", "v24", F_11); w7 = largeurVariation(cs, n, "7 j ", "v7", F_11);
   }
-  if (!trouve) {                     // dernier recours : plus petites polices, prix tronqués
-    GlyphBox gv;
-    glyphBox(F_11, '0', gv);
-    int bp = 0;
-    d = hautPrix(cs, n, F_18, &bp) + bp + gapPV + gv.h;
-    w24 = largeurVariation(cs, n, "24 h ", "v24", F_11);
-    w7 = largeurVariation(cs, n, "7 j ", "v7", F_11);
-    wTexte = 212 - d - gapH;
+  for (uint8_t k = 0; k < n; k++) {
+    const char* px = cs[k]["px"] | "";
+    fpk[k] = F_18;
+    for (FontId f : { F_32, F_26, F_18 }) { fpk[k] = f; if (largeurPrix(px, f) <= W) break; }
+    wTexte = max(wTexte, min(W, largeurPrix(px, fpk[k])));
   }
-  GlyphBox gv;
-  glyphBox(fv, '0', gv);
-  const int hp = hautPrix(cs, n, fp);               // encre du prix au-dessus de la ligne de base
+  wTexte = max(wTexte, min(W, w24 + ecartVar + w7));
   const int x0 = 120 - (d + gapH + wTexte) / 2;     // groupe centré sur l'écran
   const int xt = x0 + d + gapH;                      // colonne du texte
   GlyphBox gj;
@@ -1040,7 +1040,7 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
       drawText(texteErreur(c), xt, yv, fv, couleurErreur(c), BG);
       continue;
     }
-    drawText(fitText(c["px"] | "", fp, wTexte), xt, haut + hp - fontAscent(fp), fp, TXT, BG);
+    dessinerPrix(c["px"] | "", xt, haut + hp, fpk[k]);
     groupeVariation(c, "24 h ", "v24", "u24", xt, yv, fv);
     groupeVariation(c, "7 j ", "v7", "u7", xt + w24 + ecartVar, yv, fv);
     noterDediee(c);

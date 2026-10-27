@@ -280,6 +280,14 @@ int main(int argc, char** argv) {
   fixtures["/btc"] = FX("crypto3");
   drawCours(PG_BTC, 4, 6);         save("13_crypto_3");
   coursEcranSuivant(PG_BTC, 4, 6); save("13b_crypto_dediee");
+  // Très petit prix (PEPE) : tailles fixes, prix compact « 0,0₅4540 $ »
+  fixtures["/btc"] = FX("crypto3_pepe"); drawCours(PG_BTC, 4, 6); save("13c_crypto_3_pepe");
+  fixtures["/btc"] = FX("crypto2_pepe"); drawCours(PG_BTC, 4, 6); save("13d_crypto_2_pepe");
+  fixtures["/btc"] = FX("crypto30j_pepe"); drawCours(PG_BTC, 4, 6); save("13e_crypto_1_pepe");
+  // Très petit prix (PEPE) : tailles fixes, prix compact « 0,0₅4540 $ »
+  fixtures["/btc"] = FX("crypto3_pepe"); drawCours(PG_BTC, 4, 6); save("13c_crypto_3_pepe");
+  fixtures["/btc"] = FX("crypto2_pepe"); drawCours(PG_BTC, 4, 6); save("13d_crypto_2_pepe");
+  fixtures["/btc"] = FX("crypto30j_pepe"); drawCours(PG_BTC, 4, 6); save("13e_crypto_1_pepe");
   // Pages de cours 2.9 (même rendu que Crypto, en dollars)
   const char* const COURS[][3] = {
     {"/actions", "actions1", "20_actions_1"}, {"/actions", "actions2", "21_actions_2"},

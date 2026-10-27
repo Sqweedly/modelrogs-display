@@ -2,3 +2,5 @@ aiohttp==3.14.5
 discord.py==2.5.2
 tzdata==2024.2
 Pillow==13.0.0
+# Yahoo Finance : connexion identique à Chrome (absent en armv7 : pas de paquet)
+curl_cffi==0.17.0; platform_machine == "x86_64" or platform_machine == "aarch64"

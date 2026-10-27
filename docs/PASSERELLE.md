@@ -170,7 +170,10 @@ Routes : `/btc`, `/actions`, `/devises`, `/commodities`, chacune avec sa page d�
 - Un afficheur 2.8 envoie encore `?ids=bitcoin,ethereum&devise=eur` : les cryptos sont reprises, la devise ignorée.
 
 **Actions, Devises, Commodities** (module `cotations.py`)
-- Source : **Yahoo Finance** (`/v8/finance/chart/<symbole>?range=1mo&interval=1d`, sans clé) : cours actuel et clôtures quotidiennes du mois, **gardés 5 minutes par valeur**. C'est une API non officielle : la passerelle se présente comme un navigateur, et un symbole inconnu n'est redemandé qu'au bout d'une heure.
+- Source : **Yahoo Finance** (`/v8/finance/chart/<symbole>?range=1mo&interval=1d`, sans clé) : cours actuel et clôtures quotidiennes du mois, **gardés 5 minutes par valeur**. C'est une API non officielle :
+  - Yahoo refuse (erreur 429) les programmes qu'il ne prend pas pour un navigateur, en se fiant aussi à la façon dont la connexion chiffrée est établie. La passerelle l'appelle donc avec **curl_cffi**, qui se connecte exactement comme Chrome (méthode de yfinance). Le log de démarrage indique le client utilisé : `Yahoo Finance : client curl_cffi (Chrome)`. curl_cffi n'existe pas pour les processeurs ARM 32 bits (armv7) : la passerelle y utilise aiohttp, avec le risque de refus ;
+  - après un refus (401, 403, 429), Yahoo n'est plus appelé pendant **15 minutes** ; la page affiche la cause (« Yahoo refuse l'accès (429) ») ou, s'ils existent, les derniers cours connus, marqués périmés (`p`: 1) ;
+  - un symbole inconnu n'est redemandé qu'au bout d'une heure.
 - **Variations** : 24 h = depuis la clôture précédente ; 7 j et 30 j = depuis la clôture d'il y a 7 et 30 jours. Elles sont calculées dans la devise de cotation.
 - **Conversion en dollars** : les cotations en cents (`USX` : blé, maïs, soja, café) sont divisées par 100 ; les autres devises (LVMH en euros, Londres en pence) sont converties au taux du jour (`EURUSD=X`…).
 - **Actions** : symboles Yahoo (`AAPL`, `MC.PA` pour Paris, `^FCHI` pour le CAC 40). Liste : Apple, Microsoft, Nvidia, Alphabet, Amazon, Meta, Tesla, TotalEnergies, LVMH, Airbus.

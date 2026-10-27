@@ -118,6 +118,8 @@ async def demarrage(app: web.Application) -> None:
             log.info("Module %s actif", m.id)
             if m.demarrer:
                 m.demarrer()
+    if any(m.id in ("actions", "devises", "commodities") for m in app[ACTIFS]):
+        log.info("Yahoo Finance : client %s", cotations.client_yahoo())
     log.info("Passerelle %s%s prête sur le port %d", VERSION, f" ({REVISION})" if REVISION else "", PORT)
 
 

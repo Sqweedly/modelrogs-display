@@ -8,7 +8,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 | `meteo` | Prévisions sur 5 jours : 5 blocs identiques (jour, icône ajustée, min / max), 2 en haut et 3 en bas | — |
 | `crypto` | 1 à 3 cryptos avec logos officiels, en dollars ; courbe sur 30 jours pour une crypto seule ou en forte variation | — |
 | `actions` | 1 à 3 actions (Apple, LVMH…), même présentation, avec leurs logos | Clé Logo.dev facultative |
-| `devises` | 1 à 3 devises cotées en dollars (EUR, GBP…), avec leur drapeau | — |
+| `devises` | 1 à 3 devises cotées en dollars (EUR, GBP…), avec le symbole de la monnaie (€, £…) | — |
 | `commodities` | 1 à 3 matières premières (or, pétrole, café…), avec leur icône | — |
 | `supervision` | Services Uptime Kuma en défaut (+ écran PANNE en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
@@ -127,6 +127,18 @@ Le salon vocal se choisit ensuite **dans l'interface de l'afficheur**, dans une 
 
 Sans clé, les grandes actions américaines gardent leur logo (inclus dans la passerelle) ; les autres affichent une pastille avec leur code. La passerelle garde chaque logo en mémoire : quelques requêtes suffisent, très loin du quota gratuit.
 
+### Icônes personnelles (facultatif)
+
+Pour remplacer une icône des pages de cours (devise, action, matière première, crypto) ou en ajouter une qui manque, sans attendre une nouvelle version :
+
+1. Décommenter dans `docker-compose.yml` la ligne `- ./icones:/icones:ro` (chemin libre à gauche du « : »), puis `docker compose up -d`.
+2. Y déposer les images, une par valeur, dans le sous-dossier de la page, nommées comme la valeur saisie sur l'afficheur (majuscules indifférentes) :
+   - `devises/EUR.png`, `actions/AAPL.png`, `actions/MC.PA.png`, `commodities/GC=F.png`, `crypto/bitcoin.png` ;
+   - PNG carré (WebP ou JPG acceptés), 64 px au moins, 128 px conseillés, fond transparent ; pour une devise, le sujet doit remplir le carré (l'image est découpée en rond).
+3. Elles sont prises en compte en moins d'une minute, sans redémarrer. Au démarrage, le log indique `Icônes personnelles : <nombre> dans /icones` et signale les fichiers inutilisables.
+
+Ces fichiers restent sur votre serveur et ne sont pas redistribués : vous pouvez y mettre des icônes réservées à un usage personnel (Icons8 par exemple), en respectant leurs conditions. Détails : `docs/PASSERELLE.md`, section « Pages de cours ».
+
 ### Module `plex` : adresse et jeton
 
 1. `PLEX_URL` : l'adresse du serveur Plex vue depuis le serveur Docker, par exemple `http://192.168.1.10:32400`.
@@ -240,7 +252,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
 - Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. En haut, l'icône du serveur dans le coin gauche et le nom du salon centré sur l'espace restant ; dessous, les photos de profil avec le pseudo (8 caractères au plus) et l'état (micro ou casque coupé, LIVE), en pastille proportionnelle à la photo. Les photos sont aussi grandes que possible : une seule en grand, 2 côte à côte, 2 × 2 pour 3 ou 4 personnes, 3 colonnes sur 2 lignes pour 5 ou 6 ; au-delà de 6, 5 photos et une pastille « +N ».
 - Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : grande affiche, qui regarde, bibliothèque, épisode, mode (direct, flux direct, transcodage, en pause), titre et progression. Plusieurs : une ligne par lecture avec son affiche (3 au plus, puis « + N autres lectures »).
-- Crypto, Actions, Devises, Commodities (tous les prix en dollars) : 1 valeur choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque valeur qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 $) ; très petits prix abrégés : « 0,0₅4540 $ » pour 0,000004540 $. Les tailles ne dépendent pas des valeurs : seul un prix trop long est écrit plus petit, sur sa ligne. Une valeur saisie inconnue s'affiche avec « ? », son code et « Introuvable ». Logos : CoinGecko pour les cryptos, Logo.dev pour les actions (clé `LOGO_DEV_TOKEN`, facultative), drapeaux et icônes inclus dans la passerelle pour les devises et matières premières ; à défaut, une pastille avec le code.
+- Crypto, Actions, Devises, Commodities (tous les prix en dollars) : 1 valeur choisie = page sur 30 jours (prix, variations 24 h / 7 j / 30 j, grande courbe marquée « 30 J » en filigrane). 2 ou 3 = « prix en vedette » (logo, prix, variations 24 h et 7 j), suivi d'une **page dédiée sur 30 jours pour chaque valeur qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 $) ; très petits prix abrégés : « 0,0₅4540 $ » pour 0,000004540 $. Les tailles ne dépendent pas des valeurs : seul un prix trop long est écrit plus petit, sur sa ligne. Une valeur saisie inconnue s'affiche avec « ? », son code et « Introuvable ». Logos : CoinGecko pour les cryptos, Logo.dev pour les actions (clé `LOGO_DEV_TOKEN`, facultative), pastilles (symbole de la monnaie) et icônes incluses dans la passerelle pour les devises et matières premières ; à défaut, une pastille avec le code. Chaque icône peut être remplacée par la vôtre (voir « Icônes personnelles »).
 - **Panne** : bloc de deux écrans, affiché immédiatement puis **après chaque page** jusqu'au retour à la normale :
   1. écran **PANNE** rouge : grand triangle d'alerte et « N services sur M en panne » ;
   2. récapitulatif **Supervision** : compteur « 1/8 KO » et la liste des services en défaut (pannes d'abord) avec leur temps d'indisponibilité, 6 au plus, ou 5 et « + N autres ».

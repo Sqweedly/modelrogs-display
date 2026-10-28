@@ -238,7 +238,7 @@ async def _frankfurter(session: aiohttp.ClientSession, devise: str) -> dict:
 # --- Valeurs prêtes à afficher ---------------------------------------------
 
 def _logo_action(symbole: str) -> str:
-    sources = []
+    sources = [images.perso("actions", symbole)]
     jeton = os.environ.get("LOGO_DEV_TOKEN", "").strip()
     if jeton:
         sources.append(f"{LOGO_DEV}/ticker/{quote(symbole, safe='.')}?token={quote(jeton)}"
@@ -257,11 +257,12 @@ async def _cotation(session: aiohttp.ClientSession, page: str, ident: str, avec_
     elif page == "devises":
         symbole = f"{ident.upper()}USD=X"
         code, forme = ident.upper()[:4], 2
-        logo = images.enregistrer(images.icone("devises", ident.upper()))
+        logo = images.enregistrer([images.perso("devises", ident), images.icone("devises", ident.upper())])
     else:
         symbole = ident.upper()
         nom, code, fichier, forme = COMMODITIES.get(symbole, ("", cours.code_court(symbole), "", 1))
-        logo = images.enregistrer(images.icone("commodities", fichier)) if fichier else ""
+        logo = images.enregistrer([images.perso("commodities", symbole), images.perso("commodities", fichier),
+                                   images.icone("commodities", fichier) if fichier else ""])
 
     try:
         if page == "devises":

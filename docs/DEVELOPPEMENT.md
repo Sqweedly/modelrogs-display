@@ -22,7 +22,8 @@ gateway/                   Passerelle Python (aiohttp), un module par page
   app/modules/             heure, meteo, btc (crypto), cotations (actions, devises,
                            commodities), cours (outils communs), supervision,
                            discord_vocal, plex
-  app/icones/              Drapeaux, icônes et logos inclus dans l'image (LICENCES.md)
+  app/icones/              Pastilles de devises, icônes et logos inclus dans l'image (LICENCES.md)
+  tools/icones_devises.py  Régénère les pastilles de devises (symboles, couleurs)
   tests/                   Tests automatiques (sans accès Internet)
   Dockerfile
 docker-compose.yml         Modèle de déploiement de la passerelle (sans jetons)
@@ -94,7 +95,7 @@ Les autres modules demandent leurs variables (les mêmes que dans `docker-compos
 | `supervision` | `KUMA_URL`, `KUMA_STATUS_SLUG` |
 | `discord` | `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `DISCORD_MEMBERS_INTENT`) |
 | `plex` | `PLEX_URL`, `PLEX_TOKEN` |
-| `crypto`, `actions`, `devises`, `commodities` | facultatives : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY` |
+| `crypto`, `actions`, `devises`, `commodities` | facultatives : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY`, `ICONES_PERSO` (dossier d'icônes personnelles, `/icones` par défaut) |
 | tous | `TZ`, `VILLE_DEFAUT` |
 
 Ne jamais enregistrer de jeton dans un fichier suivi par git.
@@ -106,7 +107,7 @@ cd gateway
 python -m tests.test_passerelle
 ```
 
-Ils simulent Open-Meteo, CoinGecko, Kuma et Plex : aucun accès Internet ni jeton n'est nécessaire. La dernière ligne doit être « Tous les tests sont passés. »
+Ils simulent Open-Meteo, CoinGecko, Yahoo Finance, la BCE, Logo.dev, Kuma et Plex : aucun accès Internet ni jeton n'est nécessaire. La dernière ligne doit être « Tous les tests sont passés. »
 
 ### Image Docker
 
@@ -132,6 +133,17 @@ sh apercu.sh
 ```
 
 Résultat : un fichier par écran dans `out/` et une planche de tous les écrans, `planche.png`. Le script lance aussi le test de conservation de la configuration et un test de placement des textes. Sous Windows, passer par WSL ou Git Bash.
+
+### Pastilles des devises
+
+Symboles et couleurs sont dans `gateway/tools/icones_devises.py`. Après une modification, depuis la racine du dépôt :
+
+```
+pip install pillow
+python gateway/tools/icones_devises.py <Inter-Black.otf> <NotoSerifCJK-Bold.ttc>
+```
+
+Inter-Black est dans l'archive Inter (voir § 6) ; Noto Serif CJK ne sert qu'au « 元 » du yuan (paquet `fonts-noto-cjk` sous Debian ou Ubuntu). Le script réécrit les 31 fichiers de `gateway/app/icones/devises/`.
 
 ## 6. Polices
 

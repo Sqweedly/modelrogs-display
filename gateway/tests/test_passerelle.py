@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import time
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
@@ -198,7 +199,7 @@ async def principal() -> int:
         "LOGO_DEV_TOKEN": "pk_test", "NVSTLY_URL": base + "/nv",
         "ACTIONS": "AAPL", "DEVISES": "EUR, JPY",
         "KUMA_URL": base + "/kuma", "KUMA_STATUS_SLUG": "modelrogs",
-        "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris",
+        "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris", "ICONES_PERSO": tempfile.mkdtemp(),
         # Discord demandé mais non configuré : doit être signalé, pas planter
         "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,devises,commodities,inconnu",
     })
@@ -372,7 +373,54 @@ async def principal() -> int:
         centre = int.from_bytes(corps[(28 * 56 + 28) * 2:(28 * 56 + 29) * 2], "little")
         ok = r.status == 200 and len(corps) == 56 * 56 * 2 and centre != 0 and int.from_bytes(corps[:2], "little") == 0
         echecs += not ok
-        print(f"{'OK ' if ok else 'ÉCHEC'} drapeau inclus 56x56 découpé en rond -> {r.status}")
+        print(f"{'OK ' if ok else 'ÉCHEC'} pastille incluse 56x56 découpée en rond -> {r.status}")
+
+        # --- Icônes personnelles (dossier monté sur /icones)
+        from PIL import Image as PILImage
+        from app import images as IM
+        perso = Path(os.environ["ICONES_PERSO"])
+
+        def poser(chemin: str, couleur) -> None:
+            f = perso / chemin
+            f.parent.mkdir(parents=True, exist_ok=True)
+            if couleur is None:
+                f.write_bytes(b"pas une image")
+            else:
+                PILImage.new("RGB", (64, 64), couleur).save(f)
+            IM._perso_lu = -IM.RELECTURE_PERSO          # relecture immédiate (30 s en vrai)
+
+        async def centre_de(url: str) -> tuple[int, int, str]:
+            d = await (await c.get(url)).json()
+            e = d["c"][0]
+            r = await c.get(f"/img?t={e['i']}&w=20&h=20&f=000000")
+            corps = await r.read()
+            return r.status, int.from_bytes(corps[(10 * 20 + 10) * 2:(10 * 20 + 11) * 2], "little"), e["i"]
+
+        _, _, jeton_inclus = await centre_de("/devises?s1=EUR")
+        poser("devises/eur.png", (255, 0, 0))                     # minuscules acceptées
+        s1, c1, j1 = await centre_de("/devises?s1=EUR")
+        poser("devises/eur.png", (0, 0, 255))                     # remplacée : nouveau jeton
+        s2, c2, j2 = await centre_de("/devises?s1=EUR")
+        (perso / "devises/eur.png").unlink(); IM._perso_lu = -IM.RELECTURE_PERSO
+        _, _, j3 = await centre_de("/devises?s1=EUR")              # supprimée : retour à l'incluse
+        ok = (s1, c1, s2, c2) == (200, 0xF800, 200, 0x001F) and len({jeton_inclus, j1, j2}) == 3 and j3 == jeton_inclus
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} icône perso devise : posée, remplacée, retirée -> {hex(c1)}, {hex(c2)}")
+
+        poser("actions/MC.PA.png", (0, 255, 0))                   # passe avant logo.dev
+        poser("commodities/GC=F.png", (255, 0, 0))                # symbole Yahoo
+        poser("crypto/btc.png", (0, 0, 255))                      # symbole crypto
+        resultats = [await centre_de(u) for u in ("/actions?s1=MC.PA", "/commodities?s1=GC=F", "/btc")]
+        ok = [(s, x) for s, x, _ in resultats] == [(200, 0x07E0), (200, 0xF800), (200, 0x001F)]
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} icône perso action, commodity, crypto -> {[hex(x) for _, x, _ in resultats]}")
+
+        poser("devises/EUR.png", None)                            # fichier invalide : source suivante
+        IM.inventaire_perso()
+        s, x, _ = await centre_de("/devises?s1=EUR")
+        ok = s == 200 and x != 0
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} icône perso invalide -> pastille incluse ({s})")
 
         APPELS_YAHOO.clear()
         await c.get("/actions?m=XYZ"); await c.get("/actions?m=XYZ")

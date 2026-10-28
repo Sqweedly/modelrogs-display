@@ -12,7 +12,7 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [2.9.0] — 2026-10-27
+## [2.9.0] — 2026-10-28
 
 Trois nouvelles pages de cours (Actions, Devises, Commodities), toutes en dollars avec leurs logos, et un réglage commun aux quatre pages de cours.
 
@@ -20,7 +20,9 @@ Trois nouvelles pages de cours (Actions, Devises, Commodities), toutes en dollar
 - **Pages Actions, Devises et Commodities** : même présentation que Crypto. Une valeur : page sur 30 jours avec courbe ; deux ou trois : « prix en vedette », puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours.
   - Cours : Yahoo Finance (sans clé, gardés 5 minutes par valeur), appelé avec curl_cffi, qui se connecte comme Chrome : Yahoo refuse les autres programmes (erreur 429). En armv7 (Raspberry Pi 32 bits), curl_cffi n'existe pas : appel classique, avec ce risque de refus. Devises : taux de la BCE en secours.
   - Yahoo refuse l'accès : la cause s'affiche (« Yahoo refuse l'accès (429) »), plus aucun appel pendant 15 minutes, et les derniers cours connus restent affichés, marqués périmés.
-  - Logos des actions : Logo.dev (clé `LOGO_DEV_TOKEN` facultative), sinon logos inclus pour les grandes actions américaines ; drapeaux des devises et icônes des matières premières inclus dans l'image de la passerelle. À défaut : pastille de couleur avec le code.
+  - Logos des actions : Logo.dev (clé `LOGO_DEV_TOKEN` facultative), sinon logos inclus pour les grandes actions américaines ; icônes des matières premières incluses dans l'image de la passerelle. À défaut : pastille de couleur avec le code.
+- **Devises : symbole de la monnaie** au lieu du drapeau : un disque de couleur par devise (31 devises, couleurs toutes différentes) avec €, £, ¥, ₹, 元, Fr, kr… et le préfixe des dollars (C$, A$, HK$, S$, NZ$, R$, Mex$, NT$).
+- **Icônes personnelles** : un dossier de l'hôte monté sur `/icones` (ligne à décommenter dans `docker-compose.yml`) remplace ou complète les icônes de toutes les pages de cours : `devises/EUR.png`, `actions/AAPL.png`, `commodities/GC=F.png`, `crypto/bitcoin.png`. Prioritaires sur toutes les autres sources, prises en compte en moins d'une minute sans redémarrer, contrôlées au démarrage dans le log. Format et nommage : `docs/PASSERELLE.md`.
 - **Réglage des pages de cours** dans l'interface de l'afficheur : 3 listes déroulantes (les 10 valeurs principales) et une saisie libre, sur deux colonnes. Les 3 premières valeurs, dans l'ordre des champs, sont affichées.
 - **Valeurs par défaut dans `docker-compose.yml`** : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`. L'interface de l'afficheur passe avant.
 - **Saisie inconnue** : elle reste à sa place à l'écran, avec « ? », son code et « Introuvable » ; seule, elle donne une page d'erreur.
@@ -33,7 +35,7 @@ Trois nouvelles pages de cours (Actions, Devises, Commodities), toutes en dollar
 - **Configuration de l'afficheur** (structure 5) : reprise automatique d'une 2.2 à 2.8, validation comprise ; les cryptos déjà choisies passent dans les 3 listes ; les nouvelles pages sont activées (affichées seulement si leur module est actif sur la passerelle).
 
 ### Mise à jour
-- Dans `docker-compose.yml`, ajouter `actions,devises,commodities` à `MODULES`, et si besoin `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`, `LOGO_DEV_TOKEN` (voir le fichier de la release). Puis `docker compose pull && docker compose up -d` : le log doit afficher `Passerelle 2.9.0`.
+- Dans `docker-compose.yml`, ajouter `actions,devises,commodities` à `MODULES`, et si besoin `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`, `LOGO_DEV_TOKEN`, et le volume facultatif `./icones:/icones:ro` (voir le fichier de la release). Puis `docker compose pull && docker compose up -d` : le log doit afficher `Passerelle 2.9.0`.
 - Ensuite, l'afficheur (`/update`), puis un passage dans son interface pour choisir les valeurs.
 - Un afficheur 2.8 fonctionne avec la nouvelle passerelle : ses cryptos sont affichées, en dollars ; ses réglages Crypto ne se modifient qu'une fois l'afficheur mis à jour.
 

@@ -13,10 +13,17 @@ La passerelle fait donc tout le travail :
 L'afficheur dessine ces lignes au fur et à mesure de leur réception, sans
 jamais garder l'image entière en mémoire.
 
-Un jeton peut désigner plusieurs sources, essayées dans l'ordre (ex. logo.dev,
-puis icône incluse dans l'image Docker, puis dépôt GitHub). Une source locale
-s'écrit « fichier:<chemin> ». Si aucune ne répond, l'échec est mémorisé une
-heure : l'afficheur dessine alors sa pastille de remplacement sans attendre.
+Un jeton peut désigner plusieurs sources, essayées dans l'ordre (ex. icône
+personnelle, logo.dev, icône incluse dans l'image Docker, dépôt GitHub). Une
+source locale s'écrit « fichier:<chemin> ». Si aucune ne répond, l'échec est
+mémorisé une heure : l'afficheur dessine alors sa pastille de remplacement sans
+attendre.
+
+Icônes personnelles : un dossier de l'hôte monté sur /icones (ICONES_PERSO),
+rangé comme app/icones (actions/, devises/, commodities/, crypto/), passe avant
+toute autre source. Il est relu toutes les 30 secondes ; la date et la taille
+du fichier entrent dans le jeton, si bien qu'une icône ajoutée, remplacée ou
+supprimée est prise en compte sans redémarrer. Voir docs/PASSERELLE.md.
 """
 
 import asyncio
@@ -24,6 +31,8 @@ import hashlib
 import io
 import sys
 import logging
+import os
+import re
 import time
 from pathlib import Path
 from array import array
@@ -42,12 +51,18 @@ MAX_RENDUS = 120          # images converties gardées en mémoire
 TAILLE_MAX_SOURCE = 4 * 1024 * 1024
 DUREE_ECHEC = 3600        # secondes : image introuvable, pas de nouvel essai avant
 ICONES = Path(__file__).resolve().parent / "icones"   # icônes incluses dans l'image Docker
+ICONES_PERSO = Path(os.environ.get("ICONES_PERSO", "/icones"))   # icônes de l'utilisateur
+CATEGORIES_PERSO = ("actions", "devises", "commodities", "crypto")
+EXTENSIONS = (".png", ".webp", ".jpg", ".jpeg")    # par ordre de préférence
+RELECTURE_PERSO = 30      # secondes entre deux relectures du dossier personnel
 
 _sources: "OrderedDict[str, tuple[list[str], dict]]" = OrderedDict()
 _echecs: dict[str, float] = {}
 _originaux: "OrderedDict[str, bytes]" = OrderedDict()
 _rendus: "OrderedDict[tuple, bytes]" = OrderedDict()
 _verrous: dict[str, asyncio.Lock] = {}
+_perso: dict[str, dict[str, Path]] = {}
+_perso_lu = -RELECTURE_PERSO
 
 
 def _ranger(dico: OrderedDict, cle, valeur, maximum: int) -> None:
@@ -74,9 +89,73 @@ def icone(categorie: str, nom: str) -> str:
     return f"fichier:{chemin}" if chemin.is_file() else ""
 
 
+def _lire_perso() -> dict[str, dict[str, Path]]:
+    """Index du dossier personnel : catégorie -> nom en minuscules -> fichier."""
+    index: dict[str, dict[str, Path]] = {}
+    for categorie in CATEGORIES_PERSO:
+        rang: dict[str, tuple[int, Path]] = {}
+        try:
+            fichiers = list((ICONES_PERSO / categorie).iterdir())
+        except OSError:                      # dossier absent ou illisible
+            fichiers = []
+        for f in fichiers:
+            ext = f.suffix.lower()
+            if ext in EXTENSIONS and f.is_file():
+                cle, pref = f.stem.lower(), EXTENSIONS.index(ext)
+                if cle not in rang or pref < rang[cle][0]:
+                    rang[cle] = (pref, f)
+        index[categorie] = {cle: f for cle, (_, f) in rang.items()}
+    return index
+
+
+def perso(categorie: str, nom: str) -> str:
+    """Source d'une icône personnelle, "" s'il n'y en a pas. Sans tenir compte
+    des majuscules : devises/eur.png convient pour EUR."""
+    global _perso, _perso_lu
+    if not nom:
+        return ""
+    if time.monotonic() - _perso_lu >= RELECTURE_PERSO:
+        _perso, _perso_lu = _lire_perso(), time.monotonic()
+    chemin = _perso.get(categorie, {}).get(nom.strip().lower())
+    if chemin is None:
+        return ""
+    try:
+        etat = chemin.stat()
+    except OSError:
+        return ""
+    return f"fichier:{chemin}#{etat.st_mtime_ns}-{etat.st_size}"   # nouvelle version = nouveau jeton
+
+
+def inventaire_perso() -> None:
+    """Au démarrage : nombre d'icônes personnelles, fichiers inutilisables."""
+    if not ICONES_PERSO.is_dir():
+        return
+    global _perso, _perso_lu
+    _perso, _perso_lu = _lire_perso(), time.monotonic()
+    total = 0
+    for categorie, fichiers in _perso.items():
+        for chemin in fichiers.values():
+            try:
+                if chemin.stat().st_size > TAILLE_MAX_SOURCE:
+                    raise ValueError("plus de 4 Mo")
+                with Image.open(chemin) as image:
+                    image.verify()
+                total += 1
+            except Exception as exc:  # noqa: BLE001 — signalé, ignoré à l'affichage
+                log.warning("Icône personnelle inutilisable : %s/%s (%s)", categorie, chemin.name, exc)
+    inconnus = sorted(d.name for d in ICONES_PERSO.iterdir() if d.is_dir() and d.name not in CATEGORIES_PERSO)
+    log.info("Icônes personnelles : %d dans %s%s", total, ICONES_PERSO,
+             f" (dossiers ignorés : {', '.join(inconnus)})" if inconnus else "")
+
+
 async def _telecharger(session: aiohttp.ClientSession, url: str, entetes: dict) -> bytes:
     if url.startswith("fichier:"):
-        return Path(url[len("fichier:"):]).read_bytes()
+        chemin = Path(re.sub(r"#\d+-\d+$", "", url[len("fichier:"):]))
+        if chemin.stat().st_size > TAILLE_MAX_SOURCE:
+            raise ValueError("image trop lourde")
+        donnees = chemin.read_bytes()
+        Image.open(io.BytesIO(donnees)).verify()
+        return donnees
     # Lecture jusqu'à la fin du fichier : un serveur réel envoie l'image en
     # plusieurs morceaux (content.read(n) ne rendrait que le premier).
     morceaux, taille = [], 0

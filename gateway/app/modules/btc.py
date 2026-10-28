@@ -114,7 +114,8 @@ def _element(c: dict) -> dict:
         c.get("price_change_percentage_24h_in_currency") or c.get("price_change_percentage_24h"),
         c.get("price_change_percentage_7d_in_currency"),
         c.get("price_change_percentage_30d_in_currency"),
-        images.enregistrer(c.get("image")), 0,
+        images.enregistrer([images.perso("crypto", c["id"]), images.perso("crypto", c.get("symbol") or ""),
+                            c.get("image")]), 0,
     )
 
 

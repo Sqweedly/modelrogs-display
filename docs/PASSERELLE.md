@@ -166,7 +166,7 @@ Routes : `/btc`, `/actions`, `/devises`, `/commodities`, chacune avec sa page d�
 - Source : CoinGecko (voir le parcours d'une requête, section 4). Une clé « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.
 - **Listes de l'interface** : `/btc/liste`, les **10 premières capitalisations**, hors stablecoins (USDT, USDC…) et jetons adossés (WBTC, stETH…), relue toutes les 10 minutes.
 - **Saisie** : identifiant CoinGecko (`pepe`) ou symbole (`PEPE`, reconnu parmi les 50 premières).
-- **Logos** : ceux que CoinGecko fournit avec les cours.
+- **Logos** : ceux que CoinGecko fournit avec les cours (une icône personnelle passe avant, voir « Icônes personnelles »).
 - Un afficheur 2.8 envoie encore `?ids=bitcoin,ethereum&devise=eur` : les cryptos sont reprises, la devise ignorée.
 
 **Actions, Devises, Commodities** (module `cotations.py`)
@@ -179,11 +179,37 @@ Routes : `/btc`, `/actions`, `/devises`, `/commodities`, chacune avec sa page d�
 - **Actions** : symboles Yahoo (`AAPL`, `MC.PA` pour Paris, `^FCHI` pour le CAC 40). Liste : Apple, Microsoft, Nvidia, Alphabet, Amazon, Meta, Tesla, TotalEnergies, LVMH, Airbus.
 - **Devises** : code ISO, coté en dollars (`EURUSD=X`). Si Yahoo ne répond pas, la passerelle prend les taux quotidiens de la **BCE** (Frankfurter, `FRANKFURTER_URL`, sans clé). Liste : EUR, GBP, JPY, CHF, CNY, CAD, AUD, HKD, SGD, INR.
 - **Commodities** : contrats à terme Yahoo. Liste : or `GC=F`, argent `SI=F`, cuivre `HG=F`, pétrole `CL=F`, gaz naturel `NG=F`, blé `ZW=F`, maïs `ZC=F`, soja `ZS=F`, café `KC=F`, cacao `CC=F`.
-- **Logos** :
+- **Logos** (une icône personnelle passe toujours en premier, voir ci-dessous) :
   - actions : **Logo.dev** si la clé `LOGO_DEV_TOKEN` est renseignée (`/ticker/<symbole>?format=png&theme=dark&fallback=404`), puis les logos inclus dans `gateway/app/icones/actions/`, puis le dépôt GitHub `nvstly/icons` pour les actions cotées aux États-Unis ;
-  - devises : drapeaux inclus (`icones/devises/`, une trentaine de devises) ;
+  - devises : **pastilles incluses** (`icones/devises/`, 31 devises) : un disque de couleur avec le symbole de la monnaie (€, £, ¥, ₹, C$, HK$…). Elles sont produites par `gateway/tools/icones_devises.py`, qui fixe symboles et couleurs ;
   - matières premières : icônes incluses (`icones/commodities/`).
-  - Les licences et la façon d'ajouter une icône sont décrites dans `gateway/app/icones/LICENCES.md`.
+  - Les licences des icônes incluses sont décrites dans `gateway/app/icones/LICENCES.md`.
+
+**Icônes personnelles** (toutes les pages de cours)
+
+Pour remplacer une icône sans attendre une nouvelle version, ou en ajouter une qui manque, il suffit de déposer un fichier dans un dossier de l'hôte monté sur `/icones` (variable `ICONES_PERSO` pour un autre chemin) :
+
+```yaml
+volumes:
+  - ./cache:/cache
+  - ./icones:/icones:ro      # chemin libre à gauche du « : »
+```
+
+- **Rangement** : un sous-dossier par page ; le nom du fichier est la valeur saisie dans l'interface de l'afficheur, **sans tenir compte des majuscules** :
+
+  | Page | Fichier | Exemples |
+  |---|---|---|
+  | Devises | `devises/<code ISO>.png` | `devises/EUR.png`, `devises/krw.png` |
+  | Actions | `actions/<symbole Yahoo>.png` | `actions/AAPL.png`, `actions/MC.PA.png` |
+  | Commodities | `commodities/<symbole Yahoo>.png` (ou le nom de l'icône incluse : `or`, `petrole`…) | `commodities/GC=F.png` |
+  | Crypto | `crypto/<identifiant CoinGecko ou symbole>.png` | `crypto/bitcoin.png`, `crypto/PEPE.png` |
+
+- **Format** : PNG de préférence, à fond transparent ; WebP et JPG sont acceptés (si deux fichiers portent le même nom, l'ordre de préférence est PNG, WebP, JPG). Image **carrée**, de **64 px au moins** (128 px conseillés), **4 Mo au plus**. La passerelle la réduit à la taille de l'écran et la pose sur le fond de la page. Pour les devises, elle est **découpée en rond** : le sujet doit remplir le carré (comme les pastilles incluses). Pour les autres pages, elle est gardée entière et centrée.
+- **Priorité** : l'icône personnelle passe avant toutes les autres sources (Logo.dev, icône incluse, CoinGecko, GitHub). Un fichier illisible est ignoré : la source suivante prend le relais.
+- **Prise en compte sans redémarrage** : le dossier est relu toutes les 30 secondes. La date et la taille du fichier entrent dans le jeton de l'image : une icône ajoutée, remplacée ou supprimée apparaît en moins d'une minute, au passage suivant de la page.
+- **Droits** : le dossier est monté en lecture seule (`:ro`) ; ses fichiers doivent seulement être lisibles par tous (c'est le cas par défaut), aucun changement de propriétaire n'est nécessaire.
+- **Contrôle** : au démarrage, le log indique `Icônes personnelles : <nombre> dans /icones` et signale chaque fichier inutilisable (`Icône personnelle inutilisable : devises/EUR.png (…)`) ainsi que les sous-dossiers inconnus. Sans dossier monté, rien n'est écrit.
+- **Licences** : ces fichiers restent sur l'hôte et ne sont pas redistribués. Des icônes dont la licence interdit la redistribution (Icons8 en version gratuite, par exemple) peuvent donc y être déposées pour un usage personnel ; leurs conditions (lien d'attribution notamment) restent à respecter.
 
 ### Supervision (`/supervision`)
 
@@ -221,7 +247,7 @@ C'est le seul module qui **ne va pas chercher** l'information à chaque appel :
 ### Images (`/img`)
 
 L'ESP8266 n'a pas la mémoire pour décoder un JPEG ou un PNG confortablement. La passerelle fait donc tout le travail, avec la bibliothèque **Pillow** :
-1. un module enregistre l'adresse d'une image (affiche Plex, logo CoinGecko ou Logo.dev, photo ou icône Discord, icône incluse dans l'image Docker) et met un **jeton** de 12 caractères dans sa réponse. Un jeton peut regrouper **plusieurs sources**, essayées dans l'ordre (ex. Logo.dev, puis icône incluse) ;
+1. un module enregistre l'adresse d'une image (affiche Plex, logo CoinGecko ou Logo.dev, photo ou icône Discord, icône incluse dans l'image Docker, icône personnelle de `/icones`) et met un **jeton** de 12 caractères dans sa réponse. Un jeton peut regrouper **plusieurs sources**, essayées dans l'ordre (ex. icône personnelle, Logo.dev, puis icône incluse) ;
 2. l'afficheur demande `/img?t=<jeton>&w=78&h=117&f=000000&r=8` : taille exacte, couleur du fond de l'écran sous l'image, rayon des coins (`r` = moitié de la taille pour un cercle), `m=a` pour un logo à garder entier ;
 3. la passerelle télécharge l'image (une fois), la recadre, arrondit les coins avec un bord lissé, la pose sur le fond et renvoie **w × h pixels RGB565 bruts** (2 octets par pixel, ordre de l'ESP) : 18 Ko pour une affiche, 1,8 Ko pour un logo ;
 4. l'afficheur les envoie à l'écran **ligne par ligne au fil de la réception** : il n'utilise qu'une ligne de mémoire (moins de 320 octets), jamais l'image entière.
@@ -253,6 +279,7 @@ Ce jeu de caractères doit rester identique à celui des polices du firmware (`f
 | `environment:` | Modules et accès (dont `PLEX_URL`, `PLEX_TOKEN`) |
 | `ports: 8080:8080` | Seule porte d'entrée, pour l'afficheur |
 | `volumes: ./cache:/cache` | Dossier de l'hôte (chemin libre à gauche) : seul endroit où le conteneur peut écrire |
+| `volumes: ./icones:/icones:ro` (facultatif) | Icônes personnelles des pages de cours, lues seulement (section 6) |
 | `cap_add: CHOWN, SETUID, SETGID` | Au démarrage seulement : crée le dossier du cache, lui donne le bon propriétaire, puis quitte root |
 | `PUID` / `PGID` (facultatif) | Propriétaire des fichiers du cache sur l'hôte (10001 par défaut) |
 | `read_only: true` + `tmpfs: /tmp` | Système de fichiers en lecture seule |

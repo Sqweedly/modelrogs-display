@@ -26,6 +26,12 @@ services:
       # BTC). Chemin libre à gauche du « : », par ex. /volume1/docker/modelrogs/cache.
       # Il est créé au besoin et reçoit automatiquement les bons droits au démarrage.
       - ./cache:/cache
+      # Facultatif : vos propres icônes pour les pages de cours, prioritaires sur
+      # celles de la passerelle. Rangement : devises/EUR.png, actions/AAPL.png,
+      # commodities/GC=F.png, crypto/bitcoin.png (nom = valeur saisie sur
+      # l'afficheur, majuscules indifférentes). PNG carré, 64 px ou plus, fond
+      # transparent. Pris en compte sans redémarrer. Voir docs/PASSERELLE.md.
+      # - ./icones:/icones:ro
 
     environment:
       TZ: Europe/Paris            # fuseau par défaut (si la ville est introuvable)

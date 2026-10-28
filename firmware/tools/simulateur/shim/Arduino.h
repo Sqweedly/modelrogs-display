@@ -38,6 +38,7 @@ class String {
   String substring(size_t a, size_t b) const { return s.substr(a, b > a ? b - a : 0); }
   String substring(size_t a) const { return s.substr(std::min(a, s.size())); }
   void toUpperCase() { for (auto& c : s) if (c >= 'a' && c <= 'z') c -= 32; }
+  void toLowerCase() { for (auto& c : s) if (c >= 'A' && c <= 'Z') c += 32; }
   void trim() {
     size_t a = s.find_first_not_of(" \t\r\n");
     size_t b = s.find_last_not_of(" \t\r\n");

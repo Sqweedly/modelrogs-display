@@ -156,7 +156,12 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
 Routes : `/btc`, `/actions`, `/devises`, `/commodities`, chacune avec sa page dédiée `/<page>/30j?id=<id>`. Tous les prix sont **en dollars**.
 
 - **Sélection**, la même pour les quatre pages : `?s1=&s2=&s3=` (les trois listes de l'interface) puis `?m=` (saisie libre, une ou plusieurs valeurs séparées par des virgules ou des espaces). Les **3 premières** valeurs, dans l'ordre des champs, sont retenues. Si l'afficheur n'envoie rien, la passerelle prend la variable du compose : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`.
-- **Une valeur** : la réponse contient sa **courbe sur 30 jours** (`p30`, normalisée de 0 à 100).
+- **Une valeur** (et page dédiée `/30j`) : la réponse contient sa **courbe sur 30 jours** (`p30`, normalisée de 0 à 100) et ses **repères de prix** (`rep`, depuis la 2.9.1) : `[{"y": 21, "t": "55 000"}, {"y": 74, "t": "60 000"}]`.
+  - `y` est la position du repère sur la même échelle que `p30` (0 = cours le plus bas de la période, 100 = le plus haut) ; `t` est le libellé prêt à afficher, **sans unité** (le prix en haut de l'écran porte déjà le « $ »). L'afficheur écrit le libellé du repère bas au-dessus de son pointillé et celui du repère haut en dessous : les deux restent entre les lignes.
+  - Deux repères au plus, sur des valeurs « rondes » : la passerelle prend le plus petit pas de 1, 2 ou 5 × 10ⁿ qui donne exactement deux valeurs dans la plage (150 et 200 pour un cours entre 150 et 200 $). Si un pas en donne trois et le suivant une seule, elle garde les deux extrêmes du premier (58 000 et 62 000 pour 57 000 à 62 900 $) ; sinon, une seule valeur. Cours plat : aucun repère.
+  - Les décimales suivent le pas (`2,5`, `0,0000045`).
+  - Les dates sous la courbe (il y a 30 jours, il y a 15 jours, aujourd'hui) sont calculées par l'afficheur avec son horloge : la passerelle ne les envoie pas.
+  - Un afficheur 2.9.0 ou plus ancien ignore `rep`.
 - **Deux ou trois** : pas de courbe (écran « prix en vedette »). Chaque valeur porte `x: 1` si sa variation sur 7 jours atteint **+5 % ou −5 %** : l'afficheur lui consacre alors une page supplémentaire, qu'il demande à **`/<page>/30j?id=<id>`**.
 - **Valeur inconnue** : elle reste à sa place dans la réponse, sous la forme `{"id":"XYZ","s":"XYZ","e":1}` (`e: 2` : source momentanément sans réponse). L'afficheur montre « ? », le code et « Introuvable ».
 - **Prix** : au moins 4 chiffres, 2 décimales quand elles suffisent (`57 864 $`, `142,35 $`, `2,184 $`, `0,08214 $`).
@@ -249,7 +254,7 @@ C'est le seul module qui **ne va pas chercher** l'information à chaque appel :
 L'ESP8266 n'a pas la mémoire pour décoder un JPEG ou un PNG confortablement. La passerelle fait donc tout le travail, avec la bibliothèque **Pillow** :
 1. un module enregistre l'adresse d'une image (affiche Plex, logo CoinGecko ou Logo.dev, photo ou icône Discord, icône incluse dans l'image Docker, icône personnelle de `/icones`) et met un **jeton** de 12 caractères dans sa réponse. Un jeton peut regrouper **plusieurs sources**, essayées dans l'ordre (ex. icône personnelle, Logo.dev, puis icône incluse) ;
 2. l'afficheur demande `/img?t=<jeton>&w=78&h=117&f=000000&r=8` : taille exacte, couleur du fond de l'écran sous l'image, rayon des coins (`r` = moitié de la taille pour un cercle), `m=a` pour un logo à garder entier ;
-3. la passerelle télécharge l'image (une fois), la recadre, arrondit les coins avec un bord lissé, la pose sur le fond et renvoie **w × h pixels RGB565 bruts** (2 octets par pixel, ordre de l'ESP) : 18 Ko pour une affiche, 1,8 Ko pour un logo ;
+3. la passerelle télécharge l'image (une fois), la recadre, arrondit les coins avec un bord lissé, la pose sur le fond et renvoie **w × h pixels RGB565 bruts** (2 octets par pixel, ordre de l'ESP) : 18 Ko pour une affiche, 1,8 Ko pour un logo. Un **logo** (`m=a`) est d'abord **rogné** (depuis la 2.9.1) : sa marge transparente, ou son fond uni de la couleur des coins (Logo.dev pose l'icône au milieu d'un grand carré), est retirée, puis le logo est agrandi pour occuper 94 % du cadre. Les **icônes personnelles** ne sont jamais rognées : leur cadrage est respecté ;
 4. l'afficheur les envoie à l'écran **ligne par ligne au fil de la réception** : il n'utilise qu'une ligne de mémoire (moins de 320 octets), jamais l'image entière.
 
 Une image indisponible renvoie une erreur HTTP ; l'afficheur dessine alors un remplaçant (pastille de couleur avec le code). L'échec est mémorisé une heure : pas de nouvelle tentative à chaque affichage.

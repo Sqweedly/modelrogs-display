@@ -131,7 +131,8 @@ async def _courbe_30j(session: aiohttp.ClientSession, cid: str) -> list[float]:
 
 
 async def crypto(session: aiohttp.ClientSession, q: dict) -> dict:
-    """Cryptos choisies. Une seule : courbe sur 30 jours incluse (« p30 »).
+    """Cryptos choisies. Une seule : courbe sur 30 jours incluse (« p30 ») et ses
+    repères de prix (« rep », voir cours.reperes).
     Deux ou trois : prix et variations, « x » = page dédiée à afficher."""
     trouves, perime = await _trouver(session, _choix(q))
     sortie = []
@@ -143,7 +144,8 @@ async def crypto(session: aiohttp.ClientSession, q: dict) -> dict:
     if len(sortie) == 1 and not sortie[0].get("e"):
         e = sortie[0]
         try:
-            e["p30"] = cours.normaliser(await _courbe_30j(session, e["id"]), trouves[0][1]["current_price"])
+            valeurs, actuel = await _courbe_30j(session, e["id"]), trouves[0][1]["current_price"]
+            e["p30"], e["rep"] = cours.normaliser(valeurs, actuel), cours.reperes(valeurs, actuel)
         except Exception:  # noqa: BLE001 — sans courbe, la page reste utile
             e["p30"] = []
     return {"ok": 1, "c": sortie, "p": int(perime)}
@@ -157,7 +159,8 @@ async def trente_jours(session: aiohttp.ClientSession, q: dict) -> dict:
     if not c or c.get("current_price") is None:
         return {"ok": 0, "err": "Crypto inconnue"}
     e = _element(c)
-    e["p30"] = cours.normaliser(await _courbe_30j(session, c["id"]), c["current_price"])
+    valeurs = await _courbe_30j(session, c["id"])
+    e["p30"], e["rep"] = cours.normaliser(valeurs, c["current_price"]), cours.reperes(valeurs, c["current_price"])
     return {"ok": 1, "c": [e], "p": int(perime)}
 
 

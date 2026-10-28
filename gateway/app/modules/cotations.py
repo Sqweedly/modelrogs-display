@@ -284,7 +284,7 @@ async def _cotation(session: aiohttp.ClientSession, page: str, ident: str, avec_
         return cours.introuvable(ident, code, indisponible=True)
     e = cours.element(ident, code, prix, p24, p7, p30, logo, forme)
     if avec_courbe:
-        e["p30"] = cours.normaliser(closes, prix)
+        e["p30"], e["rep"] = cours.normaliser(closes, prix), cours.reperes(closes, prix)
     if g.get("p"):
         e["_p"] = 1           # cours périmé (source en échec) : signalé au niveau de la réponse
     return e

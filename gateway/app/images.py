@@ -50,6 +50,9 @@ MAX_ORIGINAUX = 40        # images téléchargées gardées en mémoire
 MAX_RENDUS = 120          # images converties gardées en mémoire
 TAILLE_MAX_SOURCE = 4 * 1024 * 1024
 DUREE_ECHEC = 3600        # secondes : image introuvable, pas de nouvel essai avant
+REMPLISSAGE = 0.94        # logo rogné : 94 % du cadre (3 % de marge de chaque côté)
+SEUIL_ALPHA = 16          # pixel transparent : alpha <= 16
+SEUIL_FOND = 24           # pixel « de fond » : écart <= 24 avec la couleur des coins
 ICONES = Path(__file__).resolve().parent / "icones"   # icônes incluses dans l'image Docker
 ICONES_PERSO = Path(os.environ.get("ICONES_PERSO", "/icones"))   # icônes de l'utilisateur
 CATEGORIES_PERSO = ("actions", "devises", "commodities", "crypto")
@@ -58,7 +61,7 @@ RELECTURE_PERSO = 30      # secondes entre deux relectures du dossier personnel
 
 _sources: "OrderedDict[str, tuple[list[str], dict]]" = OrderedDict()
 _echecs: dict[str, float] = {}
-_originaux: "OrderedDict[str, bytes]" = OrderedDict()
+_originaux: "OrderedDict[str, tuple[bytes, bool]]" = OrderedDict()   # (octets, rognable)
 _rendus: "OrderedDict[tuple, bytes]" = OrderedDict()
 _verrous: dict[str, asyncio.Lock] = {}
 _perso: dict[str, dict[str, Path]] = {}
@@ -171,7 +174,9 @@ async def _telecharger(session: aiohttp.ClientSession, url: str, entetes: dict) 
     return donnees
 
 
-async def _original(session: aiohttp.ClientSession, jeton: str) -> bytes:
+async def _original(session: aiohttp.ClientSession, jeton: str) -> tuple[bytes, bool]:
+    """Octets de la première source qui répond, et s'il est permis de rogner sa
+    marge (toujours, sauf pour une icône personnelle : son cadrage est respecté)."""
     if jeton in _originaux:
         _originaux.move_to_end(jeton)
         return _originaux[jeton]
@@ -188,8 +193,9 @@ async def _original(session: aiohttp.ClientSession, jeton: str) -> bytes:
                 except Exception as exc:  # noqa: BLE001 — source suivante
                     erreur = exc
                     continue
-                _ranger(_originaux, jeton, donnees, MAX_ORIGINAUX)
-                return donnees
+                rognable = not url.startswith(f"fichier:{ICONES_PERSO}/")
+                _ranger(_originaux, jeton, (donnees, rognable), MAX_ORIGINAUX)
+                return donnees, rognable
             raise erreur
     finally:
         if not verrou.locked():
@@ -208,15 +214,42 @@ def _rgb565(image: Image.Image) -> bytes:
     return sortie.tobytes()
 
 
+def rogner(image: Image.Image) -> Image.Image:
+    """Retire la marge d'un logo : zone transparente, ou fond uni de la couleur des
+    coins. Logo.dev, par exemple, pose l'icône au milieu d'un grand carré."""
+    alpha = image.getchannel("A")
+    utile = alpha.point(lambda a: 255 if a > SEUIL_ALPHA else 0).getbbox()
+    if utile and alpha.getextrema()[0] >= 250:           # image opaque : fond uni ?
+        rgb = image.convert("RGB")
+        l, h = rgb.size
+        coins = [rgb.getpixel(p) for p in ((0, 0), (l - 1, 0), (0, h - 1), (l - 1, h - 1))]
+        uni = all(max(abs(a - b) for a, b in zip(c, coins[0])) <= SEUIL_FOND for c in coins)
+        if uni:
+            fond = Image.new("RGB", rgb.size, coins[0])
+            ecart = ImageChops.difference(rgb, fond).convert("L")
+            utile = ecart.point(lambda v: 255 if v > SEUIL_FOND else 0).getbbox()
+    if not utile or utile == (0, 0) + image.size:
+        return image
+    return image.crop(utile)
+
+
 def convertir(donnees: bytes, w: int, h: int, fond: tuple[int, int, int], rayon: int,
-              ajuster: bool = False) -> bytes:
-    """Recadre (ou ajuste, pour un logo) l'image en w x h, arrondit, pose sur le fond."""
+              ajuster: bool = False, rognable: bool = False) -> bytes:
+    """Recadre (ou ajuste, pour un logo) l'image en w x h, arrondit, pose sur le fond.
+    Logo rognable : sa marge est retirée, puis il est agrandi pour remplir le cadre."""
     source = Image.open(io.BytesIO(donnees))
     source.draft("RGB", (w * 2, h * 2))          # JPEG : décodage réduit, plus rapide
     source = source.convert("RGBA")
 
     if ajuster:   # logo : entier, centré, sans déformation
-        source.thumbnail((w, h), Image.LANCZOS)
+        if rognable:
+            source = rogner(source)
+            cadre_w, cadre_h = max(1, round(w * REMPLISSAGE)), max(1, round(h * REMPLISSAGE))
+            echelle = min(cadre_w / source.width, cadre_h / source.height)
+            source = source.resize((max(1, round(source.width * echelle)),
+                                    max(1, round(source.height * echelle))), Image.LANCZOS)
+        else:
+            source.thumbnail((w, h), Image.LANCZOS)
         image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         image.paste(source, ((w - source.width) // 2, (h - source.height) // 2))
     else:         # affiche, avatar : remplit tout le cadre, recadrage au centre
@@ -268,9 +301,9 @@ async def route_image(request: web.Request, session: aiohttp.ClientSession) -> w
         corps = _rendus[cle]
     else:
         try:
-            donnees = await _original(session, jeton)
+            donnees, rognable = await _original(session, jeton)
             corps = await asyncio.get_running_loop().run_in_executor(
-                None, convertir, donnees, w, h, tuple(fond), rayon, ajuster)
+                None, convertir, donnees, w, h, tuple(fond), rayon, ajuster, rognable)
         except Exception as exc:  # noqa: BLE001 — l'afficheur dessine alors un remplaçant
             log.warning("Image %s indisponible : %s", jeton, exc)
             _echecs[jeton] = time.time()

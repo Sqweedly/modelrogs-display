@@ -10,6 +10,7 @@ d'environnement de la page (CRYPTOS, ACTIONS, DEVISES, COMMODITIES).
 Tous les prix sont en dollars.
 """
 
+import math
 import os
 import re
 
@@ -81,15 +82,70 @@ def reduire(valeurs: list[float], n: int) -> list[float]:
     return sortie
 
 
-def normaliser(valeurs: list[float], actuel: float, n: int = POINTS_30J) -> list[int]:
-    """Courbe réduite à n points, normalisée de 0 (plus bas) à 100 (plus haut)."""
+def _courbe_reduite(valeurs: list[float], actuel: float, n: int = POINTS_30J) -> list[float]:
+    """Cours réels de la période, réduits à n points, le dernier étant le cours actuel."""
     courbe = reduire([v for v in valeurs if v], n) or [actuel, actuel]
     if len(courbe) < 2:
         courbe = [actuel] * 2
     courbe[-1] = actuel
+    return courbe
+
+
+def normaliser(valeurs: list[float], actuel: float, n: int = POINTS_30J) -> list[int]:
+    """Courbe réduite à n points, normalisée de 0 (plus bas) à 100 (plus haut)."""
+    courbe = _courbe_reduite(valeurs, actuel, n)
     bas, haut = min(courbe), max(courbe)
     ecart = (haut - bas) or 1.0
     return [round((v - bas) / ecart * 100) for v in courbe]
+
+
+# Repères de prix : 2 au plus, sur des valeurs rondes (1, 2 ou 5 × 10ⁿ)
+_PAS = sorted({m * 10.0 ** k for k in range(-9, 7) for m in (1, 2, 5)})
+
+
+def _valeurs_pas(bas: float, haut: float, pas: float) -> list[float]:
+    """Multiples du pas compris dans la plage (liste vide au-delà de 5 : pas trop fin)."""
+    k0, k1 = math.ceil(bas / pas - 1e-9), math.floor(haut / pas + 1e-9)
+    if k1 - k0 + 1 > 5:
+        return []
+    return [round(k * pas, 12) for k in range(k0, k1 + 1)]
+
+
+def _pas_rond(bas: float, haut: float) -> tuple[float, list[float]]:
+    """Deux valeurs rondes de la plage : le plus petit pas qui en donne exactement
+    deux ; sinon (passage direct de 3 valeurs à 1) les deux extrêmes du pas
+    précédent ; sinon la seule valeur ronde."""
+    precedent: tuple[float, list[float]] = (0.0, [])
+    for pas in _PAS:
+        rondes = _valeurs_pas(bas, haut, pas)
+        if not rondes:
+            if precedent[1]:          # plus aucune valeur : la plage est sous le pas
+                break
+            continue
+        if len(rondes) == 2:
+            return pas, rondes
+        if len(rondes) == 1:
+            if precedent[1]:
+                return precedent[0], [precedent[1][0], precedent[1][-1]]
+            return pas, rondes
+        precedent = (pas, rondes)
+    return precedent[0], precedent[1][:1] + precedent[1][-1:] if len(precedent[1]) > 1 else precedent[1]
+
+
+def _libelle(valeur: float, pas: float) -> str:
+    """Valeur du repère, sans unité, avec autant de décimales que le pas l'exige."""
+    decimales = max(0, -math.floor(math.log10(pas) + 1e-9))
+    return nombre_fr(valeur, decimales)
+
+
+def reperes(valeurs: list[float], actuel: float, n: int = POINTS_30J) -> list[dict]:
+    """Repères de prix de la courbe 30 jours : {"y": position 0-100 comme « p30 », "t": libellé}."""
+    courbe = _courbe_reduite(valeurs, actuel, n)
+    bas, haut = min(courbe), max(courbe)
+    if haut <= bas:
+        return []
+    pas, rondes = _pas_rond(bas, haut)
+    return [{"y": round((v - bas) / (haut - bas) * 100), "t": _libelle(v, pas)} for v in rondes]
 
 
 def code_court(symbole: str) -> str:

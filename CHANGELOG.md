@@ -12,6 +12,35 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.9.1] — 2026-10-28
+
+Ajustements d'affichage : en-tête de la page Heure, logos qui remplissent leur pastille, page sur 30 jours avec repères de prix et dates, et nouvelle présentation en cartes des écrans à 2 et 3 valeurs. La configuration de l'afficheur ne change pas.
+
+### Modifié
+- **Page Heure** : l'en-tête devient « mercredi 28 octobre » (jour et date en toutes lettres, en minuscules, sans l'année ; « 1er novembre » le premier du mois), sur une seule ligne centrée selon sa longueur, au lieu de « MERCREDI » à gauche et « 28/10/26 » à droite. Le cas le plus long, « mercredi 30 septembre », tient en 18 px (16 px au-delà de 216 px).
+- **Logos** (cryptos, actions, icônes incluses) : la passerelle retire leur marge (zone transparente, ou fond uni comme sur Logo.dev, où l'icône est au milieu d'un grand carré) et les agrandit pour occuper 94 % de la pastille. Les icônes personnelles (`/icones`) ne sont pas rognées : leur cadrage est respecté.
+- **Page sur 30 jours** (une seule valeur choisie, ou page dédiée d'une valeur qui varie de 5 % ou plus en 7 jours), Crypto, Actions, Devises et Commodities :
+  - logo de 44 px (au lieu de 36) ; l'encre des chiffres du prix est centrée exactement sur la hauteur du logo ;
+  - la variation 24 h disparaît ; **7 j et 30 j** sont sur une ligne, chacune dans une bulle (« 7 j » en gris, valeur en vert ou en rouge, fond vert ou rouge foncé), centrées sous le logo ;
+  - courbe plus haute (de y 86 à 200, soit 14 px de plus grâce à la ligne gagnée) et sur toute la largeur de l'écran, remplie d'une **couleur unie** (vert ou rouge de la courbe à 15 %) au lieu du dégradé, avec **deux repères de prix** sur des valeurs rondes, sans unité (« 150 », « 200 ») : pointillés discrets, libellés en filigrane, celui du repère bas au-dessus de sa ligne et celui du repère haut en dessous ;
+  - **dates sous la courbe** : il y a 30 jours, il y a 15 jours, aujourd'hui (« 28 sept. », « 13 oct. », « 28 oct. »), calculées par l'afficheur ;
+  - le filigrane « 30 J » disparaît.
+
+- **Écrans à 2 et 3 valeurs** (« prix en vedette »), identiques pour Crypto, Actions, Devises et Commodities : une **carte** gris foncé par valeur, sur toute la largeur et toute la hauteur de l'écran.
+  - ligne 1 : logo collé à gauche, aussi grand que possible (61 px à 2 valeurs, 39 px à 3), et prix (32 px) centré sur sa hauteur, au milieu de la place restante ;
+  - ligne 2 : **bulles « 24 h » et « 7 j »** centrées, comme sur la page sur 30 jours (intitulé gris, valeur en vert ou en rouge, fond assorti) ;
+  - les logos des actions et des matières premières perdent leur disque gris et prennent toute la taille ;
+  - tailles uniformes : si un prix ou des variations sont trop longs, la police plus petite (prix 26 puis 18 px ; bulles resserrées puis plus petites) s'applique à **toutes les cartes de l'écran** ;
+  - valeur introuvable : « ? », son code et « Introuvable » à la place des bulles ;
+  - la marque « périmé » n'apparaît que si les cours le sont.
+
+### Passerelle
+- Nouveau champ `rep` (repères de prix) dans les réponses à une seule valeur et dans les pages `/30j`. Un afficheur 2.9.0 l'ignore et reste inchangé.
+
+### Mise à jour
+- Passerelle d'abord (`docker compose pull && docker compose up -d`, le log affiche `Passerelle 2.9.1`), puis l'afficheur (`/update`). Rien à modifier dans `docker-compose.yml`.
+- Avec la nouvelle passerelle seule, un afficheur 2.9.0 profite déjà des logos agrandis ; la date et la nouvelle page sur 30 jours arrivent avec le firmware 2.9.1.
+
 ## [2.9.0] — 2026-10-28
 
 Trois nouvelles pages de cours (Actions, Devises, Commodities), toutes en dollars avec leurs logos, et un réglage commun aux quatre pages de cours.

@@ -263,6 +263,12 @@ int main(int argc, char** argv) {
   pollPlex();
 
   drawHeure(0, 5);                 save("01_heure");
+  // Date la plus large (« 30 sept. ») à côté du jour le plus long (« MERCREDI »)
+  fixtures["/time"] = R"({"ok":1,"e":1790762400,"o":7200,"j":"Mercredi","d":"30 septembre 2026","lv":"07:36","cc":"19:28"})";
+  syncTime();
+  drawHeure(0, 5);                 save("01b_heure_30_sept");
+  fixtures["/time"] = FX("time");
+  syncTime();
   drawMeteo(1, 5);                 save("02_meteo");
   drawDiscord(2, 5);               save("03_discord");
   drawSupervision(3, 5);           save("04_supervision_7");

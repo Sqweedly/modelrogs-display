@@ -118,7 +118,11 @@ def faux_internet() -> web.Application:
         assert r.query["token"] == "pk_test" and r.query["fallback"] == "404" and r.query["theme"] == "dark"
         if r.match_info["sym"] != "MC.PA":
             return web.Response(status=404)
-        return await logo(r)
+        # Comme Logo.dev : l'icône au milieu d'un grand carré de fond uni
+        im = Image.new("RGB", (128, 128), (255, 255, 255))
+        ImageDraw.Draw(im).rectangle((48, 48, 79, 79), fill=(20, 40, 160))
+        b = io.BytesIO(); im.save(b, "PNG")
+        return web.Response(body=b.getvalue(), content_type="image/png")
 
     async def cg30(r):
         assert r.query["days"] == "30"
@@ -207,6 +211,25 @@ async def principal() -> int:
     from app.main import creer_app   # importé après la configuration
 
     echecs = 0
+    # --- Repères de prix (calcul seul)
+    from app.modules import cours as CR
+    attendus = [
+        (([150 + i * 50 / 59 for i in range(60)], 200), ["150", "200"]),
+        (([57000 + i * 100 for i in range(60)], 62900), ["58 000", "62 000"]),     # 3 valeurs -> extrêmes
+        (([168.2 + i * 0.03 for i in range(60)], 170), ["169", "170"]),
+        (([0.000004 + i * 1e-8 for i in range(60)], 0.0000046), ["0,0000040", "0,0000045"]),
+        (([5, 5, 5], 5), []),                                                        # cours plat
+    ]
+    for (valeurs, actuel), libelles in attendus:
+        obtenu = [r["t"] for r in CR.reperes(valeurs, actuel)]
+        ok = obtenu == libelles
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} repères {libelles or 'aucun'} -> {obtenu}")
+    r = CR.reperes([150 + i * 50 / 59 for i in range(60)], 200)
+    ok = [x["y"] for x in r] == [0, 100]
+    echecs += not ok
+    print(f"{'OK ' if ok else 'ÉCHEC'} repères placés comme la courbe (0 = plus bas, 100 = plus haut) -> {[x['y'] for x in r]}")
+
     async with TestClient(TestServer(creer_app())) as c:
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
@@ -228,6 +251,11 @@ async def principal() -> int:
             ("/btc", lambda d: d["ok"] and len(d["c"]) == 1 and d["c"][0]["s"] == "BTC"
                 and d["c"][0]["px"] == "62 100 $" and len(d["c"][0]["p30"]) == 60 and d["c"][0]["f"] == 0
                 and d["c"][0]["p30"][0] == 0 and d["c"][0]["v30"] == "+18,6 %" and d["c"][0]["i"]),
+            # Une seule : repères de prix de la courbe (2 au plus), absents à 2 ou 3 valeurs
+            ("/btc", lambda d: 1 <= len(d["c"][0]["rep"]) <= 2
+                and all(set(r) == {"y", "t"} and 0 <= r["y"] <= 100 and "$" not in r["t"] for r in d["c"][0]["rep"])),
+            ("/actions?s1=AAPL", lambda d: len(d["c"]) == 1 and "rep" in d["c"][0] and "p30" in d["c"][0]),
+            ("/btc?s1=ethereum&s2=ripple", lambda d: all("rep" not in c for c in d["c"])),
             # Deux ou trois : pas de courbe ; x = page dédiée si |7 j| >= 5 %
             ("/btc?s1=ethereum&s2=ripple", lambda d: [c["s"] for c in d["c"]] == ["ETH", "XRP"]
                 and d["c"][0]["px"] == "2 774 $" and "p30" not in d["c"][1]
@@ -415,12 +443,38 @@ async def principal() -> int:
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} icône perso action, commodity, crypto -> {[hex(x) for _, x, _ in resultats]}")
 
+        # Icône perso avec marge transparente : son cadrage est respecté (pas de rognage)
+        f = perso / "crypto" / "ethereum.png"
+        im = PILImage.new("RGBA", (128, 128), (0, 0, 0, 0))
+        im.paste((255, 0, 0, 255), (40, 40, 88, 88)); im.save(f)
+        IM._perso_lu = -IM.RELECTURE_PERSO
+        d = await (await c.get("/btc?s1=ethereum")).json()
+        r = await c.get(f"/img?t={d['c'][0]['i']}&w=32&h=32&f=000000&m=a")
+        corps = await r.read()
+        coin = int.from_bytes(corps[(4 * 32 + 4) * 2:(4 * 32 + 5) * 2], "little")
+        centre = int.from_bytes(corps[(16 * 32 + 16) * 2:(16 * 32 + 17) * 2], "little")
+        ok = r.status == 200 and coin == 0 and centre == 0xF800
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} icône perso avec marge non rognée -> coin {hex(coin)}, centre {hex(centre)}")
+
         poser("devises/EUR.png", None)                            # fichier invalide : source suivante
         IM.inventaire_perso()
         s, x, _ = await centre_de("/devises?s1=EUR")
         ok = s == 200 and x != 0
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} icône perso invalide -> pastille incluse ({s})")
+
+        # --- Logo rogné : la marge de Logo.dev disparaît, l'icône remplit le cadre
+        (perso / "actions" / "MC.PA.png").unlink(); IM._perso_lu = -IM.RELECTURE_PERSO   # retour à Logo.dev
+        d = await (await c.get("/actions?s1=MC.PA")).json()
+        r = await c.get(f"/img?t={d['c'][0]['i']}&w=36&h=36&f=000000&m=a")
+        corps = await r.read()
+        px_ = [int.from_bytes(corps[i:i + 2], "little") for i in range(0, len(corps), 2)]
+        bleu = sum(1 for v in px_ if v == ((20 & 0xF8) << 8 | (40 & 0xFC) << 3 | 160 >> 3))
+        blanc = sum(1 for v in px_ if v == 0xFFFF)
+        ok = r.status == 200 and bleu > 36 * 36 * 0.8 and blanc == 0
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} logo Logo.dev rogné et agrandi -> {bleu} px de logo / {36 * 36}, {blanc} px de marge")
 
         APPELS_YAHOO.clear()
         await c.get("/actions?m=XYZ"); await c.get("/actions?m=XYZ")

@@ -86,7 +86,8 @@ def faux_internet() -> web.Application:
 
     # Yahoo Finance : clôtures quotidiennes sur un mois (22 séances), montantes
     COTES = {"AAPL": (240.0, 268.4, "USD"), "MC.PA": (600.0, 640.0, "EUR"), "EURUSD=X": (1.12, 1.16, "USD"),
-             "JPYUSD=X": (0.0064, 0.006612, "USD"), "NFLX": (1100.0, 1210.0, "USD"), "GC=F": (3800.0, 4112.0, "USD"), "ZW=F": (560.0, 541.25, "USX")}
+             "JPYUSD=X": (0.0064, 0.006612, "USD"), "NFLX": (1100.0, 1210.0, "USD"), "GC=F": (3800.0, 4112.0, "USD"), "ZW=F": (560.0, 541.25, "USX"),
+             "^FCHI": (7900.0, 8123.45, "EUR"), "^GSPC": (6500.0, 6789.12, "USD")}
     APPELS_YAHOO.clear()
 
     async def yahoo(r):
@@ -205,7 +206,7 @@ async def principal() -> int:
         "KUMA_URL": base + "/kuma", "KUMA_STATUS_SLUG": "modelrogs",
         "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris", "ICONES_PERSO": tempfile.mkdtemp(),
         # Discord demandé mais non configuré : doit être signalé, pas planter
-        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,devises,commodities,inconnu",
+        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,inconnu",
     })
     os.environ.pop("DISCORD_TOKEN", None)
     from app.main import creer_app   # importé après la configuration
@@ -234,12 +235,13 @@ async def principal() -> int:
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
             ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex",
-                                                                  "actions", "devises", "commodities"]
+                                                                  "actions", "indices", "devises", "commodities"]
                 and next(m for m in d["m"] if m["id"] == "discord")["ok"] == 0),
             # Cours : 3 listes + saisie ; 10 options ; valeurs du compose annoncées
             ("/modules", lambda d: all(
                 [p["k"] for p in m["p"]] == ["s1", "s2", "s3", "m"] and m["nt"]
-                for m in d["m"] if m["id"] in ("btc", "actions", "devises", "commodities"))
+                for m in d["m"] if m["id"] in ("btc", "actions", "indices", "devises", "commodities"))
+                and next(m for m in d["m"] if m["id"] == "indices")["o"][0] == {"id": "FCHI", "n": "CAC 40"}
                 and next(m for m in d["m"] if m["id"] == "btc")["src"] == "/btc/liste"
                 and len(next(m for m in d["m"] if m["id"] == "actions")["o"]) == 10
                 and next(m for m in d["m"] if m["id"] == "devises")["df"] == "EUR, JPY"
@@ -284,6 +286,15 @@ async def principal() -> int:
             ("/actions/30j?id=MC.PA", lambda d: d["ok"] and len(d["c"][0]["p30"]) == 22),
             ("/actions/30j?id=XYZ", lambda d: d["ok"] == 0),
             # Devises : DEVISES du compose ; KRW sans Yahoo -> taux BCE ; drapeaux inclus
+            # Indices : en points (sans unité ni conversion en dollars), saisies courantes reconnues
+            ("/indices?s1=FCHI&m=SP500", lambda d: [c["id"] for c in d["c"]] == ["FCHI", "GSPC"]
+                and [c["px"] for c in d["c"]] == ["8 123", "6 789"] and [c["s"] for c in d["c"]] == ["CAC", "S&P"]
+                and all(c["f"] == 2 and c["i"] for c in d["c"])),
+            ("/indices?m=%5EFCHI", lambda d: d["c"][0]["px"] == "8 123" and "$" not in "".join(r["t"] for r in d["c"][0]["rep"])
+                and len(d["c"][0]["p30"]) == 22),
+            ("/indices?m=cac%2040", lambda d: d["c"][0]["id"] == "FCHI"),
+            ("/indices/30j?id=FCHI", lambda d: d["ok"] and d["c"][0]["px"] == "8 123"),
+            ("/indices?m=ZZZ", lambda d: d["c"][0] == {"id": "ZZZ", "s": "ZZZ", "e": 1}),
             ("/devises", lambda d: [c["px"] for c in d["c"]] == ["1,160 $", "0,006612 $"]
                 and all(c["i"] and c["f"] == 2 for c in d["c"])),
             ("/devises?m=krw", lambda d: d["c"][0]["s"] == "KRW" and d["c"][0]["px"] == "0,0007300 $"

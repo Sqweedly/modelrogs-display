@@ -12,6 +12,28 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.10.0] — 2026-10-29
+
+Nouvelle page **Indices boursiers**, et retouches de couleurs et de lisibilité sur les pages de cours et Plex.
+
+### Ajouté
+- **Page Indices** (module `indices`) : CAC 40, S&P 500, Nasdaq, Dow Jones, DAX, FTSE 100, Euro Stoxx 50, Nikkei 225, Hang Seng, SMI dans les listes de l'interface ; tout autre indice Yahoo en saisie libre (`^IBEX`).
+  - Même présentation que les autres pages de cours : écran unique sur 30 jours (bulles 7 j / 30 j, courbe, repères, dates), cartes à 2 et 3 valeurs, page dédiée au-delà de 5 % sur 7 jours.
+  - Cours en **points**, sans « $ » ni conversion (« 8 123 »).
+  - Saisie avec ou sans « ^ », ou en clair, en un mot : `CAC40`, `SP500`, `NASDAQ`, `DOW`, `DAX`, `NIKKEI`…
+  - Pastilles incluses avec le nom court de l'indice (CAC, S&P, NDQ…), remplaçables par une icône personnelle (`indices/FCHI.png`).
+  - Rotation : Heure, Météo, Discord, Supervision, Crypto, Actions, **Indices**, Devises, Commodities, Plex.
+
+### Modifié
+- **Pastilles des devises** : symbole nettement plus grand (jusqu'à 84 % du disque au lieu de 74 %).
+- **Gris neutres** sur les pages de cours : les gris légèrement bleutés, qui tiraient nettement vers le bleu sur l'écran, sont remplacés par des gris neutres (repères de prix et leurs pointillés, dates, intitulés « 24 h », « 7 j », « 30 j » de toutes les bulles, indice des très petits prix).
+- **Écrans à 2 et 3 valeurs** : carte gris neutre très sombre, plus discrète ; disque gris neutre sous les logos des actions et matières premières.
+- **Plex, 2 lectures** : le nom de qui regarde est centré sur la colonne de droite et un peu descendu, comme pour une seule lecture (il reste en haut si le titre tient sur deux lignes).
+
+### Mise à jour
+- Dans `docker-compose.yml`, ajouter `indices` à `MODULES` et, si besoin, `INDICES` (symboles sans « ^ », voir le fichier de la release). Puis `docker compose pull && docker compose up -d` : le log affiche `Passerelle 2.10.0`.
+- Ensuite l'afficheur (`/update`) : la configuration 2.9 est reprise entièrement, validation comprise, et la page Indices est activée (affichée si le module est actif).
+
 ## [2.9.1] — 2026-10-28
 
 Ajustements d'affichage : en-tête de la page Heure, logos qui remplissent leur pastille, page sur 30 jours avec repères de prix et dates, et nouvelle présentation en cartes des écrans à 2 et 3 valeurs. La configuration de l'afficheur ne change pas.

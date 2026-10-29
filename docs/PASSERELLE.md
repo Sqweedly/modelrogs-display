@@ -151,9 +151,9 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
   - un **code d'icône** de 0 à 8, que l'afficheur dessine. La nuit, le soleil devient une lune.
 - Les températures sont arrondies au degré.
 
-### Pages de cours : Crypto, Actions, Devises, Commodities
+### Pages de cours : Crypto, Actions, Indices, Devises, Commodities
 
-Routes : `/btc`, `/actions`, `/devises`, `/commodities`, chacune avec sa page dédiée `/<page>/30j?id=<id>`. Tous les prix sont **en dollars**.
+Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, chacune avec sa page dédiée `/<page>/30j?id=<id>`. Tous les prix sont **en dollars**, sauf les indices, en **points** (sans unité).
 
 - **Sélection**, la même pour les quatre pages : `?s1=&s2=&s3=` (les trois listes de l'interface) puis `?m=` (saisie libre, une ou plusieurs valeurs séparées par des virgules ou des espaces). Les **3 premières** valeurs, dans l'ordre des champs, sont retenues. Si l'afficheur n'envoie rien, la passerelle prend la variable du compose : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`.
 - **Une valeur** (et page dédiée `/30j`) : la réponse contient sa **courbe sur 30 jours** (`p30`, normalisée de 0 à 100) et ses **repères de prix** (`rep`, depuis la 2.9.1) : `[{"y": 21, "t": "55 000"}, {"y": 74, "t": "60 000"}]`.
@@ -174,19 +174,21 @@ Routes : `/btc`, `/actions`, `/devises`, `/commodities`, chacune avec sa page d�
 - **Logos** : ceux que CoinGecko fournit avec les cours (une icône personnelle passe avant, voir « Icônes personnelles »).
 - Un afficheur 2.8 envoie encore `?ids=bitcoin,ethereum&devise=eur` : les cryptos sont reprises, la devise ignorée.
 
-**Actions, Devises, Commodities** (module `cotations.py`)
+**Actions, Indices, Devises, Commodities** (module `cotations.py`)
 - Source : **Yahoo Finance** (`/v8/finance/chart/<symbole>?range=1mo&interval=1d`, sans clé) : cours actuel et clôtures quotidiennes du mois, **gardés 5 minutes par valeur**. C'est une API non officielle :
   - Yahoo refuse (erreur 429) les programmes qu'il ne prend pas pour un navigateur, en se fiant aussi à la façon dont la connexion chiffrée est établie. La passerelle l'appelle donc avec **curl_cffi**, qui se connecte exactement comme Chrome (méthode de yfinance). Le log de démarrage indique le client utilisé : `Yahoo Finance : client curl_cffi (Chrome)`. curl_cffi n'existe pas pour les processeurs ARM 32 bits (armv7) : la passerelle y utilise aiohttp, avec le risque de refus ;
   - après un refus (401, 403, 429), Yahoo n'est plus appelé pendant **15 minutes** ; la page affiche la cause (« Yahoo refuse l'accès (429) ») ou, s'ils existent, les derniers cours connus, marqués périmés (`p`: 1) ;
   - un symbole inconnu n'est redemandé qu'au bout d'une heure.
 - **Variations** : 24 h = depuis la clôture précédente ; 7 j et 30 j = depuis la clôture d'il y a 7 et 30 jours. Elles sont calculées dans la devise de cotation.
 - **Conversion en dollars** : les cotations en cents (`USX` : blé, maïs, soja, café) sont divisées par 100 ; les autres devises (LVMH en euros, Londres en pence) sont converties au taux du jour (`EURUSD=X`…).
-- **Actions** : symboles Yahoo (`AAPL`, `MC.PA` pour Paris, `^FCHI` pour le CAC 40). Liste : Apple, Microsoft, Nvidia, Alphabet, Amazon, Meta, Tesla, TotalEnergies, LVMH, Airbus.
+- **Actions** : symboles Yahoo (`AAPL`, `MC.PA` pour Paris). Liste : Apple, Microsoft, Nvidia, Alphabet, Amazon, Meta, Tesla, TotalEnergies, LVMH, Airbus.
+- **Indices** (module `indices`, variable `INDICES`) : symboles Yahoo, avec ou sans « ^ » (`FCHI` = `^FCHI`). Liste : CAC 40 `FCHI`, S&P 500 `GSPC`, Nasdaq Composite `IXIC`, Dow Jones `DJI`, DAX `GDAXI`, FTSE 100 `FTSE`, Euro Stoxx 50 `STOXX50E`, Nikkei 225 `N225`, Hang Seng `HSI`, SMI `SSMI`. Les saisies courantes sont reconnues, en un mot : `CAC40`, `SP500`, `NASDAQ`, `DOW`, `DAX`, `NIKKEI`… Tout autre indice Yahoo se saisit par son symbole (`^IBEX`, `AEX`). Le cours est donné **en points**, sans conversion ni unité (« 8 123 ») ; repères de prix, variations et courbe sont calculés de la même façon que pour les autres pages.
 - **Devises** : code ISO, coté en dollars (`EURUSD=X`). Si Yahoo ne répond pas, la passerelle prend les taux quotidiens de la **BCE** (Frankfurter, `FRANKFURTER_URL`, sans clé). Liste : EUR, GBP, JPY, CHF, CNY, CAD, AUD, HKD, SGD, INR.
 - **Commodities** : contrats à terme Yahoo. Liste : or `GC=F`, argent `SI=F`, cuivre `HG=F`, pétrole `CL=F`, gaz naturel `NG=F`, blé `ZW=F`, maïs `ZC=F`, soja `ZS=F`, café `KC=F`, cacao `CC=F`.
 - **Logos** (une icône personnelle passe toujours en premier, voir ci-dessous) :
   - actions : **Logo.dev** si la clé `LOGO_DEV_TOKEN` est renseignée (`/ticker/<symbole>?format=png&theme=dark&fallback=404`), puis les logos inclus dans `gateway/app/icones/actions/`, puis le dépôt GitHub `nvstly/icons` pour les actions cotées aux États-Unis ;
   - devises : **pastilles incluses** (`icones/devises/`, 31 devises) : un disque de couleur avec le symbole de la monnaie (€, £, ¥, ₹, C$, HK$…). Elles sont produites par `gateway/tools/icones_devises.py`, qui fixe symboles et couleurs ;
+  - indices : **pastilles incluses** (`icones/indices/`) avec le nom court de l'indice (CAC, S&P, NDQ, DOW, DAX, FTSE, SX5E, NKY, HSI, SMI), produites par le même script ;
   - matières premières : icônes incluses (`icones/commodities/`).
   - Les licences des icônes incluses sont décrites dans `gateway/app/icones/LICENCES.md`.
 
@@ -204,6 +206,7 @@ volumes:
 
   | Page | Fichier | Exemples |
   |---|---|---|
+  | Indices | `indices/<symbole Yahoo sans ^>.png` | `indices/FCHI.png`, `indices/IBEX.png` |
   | Devises | `devises/<code ISO>.png` | `devises/EUR.png`, `devises/krw.png` |
   | Actions | `actions/<symbole Yahoo>.png` | `actions/AAPL.png`, `actions/MC.PA.png` |
   | Commodities | `commodities/<symbole Yahoo>.png` (ou le nom de l'icône incluse : `or`, `petrole`…) | `commodities/GC=F.png` |

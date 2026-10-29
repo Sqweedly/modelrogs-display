@@ -1,8 +1,11 @@
-"""Génère les pastilles des devises (gateway/app/icones/devises/<CODE>.png).
+"""Génère les pastilles des devises et des indices boursiers.
 
-Chaque devise : un disque de couleur avec le symbole de la monnaie, en PNG
-128 x 128 à fond transparent. Les couleurs sont choisies pour que deux devises
-ne se ressemblent pas ; elles ne reprennent pas les drapeaux.
+  gateway/app/icones/devises/<CODE>.png   (symbole de la monnaie : €, £, C$…)
+  gateway/app/icones/indices/<SYMBOLE>.png (nom court de l'indice : CAC, DAX…)
+
+Chaque pastille : un disque de couleur avec le symbole ou le nom court, en PNG
+128 x 128 à fond transparent. Les couleurs sont choisies pour que deux
+pastilles d'une même page ne se ressemblent pas.
 
 Usage, depuis la racine du dépôt :
     pip install pillow
@@ -13,8 +16,8 @@ Usage, depuis la racine du dépôt :
   fonts-noto-cjk, fichier NotoSerifCJK-Bold.ttc).
 Les deux polices sont sous licence SIL Open Font License.
 
-Pour ajouter une devise : une ligne dans DEVISES, puis relancer le script.
-La page Devises reconnaît aussi toute devise qui a sa pastille ici.
+Pour ajouter une devise ou un indice : une ligne dans DEVISES ou INDICES,
+puis relancer le script (il réécrit les deux dossiers).
 """
 
 import sys
@@ -22,10 +25,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-SORTIE = Path(__file__).resolve().parents[1] / "app" / "icones" / "devises"
+ICONES = Path(__file__).resolve().parents[1] / "app" / "icones"
 TAILLE = 128
 SURECH = 4                   # dessin 4x plus grand puis réduit : bords lissés
-LARGEUR_MAX = 0.74           # le symbole occupe au plus 74 % du disque
+LARGEUR_MAX = 0.84           # le symbole occupe au plus 84 % du disque
 
 # code ISO : (symbole, couleur du disque, couleur du symbole)
 DEVISES = {
@@ -61,7 +64,20 @@ DEVISES = {
     "PHP": ("₱", "#FFB703", "#023047"),
     "TWD": ("NT$", "#8D6E63", "#FFFFFF"),
 }
-TAILLE_TEXTE = {1: 58, 2: 44, 3: 32, 4: 26}   # en % du disque, selon le nombre de caractères
+# Indices : symbole Yahoo sans « ^ » -> (nom court, couleur du disque, couleur du texte)
+INDICES = {
+    "FCHI": ("CAC", "#1F4FB4", "#FFFFFF"),
+    "GSPC": ("S&P", "#1E8E3E", "#FFFFFF"),
+    "IXIC": ("NDQ", "#00A6A6", "#FFFFFF"),
+    "DJI": ("DOW", "#14213D", "#FFD43B"),
+    "GDAXI": ("DAX", "#D62828", "#FFD43B"),
+    "FTSE": ("FTSE", "#6A2C91", "#FFFFFF"),
+    "STOXX50E": ("SX5E", "#F28C28", "#FFFFFF"),
+    "N225": ("NKY", "#E84393", "#FFFFFF"),
+    "HSI": ("HSI", "#8D6E63", "#FFFFFF"),
+    "SSMI": ("SMI", "#C0392B", "#FFFFFF"),
+}
+TAILLE_TEXTE = {1: 72, 2: 56, 3: 42, 4: 34}   # en % du disque, selon le nombre de caractères
 
 
 def pastille(symbole: str, fond: str, encre: str, police: str) -> Image.Image:
@@ -83,13 +99,15 @@ def main() -> int:
         print(__doc__)
         return 1
     inter, cjk = sys.argv[1], sys.argv[2]
-    SORTIE.mkdir(parents=True, exist_ok=True)
-    for ancien in SORTIE.glob("*.png"):
-        ancien.unlink()
-    for code, (symbole, fond, encre) in DEVISES.items():
-        police = cjk if any(ord(c) > 0x2E80 for c in symbole) else inter
-        pastille(symbole, fond, encre, police).save(SORTIE / f"{code}.png", optimize=True)
-    print(f"{len(DEVISES)} pastilles écrites dans {SORTIE}")
+    for dossier, table in (("devises", DEVISES), ("indices", INDICES)):
+        sortie = ICONES / dossier
+        sortie.mkdir(parents=True, exist_ok=True)
+        for ancien in sortie.glob("*.png"):
+            ancien.unlink()
+        for code, (symbole, fond, encre) in table.items():
+            police = cjk if any(ord(c) > 0x2E80 for c in symbole) else inter
+            pastille(symbole, fond, encre, police).save(sortie / f"{code}.png", optimize=True)
+        print(f"{len(table)} pastilles écrites dans {sortie}")
     return 0
 
 

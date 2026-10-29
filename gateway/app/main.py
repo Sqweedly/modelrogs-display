@@ -31,10 +31,10 @@ PORT = int(os.environ.get("PORT", "8080"))
 
 CATALOGUE: dict[str, Module] = {m.id: m for m in (
     meteo.MODULE_HEURE, meteo.MODULE_METEO, discord_vocal.MODULE, supervision.MODULE, btc.MODULE, plex.MODULE,
-    cotations.MODULE_ACTIONS, cotations.MODULE_DEVISES, cotations.MODULE_COMMODITIES,
+    cotations.MODULE_ACTIONS, cotations.MODULE_INDICES, cotations.MODULE_DEVISES, cotations.MODULE_COMMODITIES,
 )}
 # Autres noms acceptés dans MODULES
-ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities"}
+ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities", "indice": "indices"}
 
 SESSION = web.AppKey("session", aiohttp.ClientSession)
 ACTIFS = web.AppKey("actifs", list)
@@ -118,7 +118,7 @@ async def demarrage(app: web.Application) -> None:
             log.info("Module %s actif", m.id)
             if m.demarrer:
                 m.demarrer()
-    if any(m.id in ("actions", "devises", "commodities") for m in app[ACTIFS]):
+    if any(m.id in ("actions", "indices", "devises", "commodities") for m in app[ACTIFS]):
         log.info("Yahoo Finance : client %s", cotations.client_yahoo())
     images.inventaire_perso()
     log.info("Passerelle %s%s prête sur le port %d", VERSION, f" ({REVISION})" if REVISION else "", PORT)

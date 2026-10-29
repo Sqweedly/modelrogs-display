@@ -43,10 +43,10 @@ services:
 
       # ---------------------------------------------------------------
       # MODULES ACTIFS — retirer un nom désactive le module.
-      # Disponibles : heure, meteo, crypto, actions, devises, commodities,
+      # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities,
       # supervision, discord, plex   (« btc », l'ancien nom de crypto, reste accepté)
       # ---------------------------------------------------------------
-      MODULES: heure,meteo,crypto,actions,devises,commodities,supervision,discord,plex
+      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,supervision,discord,plex
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
       # Page de statut Kuma : toutes ses sondes sont suivies par l'afficheur
@@ -71,12 +71,15 @@ services:
       PLEX_URL: http://192.168.1.10:32400
       PLEX_TOKEN: "colle-ici-le-jeton-plex"
 
-      # --- Pages de cours : crypto, actions, devises, commodities -------
-      # Tous les prix sont en dollars. 3 valeurs au plus par page, séparées par
+      # --- Pages de cours : crypto, actions, indices, devises, commodities
+      # Tous les prix sont en dollars, sauf les indices (en points). 3 valeurs au plus par page, séparées par
       # des virgules. Valeurs par défaut : celles choisies dans l'interface de
       # l'afficheur passent avant (3 listes + une saisie libre par page).
       CRYPTOS: bitcoin,ethereum         # identifiants CoinGecko (ou symboles : BTC, ETH)
-      ACTIONS: AAPL,MC.PA               # symboles Yahoo Finance (Paris : .PA ; indices : ^FCHI)
+      ACTIONS: AAPL,MC.PA               # symboles Yahoo Finance (Paris : .PA)
+      INDICES: FCHI,GSPC                # symboles Yahoo sans « ^ » : FCHI CAC 40, GSPC S&P 500,
+                                        # IXIC Nasdaq, DJI Dow Jones, GDAXI DAX, FTSE, STOXX50E,
+                                        # N225 Nikkei, HSI Hang Seng, SSMI ; « CAC40 », « SP500 »… acceptés
       DEVISES: EUR,GBP                  # codes ISO, cotés en dollars
       COMMODITIES: GC=F,CL=F            # contrats Yahoo : GC=F or, SI=F argent, HG=F cuivre,
                                         # CL=F pétrole, NG=F gaz, ZW=F blé, ZC=F maïs,

@@ -19,11 +19,11 @@ firmware/                  Firmware de l'afficheur (ESP8266, PlatformIO)
   tools/make_fonts.py      Régénère les polices (facultatif, voir § 6)
   tools/simulateur/        Aperçu des écrans sur PC, sans flasher (voir § 5)
 gateway/                   Passerelle Python (aiohttp), un module par page
-  app/modules/             heure, meteo, btc (crypto), cotations (actions, devises,
+  app/modules/             heure, meteo, btc (crypto), cotations (actions, indices, devises,
                            commodities), cours (outils communs), supervision,
                            discord_vocal, plex
   app/icones/              Pastilles de devises, icônes et logos inclus dans l'image (LICENCES.md)
-  tools/icones_devises.py  Régénère les pastilles de devises (symboles, couleurs)
+  tools/icones_devises.py  Régénère les pastilles des devises et des indices (symboles, couleurs)
   tests/                   Tests automatiques (sans accès Internet)
   Dockerfile
 docker-compose.yml         Modèle de déploiement de la passerelle (sans jetons)
@@ -95,7 +95,7 @@ Les autres modules demandent leurs variables (les mêmes que dans `docker-compos
 | `supervision` | `KUMA_URL`, `KUMA_STATUS_SLUG` |
 | `discord` | `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `DISCORD_MEMBERS_INTENT`) |
 | `plex` | `PLEX_URL`, `PLEX_TOKEN` |
-| `crypto`, `actions`, `devises`, `commodities` | facultatives : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY`, `ICONES_PERSO` (dossier d'icônes personnelles, `/icones` par défaut) |
+| `crypto`, `actions`, `indices`, `devises`, `commodities` | facultatives : `CRYPTOS`, `ACTIONS`, `INDICES`, `DEVISES`, `COMMODITIES` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY`, `ICONES_PERSO` (dossier d'icônes personnelles, `/icones` par défaut) |
 | tous | `TZ`, `VILLE_DEFAUT` |
 
 Ne jamais enregistrer de jeton dans un fichier suivi par git.
@@ -134,16 +134,16 @@ sh apercu.sh
 
 Résultat : un fichier par écran dans `out/` et une planche de tous les écrans, `planche.png`. Le script lance aussi le test de conservation de la configuration et un test de placement des textes. Sous Windows, passer par WSL ou Git Bash.
 
-### Pastilles des devises
+### Pastilles des devises et des indices
 
-Symboles et couleurs sont dans `gateway/tools/icones_devises.py`. Après une modification, depuis la racine du dépôt :
+Symboles et couleurs des devises et des indices sont dans `gateway/tools/icones_devises.py`. Après une modification, depuis la racine du dépôt :
 
 ```
 pip install pillow
 python gateway/tools/icones_devises.py <Inter-Black.otf> <NotoSerifCJK-Bold.ttc>
 ```
 
-Inter-Black est dans l'archive Inter (voir § 6) ; Noto Serif CJK ne sert qu'au « 元 » du yuan (paquet `fonts-noto-cjk` sous Debian ou Ubuntu). Le script réécrit les 31 fichiers de `gateway/app/icones/devises/`.
+Inter-Black est dans l'archive Inter (voir § 6) ; Noto Serif CJK ne sert qu'au « 元 » du yuan (paquet `fonts-noto-cjk` sous Debian ou Ubuntu). Le script réécrit les fichiers de `gateway/app/icones/devises/` (31) et `gateway/app/icones/indices/` (10).
 
 ## 6. Polices
 

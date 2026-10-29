@@ -314,8 +314,8 @@ static void renderModules(Chunks& c) {
          "à chaque arrivée. Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture "
          "commence. Une panne affiche l'écran PANNE puis le récapitulatif des services en défaut, "
          "aussitôt puis après chaque page, jusqu'au retour à la normale. Sans panne, Supervision "
-         "n'apparaît que si un service est instable ou si Kuma ne répond pas. Crypto, Actions, Devises, "
-         "Commodities : prix en dollars ; une valeur = courbe sur 30 jours ; deux ou trois = prix en "
+         "n'apparaît que si un service est instable ou si Kuma ne répond pas. Crypto, Actions, Indices, "
+         "Devises, Commodities : prix en dollars (indices en points) ; une valeur = courbe sur 30 jours ; deux ou trois = prix en "
          "vedette, puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours.</p></section>");
 }
 

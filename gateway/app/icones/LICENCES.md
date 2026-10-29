@@ -5,6 +5,7 @@ Converties en PNG 128 × 128 (fond transparent) pour l'afficheur.
 | Dossier | Source | Licence |
 |---|---|---|
 | `devises/` | pastilles générées par `gateway/tools/icones_devises.py` (disque de couleur et symbole de la monnaie), avec les polices [Inter](https://github.com/rsms/inter) et [Noto Serif CJK](https://github.com/notofonts/noto-cjk) (pour « 元 ») | SIL Open Font License 1.1 (polices) ; les pastilles font partie du projet |
+| `indices/` | pastilles générées par le même script (disque de couleur et nom court de l'indice), police Inter | SIL Open Font License 1.1 (police) ; les pastilles font partie du projet |
 | `commodities/` (petrole, gaz, ble, mais, soja, cafe, cacao) | [microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji), style « Flat » | MIT |
 | `commodities/` (or, argent, cuivre) | lingots de [nvstly/icons](https://github.com/nvstly/icons) (cuivre : lingot d'argent recoloré) | aucune licence déclarée |
 | `actions/` | logos de [nvstly/icons](https://github.com/nvstly/icons) (fond sombre retiré pour Nvidia et Tesla) | aucune licence déclarée ; les logos restent la propriété des sociétés |

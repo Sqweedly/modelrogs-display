@@ -1,4 +1,7 @@
-"""Pages Actions, Devises et Commodities (cours en dollars, Yahoo Finance).
+"""Pages Actions, Indices, Devises et Commodities (Yahoo Finance).
+
+Cours en dollars, sauf les indices boursiers, affichés en points (sans unité :
+convertir le CAC 40 en dollars n'aurait pas de sens).
 
 Source : Yahoo Finance (/v8/finance/chart, sans clé), une requête par valeur
 qui ramène le cours et les clôtures quotidiennes sur un mois, gardée 5 minutes.
@@ -22,7 +25,8 @@ Logos :
   - Actions : logo.dev (clé LOGO_DEV_TOKEN, facultative), puis logo inclus
     (gateway/app/icones/actions), puis dépôt GitHub nvstly/icons (actions
     cotées aux États-Unis) ; sinon l'afficheur dessine une pastille avec le code ;
-  - Devises : drapeaux inclus (gateway/app/icones/devises) ;
+  - Indices : pastilles incluses (gateway/app/icones/indices) ;
+  - Devises : pastilles incluses (gateway/app/icones/devises) ;
   - Commodities : icônes incluses (gateway/app/icones/commodities).
 """
 
@@ -116,6 +120,30 @@ DEVISES = {
     "CAD": "Dollar canadien", "AUD": "Dollar australien", "HKD": "Dollar de Hong Kong",
     "SGD": "Dollar de Singapour", "INR": "Roupie indienne",
 }
+# Indices : symbole Yahoo sans « ^ » -> (nom, code court)
+INDICES = {
+    "FCHI": ("CAC 40", "CAC"), "GSPC": ("S&P 500", "S&P"), "IXIC": ("Nasdaq Composite", "NDQ"),
+    "DJI": ("Dow Jones", "DOW"), "GDAXI": ("DAX", "DAX"), "FTSE": ("FTSE 100", "FTSE"),
+    "STOXX50E": ("Euro Stoxx 50", "SX5E"), "N225": ("Nikkei 225", "NKY"), "HSI": ("Hang Seng", "HSI"),
+    "SSMI": ("SMI (Suisse)", "SMI"),
+}
+# Saisies courantes acceptées (majuscules, sans espace ni tiret)
+ALIAS_INDICES = {
+    "CAC": "FCHI", "CAC40": "FCHI", "SP500": "GSPC", "S&P500": "GSPC", "S&P": "GSPC", "SPX": "GSPC",
+    "NASDAQ": "IXIC", "DOW": "DJI", "DOWJONES": "DJI", "DAX": "GDAXI", "DAX40": "GDAXI",
+    "FTSE100": "FTSE", "EUROSTOXX50": "STOXX50E", "STOXX50": "STOXX50E", "SX5E": "STOXX50E",
+    "NIKKEI": "N225", "NIKKEI225": "N225", "HANGSENG": "HSI", "SMI": "SSMI",
+}
+
+
+def indice(saisie: str) -> str:
+    """Saisie de l'afficheur -> symbole Yahoo sans « ^ » : « ^FCHI », « fchi »,
+    « CAC 40 » et « cac40 » donnent tous « FCHI »."""
+    s = saisie.strip().upper().lstrip("^")
+    cle = s.replace(" ", "").replace("-", "").replace("_", "")
+    return ALIAS_INDICES.get(cle, s)
+
+
 # symbole Yahoo -> (nom, code court, icône incluse, forme)
 COMMODITIES = {
     "GC=F": ("Or", "OR", "or", 2),
@@ -251,9 +279,15 @@ def _logo_action(symbole: str) -> str:
 
 async def _cotation(session: aiohttp.ClientSession, page: str, ident: str, avec_courbe: bool) -> dict:
     """Une valeur de la page : prix, variations, logo (et courbe 30 jours)."""
+    unite = "$"
     if page == "actions":
         symbole = ident.upper()
         code, logo, forme = cours.code_court(symbole), _logo_action(symbole), 1
+    elif page == "indices":
+        ident = indice(ident)
+        symbole, unite, forme = f"^{ident}", "", 2
+        code = INDICES.get(ident, ("", cours.code_court(ident)))[1]
+        logo = images.enregistrer([images.perso("indices", ident), images.icone("indices", ident)])
     elif page == "devises":
         symbole = f"{ident.upper()}USD=X"
         code, forme = ident.upper()[:4], 2
@@ -278,11 +312,14 @@ async def _cotation(session: aiohttp.ClientSession, page: str, ident: str, avec_
         return cours.introuvable(ident, code, indisponible=True)
 
     p24, p7, p30 = _variations(g)
-    try:
-        prix, closes = await _en_dollars(session, g)
-    except (Introuvable, SourceIndisponible):
-        return cours.introuvable(ident, code, indisponible=True)
-    e = cours.element(ident, code, prix, p24, p7, p30, logo, forme)
+    if page == "indices":                  # en points, dans la devise de l'indice
+        prix, closes = g["px"], g["c"]
+    else:
+        try:
+            prix, closes = await _en_dollars(session, g)
+        except (Introuvable, SourceIndisponible):
+            return cours.introuvable(ident, code, indisponible=True)
+    e = cours.element(ident, code, prix, p24, p7, p30, logo, forme, unite)
     if avec_courbe:
         e["p30"], e["rep"] = cours.normaliser(closes, prix), cours.reperes(closes, prix)
     if g.get("p"):
@@ -328,6 +365,7 @@ def _options(dico: dict) -> list[dict]:
 
 
 _actions, _actions30 = _page("actions", "ACTIONS", "AAPL")
+_indices, _indices30 = _page("indices", "INDICES", "FCHI")
 _devises, _devises30 = _page("devises", "DEVISES", "EUR")
 _commodities, _commodities30 = _page("commodities", "COMMODITIES", "GC=F")
 
@@ -336,6 +374,13 @@ MODULE_ACTIONS = Module(
     params=cours.params("ex. BNP.PA, ^FCHI"),
     extra=lambda: cours.manifeste("ACTIONS", "AAPL", _options(ACTIONS)),
     routes={"/actions": _actions, "/actions/30j": _actions30},
+    arreter=fermer,
+)
+MODULE_INDICES = Module(
+    id="indices", nom="Indices",
+    params=cours.params("ex. ^IBEX, CAC40"),
+    extra=lambda: cours.manifeste("INDICES", "FCHI", _options(INDICES)),
+    routes={"/indices": _indices, "/indices/30j": _indices30},
     arreter=fermer,
 )
 MODULE_DEVISES = Module(

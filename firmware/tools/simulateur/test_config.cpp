@@ -13,7 +13,7 @@ struct V3 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[6
 struct V4 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[65]; char apSsid[33]; char gateway[96]; char ville[48];
   uint8_t pages, pageSec, nightOn; uint16_t nightStart, nightEnd; uint8_t brightDay, brightNight; char pHeure[24], pMeteo[24], pDiscord[40], pSup[300], pBtc[24];
   uint8_t validated; char pCrypto[52]; char pPlex[4]; uint8_t ext26; uint8_t reserve[6]; };
-static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO);
+static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO) | (1 << PG_INDICES);
 
 int main() {
   // 1. Ancien firmware Discord (firmware différent)
@@ -60,13 +60,29 @@ int main() {
   CHECK(cfg.validated == 1 && !strcmp(cfg.pCrypto, "s1=solana"), "2.5 -> 2.9 : validation, crypto reprise");
   CHECK(cfg.pages == (0x1F | 1 << PG_PLEX | NOUVELLES), "2.5 -> 2.9 : Plex et pages de cours ajoutees");
 
-  // 4. Nouvelle version du MEME firmware (structure 5) : tout est conserve
+  // 3c. Display 2.9.0 / 2.9.1 (structure 5) validee : tout est repris, page Indices ajoutee
+  {
+    Config v5{};
+    memcpy(&v5, &cfg, sizeof(cfg));
+    v5.magic = PRODUCT_MAGIC; v5.version = 5; v5.validated = 1; v5.pages = 0x01FF & ~(1 << PG_INDICES) & ~(1 << PG_METEO);
+    strcpy(v5.pActions, "s1=AAPL"); strcpy(v5.pCrypto, "s1=solana"); memset(v5.pIndices, 0, sizeof(v5.pIndices));
+    memset(v5.reserve, 0, sizeof(v5.reserve));
+    ecrire(v5); loadConfig();
+    CHECK(cfg.validated == 1 && !strcmp(cfg.pActions, "s1=AAPL") && !strcmp(cfg.pCrypto, "s1=solana")
+          && !strcmp(cfg.wifiSsid, "Maison"), "2.9.1 -> 2.10 : validation et reglages conserves");
+    CHECK((cfg.pages & 1 << PG_INDICES) && !(cfg.pages & 1 << PG_METEO) && !cfg.pIndices[0],
+          "2.9.1 -> 2.10 : page Indices activee (valeurs du compose), pages decochees conservees");
+  }
+
+  // 4. Nouvelle version du MEME firmware (structure actuelle) : tout est conserve
   strcpy(cfg.pActions, "s1=AAPL&s2=MC.PA&m=BNP.PA%2CORA.PA"); strcpy(cfg.pCommo, "s1=GC%3DF");
+  strcpy(cfg.pIndices, "s1=FCHI&s2=GSPC&m=%5EIBEX");
   cfg.pages &= ~(1 << PG_DEVISES); saveConfig();
   loadConfig();
   CHECK(cfg.validated == 1 && !strcmp(cfg.pActions, "s1=AAPL&s2=MC.PA&m=BNP.PA%2CORA.PA") && !strcmp(cfg.pCommo, "s1=GC%3DF")
         && !(cfg.pages & 1 << PG_DEVISES) && (cfg.pages & 1 << PG_COMMO), "meme firmware -> reglages des pages de cours conserves");
   CHECK(modParam(PG_ACTIONS, "m") == "BNP.PA,ORA.PA" && modParam(PG_COMMO, "s1") == "GC=F", "reglages relus et decodes");
+  CHECK(modParam(PG_INDICES, "s2") == "GSPC" && modParam(PG_INDICES, "m") == "^IBEX", "indices conserves et decodes");
 
   // 5. Firmware inconnu / EEPROM vierge
   memset(EEPROM.data, 0xFF, sizeof(EEPROM.data)); loadConfig();

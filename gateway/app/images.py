@@ -20,7 +20,7 @@ mémorisé une heure : l'afficheur dessine alors sa pastille de remplacement san
 attendre.
 
 Icônes personnelles : un dossier de l'hôte monté sur /icones (ICONES_PERSO),
-rangé comme app/icones (actions/, devises/, commodities/, crypto/), passe avant
+rangé comme app/icones (actions/, indices/, devises/, commodities/, crypto/), passe avant
 toute autre source. Il est relu toutes les 30 secondes ; la date et la taille
 du fichier entrent dans le jeton, si bien qu'une icône ajoutée, remplacée ou
 supprimée est prise en compte sans redémarrer. Voir docs/PASSERELLE.md.
@@ -55,7 +55,7 @@ SEUIL_ALPHA = 16          # pixel transparent : alpha <= 16
 SEUIL_FOND = 24           # pixel « de fond » : écart <= 24 avec la couleur des coins
 ICONES = Path(__file__).resolve().parent / "icones"   # icônes incluses dans l'image Docker
 ICONES_PERSO = Path(os.environ.get("ICONES_PERSO", "/icones"))   # icônes de l'utilisateur
-CATEGORIES_PERSO = ("actions", "devises", "commodities", "crypto")
+CATEGORIES_PERSO = ("actions", "indices", "devises", "commodities", "crypto")
 EXTENSIONS = (".png", ".webp", ".jpg", ".jpeg")    # par ordre de préférence
 RELECTURE_PERSO = 30      # secondes entre deux relectures du dossier personnel
 

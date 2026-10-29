@@ -51,9 +51,9 @@ def variation(pct: float | None) -> tuple[str, int]:
     return f"{signe}{nombre_fr(abs(pct), 1)} %", int(pct >= 0)
 
 
-def prix(valeur: float) -> str:
-    """En dollars, au moins 4 chiffres, 2 décimales quand elles suffisent :
-    57 864 $ ; 142,35 $ ; 2,184 $ ; 0,08214 $."""
+def prix(valeur: float, unite: str = "$") -> str:
+    """En dollars (ou sans unité : indices en points), au moins 4 chiffres,
+    2 décimales quand elles suffisent : 57 864 $ ; 142,35 $ ; 2,184 $ ; 0,08214 $."""
     if valeur >= 1000:
         dec = 0
     elif valeur >= 10:
@@ -66,7 +66,8 @@ def prix(valeur: float) -> str:
             dec += 1
     else:
         dec = 2
-    return f"{nombre_fr(valeur, dec)} $"
+    texte = nombre_fr(valeur, dec)
+    return f"{texte} {unite}" if unite else texte
 
 
 def reduire(valeurs: list[float], n: int) -> list[float]:
@@ -155,14 +156,14 @@ def code_court(symbole: str) -> str:
 
 
 def element(ident: str, code: str, valeur: float, pct24: float | None, pct7: float | None,
-            pct30: float | None, image: str, forme: int) -> dict:
+            pct30: float | None, image: str, forme: int, unite: str = "$") -> dict:
     """Élément prêt à afficher. forme : 0 logo rond (crypto), 1 logo posé sur un
     disque (actions, icônes), 2 image découpée en rond (drapeaux, lingots)."""
     v24, u24 = variation(pct24)
     v7, u7 = variation(pct7)
     v30, u30 = variation(pct30)
     return {
-        "id": ident, "s": code, "px": prix(valeur),
+        "id": ident, "s": code, "px": prix(valeur, unite),
         "v24": v24, "u24": u24, "v7": v7, "u7": u7, "v30": v30, "u30": u30,
         "x": int(abs(pct7 or 0.0) >= SEUIL_DEDIEE),
         "i": image, "f": forme,

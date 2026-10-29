@@ -755,6 +755,15 @@ static void courbe(JsonArray pts, int x0, int x1, int haut, int bas, uint16_t li
   }
 }
 
+// Couleurs des pages de cours : gris strictement neutres (R = V = B). Les gris
+// bleutés de l'interface (MUTED, DIM, CARD) tirent nettement vers le bleu sur
+// l'écran du SmallTV.
+static constexpr uint16_t GRIS_CLAIR  = RGB(0xC8, 0xC8, 0xC8);   // intitulés 24 h / 7 j / 30 j, dates
+static constexpr uint16_t GRIS_REPERE = RGB(0xA0, 0xA0, 0xA0);   // libellés des repères de prix
+static constexpr uint16_t GRIS_GRILLE = RGB(0x3C, 0x3C, 0x3C);   // pointillés des repères
+static constexpr uint16_t GRIS_DISQUE = RGB(0x26, 0x26, 0x26);   // disque sous un logo « posé », « ? »
+static constexpr uint16_t CARTE       = RGB(0x14, 0x14, 0x14);   // cartes des écrans à 2 et 3 valeurs
+
 // Couleur de la pastille de remplacement : fixe pour un même code
 static uint16_t accentCode(const char* s) {
   static const uint16_t P[6] = { VIOLET, BLEU, CORAIL, XRP, ETH, AMBRE };
@@ -772,15 +781,15 @@ static void logoCrypto(JsonObject c, int x, int y, int d, uint16_t fond) {
   const char* sym = c["s"] | "?";
   const int cx = x + d / 2, cy = y + d / 2;
   if (c["e"] | 0) {
-    tft.fillSmoothCircle(cx, cy, d / 2, DIM, fond);
-    drawText("?", cx, cy + 1, F_18, TXT, DIM, MC_DATUM);
+    tft.fillSmoothCircle(cx, cy, d / 2, GRIS_DISQUE, fond);
+    drawText("?", cx, cy + 1, F_18, TXT, GRIS_DISQUE, MC_DATUM);
     return;
   }
   const int forme = c["f"] | 0;
   if (forme == 1) {
-    tft.fillSmoothCircle(cx, cy, d / 2, CARD, fond);
+    tft.fillSmoothCircle(cx, cy, d / 2, GRIS_DISQUE, fond);
     const int di = (d * 64 / 100) & ~1;
-    if (gwImage(c["i"] | "", cx - di / 2, cy - di / 2, di, di, CARD, 0, true)) return;
+    if (gwImage(c["i"] | "", cx - di / 2, cy - di / 2, di, di, GRIS_DISQUE, 0, true)) return;
   } else if (gwImage(c["i"] | "", x, y, d, d, fond, d / 2, forme == 0)) {
     return;
   }
@@ -818,7 +827,7 @@ static void bullesVariations(JsonObject c, int y) {
     const bool hausse = c[UP[i]] | 1;
     const uint16_t fond = hausse ? VERT_BG : ROUGE_BG;
     card(x, y - 3, w[i], H, H / 2, fond);
-    drawText(LAB[i], x + PAD, y + 8, F_16, MUTED, fond, ML_DATUM);
+    drawText(LAB[i], x + PAD, y + 8, F_16, GRIS_CLAIR, fond, ML_DATUM);
     drawText(c[VAL[i]] | "", x + PAD + wl[i] + ESP, y + 8, F_16, hausse ? VERT : ROUGE_TX, fond, ML_DATUM);
     x += w[i] + ENTRE;
   }
@@ -846,7 +855,7 @@ static void dessinerPrix(const char* px, int x, int base, FontId f, uint16_t bg 
   x += drawText(a, x, base - fontAscent(f), f, TXT, bg) + 1;
   FontId fi = policeIndice(f);
   GlyphBox g0; glyphBox(fi, '0', g0);
-  x += drawText(z, x, base + g0.h / 2 - fontAscent(fi), fi, MUTED, bg) + 1;   // indice : à cheval sur la ligne de base
+  x += drawText(z, x, base + g0.h / 2 - fontAscent(fi), fi, GRIS_CLAIR, bg) + 1;   // indice : à cheval sur la ligne de base
   drawText(b, x, base - fontAscent(f), f, TXT, bg);
 }
 
@@ -859,6 +868,7 @@ static uint16_t accentPage(uint8_t page, JsonArray cs) {
     case PG_ACTIONS: return BLEU;
     case PG_DEVISES: return VERT;
     case PG_COMMO:   return AMBRE;
+    case PG_INDICES: return VIOLET;
     default:         return accentCrypto(cs[0]["s"] | "");
   }
 }
@@ -884,7 +894,6 @@ static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool 
   const int GX0 = 14, GX1 = 226, HAUT = 86, BAS = 204;      // encre de la courbe : y 86..200
   uint16_t ligne = (c["u30"] | 1) ? VERT : ROUGE;
   courbe(c["p30"], GX0, GX1, HAUT, BAS, ligne, BG, true, 2.5f, false);
-  static constexpr uint16_t GRILLE = RGB(0x30, 0x34, 0x3C);
   // Libellés : celui du repère bas au-dessus de son pointillé, celui du repère
   // haut en dessous (repère seul : au-dessus, sauf s'il touche le haut).
   JsonArray reps = c["rep"].as<JsonArray>();
@@ -893,19 +902,19 @@ static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool 
   for (JsonObject r : reps) {
     const int yv = constrain((int)(r["y"] | 0), 0, 100);
     int y = (int)lroundf((BAS - 4) - yv * (BAS - 4 - HAUT) / 100.0f);
-    for (int x = GX0; x < GX1; x += 6) tft.drawFastHLine(x, y, 3, GRILLE);
+    for (int x = GX0; x < GX1; x += 6) tft.drawFastHLine(x, y, 3, GRIS_GRILLE);
     const int hTexte = fontAscent(F_11) + 2;
     bool dessous = (reps.size() > 1 && yv == yMax) || (y - hTexte - 1 < HAUT);
-    drawText(r["t"] | "", GX0 + 1, dessous ? y + 3 : y - hTexte - 1, F_11, DIM, BG);
+    drawText(r["t"] | "", GX0 + 1, dessous ? y + 3 : y - hTexte - 1, F_11, GRIS_REPERE, BG);
   }
   courbe(c["p30"], GX0, GX1, HAUT, BAS, ligne, BG, false, 2.5f, true);
 
   // Dates sous la courbe : il y a 30 jours, il y a 15 jours, aujourd'hui
   if (timeValid()) {
     char d[16];
-    dateCourte(d, sizeof(d), 30); drawText(d, GX0, BAS + 2, F_11, MUTED2, BG, TL_DATUM);
-    dateCourte(d, sizeof(d), 15); drawText(d, (GX0 + GX1) / 2, BAS + 2, F_11, MUTED2, BG, TC_DATUM);
-    dateCourte(d, sizeof(d));     drawText(d, GX1, BAS + 2, F_11, MUTED2, BG, TR_DATUM);
+    dateCourte(d, sizeof(d), 30); drawText(d, GX0, BAS + 2, F_11, GRIS_CLAIR, BG, TL_DATUM);
+    dateCourte(d, sizeof(d), 15); drawText(d, (GX0 + GX1) / 2, BAS + 2, F_11, GRIS_CLAIR, BG, TC_DATUM);
+    dateCourte(d, sizeof(d));     drawText(d, GX1, BAS + 2, F_11, GRIS_CLAIR, BG, TR_DATUM);
   }
   staleMark(perime);
   pageDots(dotIndex, dotCount, accent);
@@ -952,7 +961,7 @@ static void bulles24h7j(JsonObject c, int cx, int yHaut, FontId f, int h, int pa
     const int wl = textW(BUL_LAB[i], f), wv = textW(c[BUL_VAL[i]] | "", f);
     const int w = pad + wl + esp + wv + pad;
     card(x, yHaut, w, h, h / 2, fond, bgEcran);
-    drawText(BUL_LAB[i], x + pad, yHaut + h / 2 + 1, f, MUTED, fond, ML_DATUM);
+    drawText(BUL_LAB[i], x + pad, yHaut + h / 2 + 1, f, GRIS_CLAIR, fond, ML_DATUM);
     drawText(c[BUL_VAL[i]] | "", x + pad + wl + esp, yHaut + h / 2 + 1, f, hausse ? VERT : ROUGE_TX, fond, ML_DATUM);
     x += w + entre;
   }
@@ -999,23 +1008,23 @@ static void vedetteCartes(JsonArray cs, uint8_t n, uint8_t dotIndex, uint8_t dot
     JsonObject c = cs[k];
     noterDediee(c);
     const int y = Y0 + k * (hc + ESPC), xl = X0 + PAD;
-    card(X0, y, X1 - X0, hc, deux ? 16 : 12, CARD, BG);
+    card(X0, y, X1 - X0, hc, deux ? 16 : 12, CARTE, BG);
     // Logo sur toute la taille, sans contour : le disque gris des logos « posés »
     // (actions, matières premières) se confondrait avec la carte.
-    if (!((c["f"] | 0) == 1 && !(c["e"] | 0) && gwImage(c["i"] | "", xl, y + PAD, L, L, CARD, 0, true)))
-      logoCrypto(c, xl, y + PAD, L, CARD);
+    if (!((c["f"] | 0) == 1 && !(c["e"] | 0) && gwImage(c["i"] | "", xl, y + PAD, L, L, CARTE, 0, true)))
+      logoCrypto(c, xl, y + PAD, L, CARTE);
     // Prix centré sur la hauteur du logo, au milieu de la place restante
     const int xp = xg + (xd - xg - min(xd - xg, largeurPrixOuCode(c, fp))) / 2;
     const int base = y + PAD + L / 2 + g0.dy - g0.h / 2;
     const int yb = y + PAD + L + GAPL;
     if (c["e"] | 0) {
       const FontId fc = policeCode(fp);
-      drawText(c["s"] | "?", xp, base - fontAscent(fc), fc, TXT, CARD);
-      drawText(texteErreur(c), 120, yb + HB / 2, fb, couleurErreur(c), CARD, MC_DATUM);
+      drawText(c["s"] | "?", xp, base - fontAscent(fc), fc, TXT, CARTE);
+      drawText(texteErreur(c), 120, yb + HB / 2, fb, couleurErreur(c), CARTE, MC_DATUM);
       continue;
     }
-    dessinerPrix(c["px"] | "", xp, base, fp, CARD);
-    bulles24h7j(c, 120, yb, fb, HB, pad, esp, entre, CARD);
+    dessinerPrix(c["px"] | "", xp, base, fp, CARTE);
+    bulles24h7j(c, 120, yb, fb, HB, pad, esp, entre, CARTE);
   }
   if (perime) staleMark(true);
   pageDots(dotIndex, dotCount, accent);
@@ -1213,8 +1222,6 @@ static void plexLignes(uint8_t n, int autres) {
     const int wPill = textW(t, F_11) + 14, hPill = 19;
     if (grand) {
       int basU = 0, basT = 0;
-      String u = fitText(l.user, F_16, w);
-      drawText(u, xG, baseDepuisHaut(u, F_16, y0, &basU), F_16, PLEX, BG);
       // Titre : 16 px sur une ligne, sinon 14 px sur une ligne, sinon 14 px sur deux
       FontId fT = policeQuiTient(l.titre, F_16, F_13, w);
       String t1 = l.titre, t2 = "";
@@ -1225,6 +1232,12 @@ static void plexLignes(uint8_t n, int autres) {
         if (coupe > 0) { t2 = fitText(t1.substring(coupe + 1), fT, w); t1 = t1.substring(0, coupe); }
         else t1 = fitText(t1, fT, w);
       }
+      // Qui regarde : centré sur la colonne de droite et un peu sous le haut de
+      // l'affiche, comme pour une seule lecture (au ras du haut si le titre
+      // prend deux lignes : la place manque)
+      String u = fitText(l.user, F_16, w);
+      drawText(u, xG + (w - textW(u, F_16)) / 2, baseDepuisHaut(u, F_16, y0 + (t2.length() ? 0 : 6), &basU),
+               F_16, PLEX, BG);
       drawText(t1, xG, baseDepuisHaut(t1, fT, basU + 9, &basT), fT, TXT, BG);
       if (t2.length()) drawText(t2, xG, baseDepuisHaut(t2, fT, basT + 5, &basT), fT, TXT, BG);
       // Pastille + épisode (« S2 · E5 », ou « S2E5 » si la place manque)

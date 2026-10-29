@@ -294,7 +294,7 @@ int main(int argc, char** argv) {
   fixtures["/btc"] = FX("crypto3_pepe"); drawCours(PG_BTC, 4, 6); save("13c_crypto_3_pepe");
   fixtures["/btc"] = FX("crypto2_pepe"); drawCours(PG_BTC, 4, 6); save("13d_crypto_2_pepe");
   fixtures["/btc"] = FX("crypto30j_pepe"); drawCours(PG_BTC, 4, 6); save("13e_crypto_1_pepe");
-  // Pages de cours 2.9 (même rendu que Crypto, en dollars)
+  // Pages de cours (même rendu que Crypto ; dollars, indices en points)
   const char* const COURS[][3] = {
     {"/actions", "actions1", "20_actions_1"}, {"/actions", "actions2", "21_actions_2"},
     {"/actions", "actions3", "22_actions_3"}, {"/actions", "actions3e", "23_actions_introuvable"},
@@ -302,15 +302,20 @@ int main(int argc, char** argv) {
     {"/devises", "devises2", "24_devises_2"}, {"/devises", "devises3", "25_devises_3"},
     {"/commodities", "commo1", "26_commodities_1"}, {"/commodities", "commo3", "27_commodities_3"},
     {"/commodities", "commo3b", "28_commodities_3b"},
+    {"/indices", "indices1", "29_indices_1"}, {"/indices", "indices2", "29b_indices_2"},
+    {"/indices", "indices3", "29c_indices_3"},
   };
   for (auto& k : COURS) {
     fixtures[k[0]] = FX(k[1]);
-    uint8_t page = strcmp(k[0], "/actions") == 0 ? PG_ACTIONS : strcmp(k[0], "/devises") == 0 ? PG_DEVISES : PG_COMMO;
+    uint8_t page = strcmp(k[0], "/actions") == 0 ? PG_ACTIONS : strcmp(k[0], "/devises") == 0 ? PG_DEVISES
+                 : strcmp(k[0], "/indices") == 0 ? PG_INDICES : PG_COMMO;
     drawCours(page, 5, 9); save(k[2]);
   }
   drawPlex(5, 6);                  save("14_plex_1");
   fixtures["/plex"] = FX("plex1s"); pollPlex();
   drawPlex(5, 6);                  save("14b_plex_serie");
+  fixtures["/plex"] = FX("plex2"); pollPlex();
+  drawPlex(5, 6);                  save("15a_plex_2");
   fixtures["/plex"] = FX("plex3"); pollPlex();
   drawPlex(5, 6);                  save("15_plex_3");
   fixtures["/discord"] = FX("discord11"); pollDiscord();

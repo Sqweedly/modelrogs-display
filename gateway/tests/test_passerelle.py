@@ -8,6 +8,7 @@ Lancement :  python -m tests.test_passerelle   (depuis le dossier gateway/)
 import asyncio
 import io
 import json
+import re
 import os
 import sys
 import tempfile
@@ -22,6 +23,7 @@ from PIL import Image, ImageDraw
 MAINTENANT = datetime.now(timezone.utc)
 APPELS_GEO: list[str] = []
 APPELS_YAHOO: list[str] = []
+SOUVENIRS_REFUSES = [False]
 PLEX: list[dict] = []
 base_faux = ""
 REQUETES_KUMA: list[dict] = []
@@ -180,6 +182,81 @@ def faux_internet() -> web.Application:
     app.router.add_get("/prev", prev)
     app.router.add_get("/cg/coins/markets", cg)
     app.router.add_get("/cg/coins/{id}/market_chart", cg30)
+    # --- Faux Immich : 3 photos (dont une en hauteur), une vidéo, un album, un souvenir
+    def actif(i, **k):
+        return dict({"id": i, "type": "IMAGE", "localDateTime": "2023-07-03T10:00:00.000Z"}, **k)
+    PHOTOS = [actif("p1"), actif("p2"), actif("haute"), {"id": "v1", "type": "VIDEO"}]
+
+    def cle_ok(r):
+        return r.headers.get("x-api-key") == "cle-immich"
+
+    async def im_hasard(r):
+        if not cle_ok(r):
+            return web.Response(status=401)
+        corps = await r.json()
+        assert corps["type"] == "IMAGE"
+        return web.json_response(PHOTOS)
+
+    async def im_meta(r):
+        if not cle_ok(r):
+            return web.Response(status=401)
+        corps = await r.json()
+        assert corps.get("type", "IMAGE") == "IMAGE" and corps["size"] == 1000
+        if "albumIds" in corps:                                # photos d'un album (Immich récent)
+            if corps["albumIds"] == ["pas-un-uuid"]:
+                return web.Response(status=400, text="Bad Request")
+            if corps["albumIds"] != ["alb1"]:
+                return web.json_response({"assets": {"items": [], "nextPage": None}})
+            # deux pages : 2 photos, puis la photo en hauteur et la vidéo
+            if corps["page"] == 1:
+                return web.json_response({"assets": {"items": PHOTOS[:2], "nextPage": "2"}})
+            return web.json_response({"assets": {"items": PHOTOS[2:], "nextPage": None}})
+        assert corps["isFavorite"] is True
+        if "type" in corps:          # comme certaines versions : favori + type ne renvoie rien
+            return web.json_response({"assets": {"items": [], "nextPage": None}})
+        return web.json_response({"assets": {"items": [actif("p2", isFavorite=True)], "nextPage": None}})
+
+    async def im_souvenirs(r):
+        # Comme Immich récent : « for » doit être une date simple AAAA-MM-JJ (sinon 400)
+        if not cle_ok(r) or SOUVENIRS_REFUSES[0]:
+            return web.Response(status=403)
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", r.query.get("for", "")):
+            return web.Response(status=400, text="Bad Request")
+        annee = datetime.now().year - 3
+        return web.json_response([{"type": "on_this_day", "data": {"year": annee}, "assets": [actif("p1")]},
+                                  {"type": "birthday", "data": {"year": annee}, "assets": [actif("p2")]}])
+
+    async def im_albums(r):
+        return web.json_response([{"id": "alb1", "albumName": "Vacances", "assetCount": 3}])
+
+    async def im_album(r):
+        # Comme Immich récent : tout paramètre inconnu est refusé (400), et l'album ne
+        # liste plus ses photos ; « ancien » les liste encore
+        if r.query:
+            return web.Response(status=400, text="Bad Request")
+        if r.match_info["id"] == "ancien":
+            return web.json_response({"id": "ancien", "assets": PHOTOS[:2]})
+        if r.match_info["id"] == "pas-un-uuid":
+            return web.Response(status=400, text="Bad Request")
+        if r.match_info["id"] != "alb1":
+            return web.Response(status=404)
+        return web.json_response({"id": "alb1", "assets": []})
+
+    async def im_image(r):
+        assert cle_ok(r) and r.query.get("size") == "preview"
+        if r.match_info["id"] == "haute":                      # photo en hauteur, rouge
+            im = Image.new("RGB", (300, 600), (220, 20, 20))
+        else:                                                  # photo en largeur, verte
+            im = Image.new("RGB", (800, 600), (20, 200, 40))
+        b = io.BytesIO(); im.save(b, "JPEG", quality=95)
+        return web.Response(body=b.getvalue(), content_type="image/jpeg")
+
+    app.router.add_post("/immich/api/search/random", im_hasard)
+    app.router.add_post("/immich/api/search/metadata", im_meta)
+    app.router.add_get("/immich/api/memories", im_souvenirs)
+    app.router.add_get("/immich/api/albums", im_albums)
+    app.router.add_get("/immich/api/albums/{id}", im_album)
+    app.router.add_get("/immich/api/assets/{id}/thumbnail", im_image)
     app.router.add_get("/yf/v8/finance/chart/{sym}", yahoo)
     app.router.add_get("/bce/{periode}", bce)
     app.router.add_get("/ld/ticker/{sym}", logodev)
@@ -206,7 +283,8 @@ async def principal() -> int:
         "KUMA_URL": base + "/kuma", "KUMA_STATUS_SLUG": "modelrogs",
         "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris", "ICONES_PERSO": tempfile.mkdtemp(),
         # Discord demandé mais non configuré : doit être signalé, pas planter
-        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,custom,inconnu",
+        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,custom,photos,inconnu",
+        "IMMICH_URL": base + "/immich", "IMMICH_KEY": "cle-immich",
     })
     os.environ.pop("DISCORD_TOKEN", None)
     from app.main import creer_app   # importé après la configuration
@@ -235,7 +313,8 @@ async def principal() -> int:
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
             ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex",
-                                                                  "actions", "indices", "devises", "commodities", "custom"]
+                                                                  "actions", "indices", "devises", "commodities", "custom",
+                                                                  "immich"]
                 and next(m for m in d["m"] if m["id"] == "discord")["ok"] == 0),
             # Cours : 3 listes + saisie ; 10 options ; valeurs du compose annoncées
             ("/modules", lambda d: all(
@@ -296,6 +375,19 @@ async def principal() -> int:
             ("/indices?m=cac%2040", lambda d: d["c"][0]["id"] == "FCHI"),
             ("/indices/30j?id=FCHI", lambda d: d["ok"] and d["c"][0]["px"] == "8 123"),
             ("/indices?m=ZZZ", lambda d: d["c"][0] == {"id": "ZZZ", "s": "ZZZ", "e": 1}),
+            # Photos Immich : source, durée (30 s par défaut), liste des sources
+            ("/modules", lambda d: [p["k"] for p in next(m for m in d["m"] if m["id"] == "immich")["p"]] == ["s", "duree"]
+                and next(m for m in d["m"] if m["id"] == "immich")["p"][1]["d"] == "30"),
+            ("/immich", lambda d: d["ok"] == 1 and len(d["i"]) == 12 and "b" not in d),
+            ("/immich?s=souvenirs", lambda d: d["ok"] == 1 and d["b"] == "Il y a 3 ans"),
+            ("/immich?s=favoris", lambda d: d["ok"] == 1 and d["i"]),
+            ("/immich?s=a%3Aalb1", lambda d: d["ok"] == 1 and d["i"]),
+            ("/immich?s=a%3Ainconnu", lambda d: d == {"ok": 0, "err": "Album introuvable"}),
+            ("/immich?s=a%3Apas-un-uuid", lambda d: d == {"ok": 0, "err": "Requête refusée par Immich"}),
+            # Ancienne version d'Immich : photos lues dans l'album lui-même
+            ("/immich?s=a%3Aancien", lambda d: d["ok"] == 1 and d["i"]),
+            ("/immich/sources", lambda d: [s["id"] for s in d["s"]] == ["favoris", "souvenirs", "a:alb1"]
+                and d["s"][2]["n"] == "Album · Vacances"),
             # Custom : 3 valeurs de catégories différentes, servies comme sur leur page d'origine
             ("/custom?s1=c%3Abitcoin&s2=a%3AAAPL&s3=m%3AGC%3DF", lambda d: [c["id"] for c in d["c"]]
                 == ["c:bitcoin", "a:AAPL", "m:GC=F"] and [c["px"] for c in d["c"]] == ["62 100 $", "268,40 $", "4 112 $"]
@@ -504,6 +596,45 @@ async def principal() -> int:
         ok = r.status == 200 and bleu > 36 * 36 * 0.8 and blanc == 0
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} logo Logo.dev rogné et agrandi -> {bleu} px de logo / {36 * 36}, {blanc} px de marge")
+
+        # --- Photos : pas de répétition, plein écran, photo en hauteur sur fond flou, clé refusée
+        from app.modules import immich as IMM
+        IMM._vues.clear()
+        suite = [(await (await c.get("/immich?s=a%3Aalb1")).json())["i"] for _ in range(4)]
+        ok = len(set(suite[:3])) == 3 and suite[3] != suite[2]
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : les 3 photos de l'album avant toute répétition, "
+              f"puis jamais deux fois de suite -> {len(set(suite[:3]))} différentes")
+        jeton_haute = IMM._image({"id": "haute"})
+        r = await c.get(f"/img?t={jeton_haute}&w=240&h=240&f=000000")
+        corps = await r.read()
+        def pixel(x, y):
+            v = int.from_bytes(corps[(y * 240 + x) * 2:(y * 240 + x) * 2 + 2], "little")
+            return (v >> 11) << 3, ((v >> 5) & 0x3F) << 2, (v & 0x1F) << 3
+        centre, bord = pixel(120, 120), pixel(4, 120)
+        ok = r.status == 200 and len(corps) == 240 * 240 * 2 and centre[0] > 200 and 40 < bord[0] < 180 and bord[1] < 40
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : photo en hauteur 240x240, entière au centre {centre}, fond flou {bord}")
+        r = await c.get(f"/img?t={IMM._image({'id': 'p1'})}&w=240&h=240&f=000000")
+        corps = await r.read()
+        ok = r.status == 200 and pixel(2, 2)[1] > 150 and pixel(237, 237)[1] > 150
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : photo en largeur recadrée, plein écran {pixel(2, 2)}")
+        os.environ["IMMICH_KEY"] = "mauvaise"
+        d = await (await c.get("/immich")).json()
+        os.environ["IMMICH_KEY"] = "cle-immich"
+        ok = d == {"ok": 0, "err": "Clé Immich refusée"}
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : clé refusée -> {d}")
+        # Souvenirs refusés (droit memory.read manquant) : photo au hasard, pas d'erreur
+        from app.cache import cache as CACHE
+        CACHE._valeurs.pop(f"immich-souvenirs-{IMM._aujourdhui().isoformat()}", None)
+        SOUVENIRS_REFUSES[0] = True
+        d = await (await c.get("/immich?s=souvenirs")).json()
+        SOUVENIRS_REFUSES[0] = False
+        ok = d["ok"] == 1 and d["i"] and "b" not in d
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : souvenirs refusés -> photo au hasard {d}")
 
         APPELS_YAHOO.clear()
         await c.get("/actions?m=XYZ"); await c.get("/actions?m=XYZ")

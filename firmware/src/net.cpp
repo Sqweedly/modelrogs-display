@@ -139,7 +139,7 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
 }
 
 bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int rayon, bool ajuster) {
-  if (!jeton || !jeton[0] || w <= 0 || h <= 0 || w > 160 || h > 160) return false;
+  if (!jeton || !jeton[0] || w <= 0 || h <= 0 || w > 240 || h > 240) return false;
   if (!staConnected() || cfg.gateway[0] == '\0' || gwRetryInSeconds() > 0) return false;
 
   // RGB565 -> RRGGBB (couleur exacte du fond sous les coins arrondis)
@@ -158,7 +158,7 @@ bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int r
     http.setReuse(false);
     if (http.GET() == HTTP_CODE_OK && http.getSize() == w * h * 2) {
       WiFiClient& flux = http.getStream();
-      uint16_t ligne[160];
+      uint16_t ligne[240];
       tft.setSwapBytes(true);        // pixels reçus dans l'ordre natif de l'ESP
       ok = true;
       for (int j = 0; j < h; j++) {

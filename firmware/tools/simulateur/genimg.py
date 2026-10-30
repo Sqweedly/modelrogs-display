@@ -18,5 +18,8 @@ jeton, w, h, fond, rayon, mode, sortie = sys.argv[1:8]
 source = next((p for p in (ICI / "fixtures" / "img").glob(jeton + ".*") if p.suffix in (".png", ".jpg")), None)
 if source is None:
     sys.exit(1)
-pixels = convertir(source.read_bytes(), int(w), int(h), tuple(bytes.fromhex(fond)), int(rayon), mode == "a")
+# Photos Immich (jetons « photo-… ») : traitées en photo, comme la passerelle le fait
+# pour les images enregistrées par le module immich
+pixels = convertir(source.read_bytes(), int(w), int(h), tuple(bytes.fromhex(fond)), int(rayon), mode == "a",
+                   photo=jeton.startswith("photo-"))
 Path(sortie).write_bytes(pixels)

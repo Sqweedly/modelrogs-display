@@ -20,7 +20,7 @@
 //    structure l'incrémente ET ajoute une migration dans config.cpp.
 //    Pour ajouter un réglage sans migration, prendre de la place dans `reserve`.
 #define PRODUCT_MAGIC   0x5044524DUL   // "MRDP"
-#define CONFIG_VERSION  7
+#define CONFIG_VERSION  8
 #define LEGACY_MAGIC    0x4D524447UL   // "MRDG" : firmware Discord (v1), Display 2.0/2.1 (v2, v3)
 
 // Une page = un module de la passerelle (même identifiant que /modules).
@@ -36,6 +36,7 @@ enum PageId : uint8_t {
   PG_COMMO,
   PG_INDICES,   // 2.10 : indices boursiers (même rendu)
   PG_CUSTOM,    // 2.11 : 3 valeurs de toutes catégories (même rendu)
+  PG_PHOTOS,    // 2.12 : photos Immich (module « immich »)
   PG_COUNT
 };
 
@@ -85,6 +86,9 @@ struct Config {
 
   // 2.11 (structure 7) : ajouté à la fin, les structures 5 et 6 en sont le début
   char pCustom[96];     // valeurs préfixées par catégorie : « s1=c%3Abitcoin&s2=a%3ATSLA… »
+
+  // 2.12 (structure 8) : ajouté à la fin, les structures 5 à 7 en sont le début
+  char pPhotos[64];     // source et durée : « s=a%3A<id d'album>&duree=30 »
 };
 
 extern Config cfg;

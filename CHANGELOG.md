@@ -12,6 +12,31 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.12.0] — 2026-10-30
+
+Nouvelle page **Photos** : vos photos Immich en plein écran.
+
+### Ajouté
+- **Page Photos** (module `immich`, variables `IMMICH_URL` et `IMMICH_KEY`) : à chaque passage, une photo de votre serveur Immich local en plein écran, sans texte.
+  - Source, dans l'interface de l'afficheur : au hasard (par défaut), favoris, souvenirs (photos prises un jour comme aujourd'hui, les années passées) ou un de vos albums.
+  - **Durée d'affichage propre à la page Photos**, réglable dans l'interface (10 s à 5 min, 30 s par défaut) ; les autres pages gardent la durée commune.
+  - Photo en largeur : recadrée au centre. Photo en hauteur : entière au centre, sur un fond flou fait d'elle-même (jamais de bandes noires).
+  - Souvenir : pastille « Il y a 3 ans » en haut à gauche. Sans souvenir ce jour-là, ou si Immich refuse les souvenirs, une photo au hasard (cause dans le log).
+  - Souvenirs lus par `/api/memories?for=AAAA-MM-JJ&type=on_this_day` (date simple, au fuseau `TZ`) : un horodatage complet est refusé par Immich récent (erreur 400), et l'ancien `/api/assets/memory-lane` n'existe plus.
+  - Pas de répétition : les 20 dernières photos ne reviennent pas ; une fois toutes vues, nouveau tour sans remontrer la dernière.
+  - Les photos restent chez vous : la passerelle interroge Immich sur le réseau local ; vidéos ignorées.
+  - Photos d'un album lues par la recherche d'Immich (versions récentes, qui ne les listent plus dans l'album et refusent les paramètres inconnus), avec repli pour les versions plus anciennes ; favoris lus page par page.
+  - Clé d'API Immich : droits `album.read`, `asset.read`, `asset.view`, `memory.read` (détail dans `docs/PASSERELLE.md`). Erreurs claires sur l'afficheur (« Clé Immich refusée », « Requête refusée par Immich », « Album introuvable », « Aucune photo ») et cause détaillée dans le log de la passerelle.
+  - Rotation : …, Commodities, Custom, **Photos**, Plex.
+
+### Modifié
+- Images jusqu'à 240 × 240 (plein écran), au lieu de 160 × 160.
+- **Configuration de l'afficheur** (structure 8, 908 octets) : reprise automatique d'une 2.9 à 2.11, validation comprise ; la page Photos est activée (affichée si le module est actif).
+
+### Mise à jour
+- Dans `docker-compose.yml`, ajouter `immich` à `MODULES` (présent dans le fichier de la release), puis renseigner `IMMICH_URL` et `IMMICH_KEY`. Puis `docker compose pull && docker compose up -d` : le log affiche `Passerelle 2.12.0` et `Module immich actif`.
+- Ensuite l'afficheur (`/update`), puis choisir la source et la durée dans son interface.
+
 ## [2.11.0] — 2026-10-30
 
 Nouvelle page **Custom** (valeurs de toutes catégories sur une même page), et pages de cours épurées : plus de fond gris ni de disque autour des logos, intitulés en blanc.

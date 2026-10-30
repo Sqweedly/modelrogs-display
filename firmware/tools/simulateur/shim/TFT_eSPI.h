@@ -38,6 +38,7 @@ class TFT_eSPI {
   void fillCircle(int32_t x, int32_t y, int32_t r, uint32_t c);
   void fillTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint32_t c);
   void fillSmoothCircle(int32_t x, int32_t y, int32_t r, uint32_t color, uint32_t bg = 0x00FFFFFF);
+  void fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color);
   void fillSmoothRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color, uint32_t bg = 0x00FFFFFF);
   void drawWideLine(float ax, float ay, float bx, float by, float wd, uint32_t fg, uint32_t bg = 0x00FFFFFF);
   void drawSmoothArc(int32_t x, int32_t y, int32_t r, int32_t ir, uint32_t a0, uint32_t a1, uint32_t fg, uint32_t bg, bool roundEnds = false);

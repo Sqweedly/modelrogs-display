@@ -19,6 +19,8 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount);
 // suivante (valeur à +/- 5 % sur 7 jours) et renvoie true, ou false s'il n'y en a plus.
 bool coursEcranSuivant(uint8_t page, uint8_t dotIndex, uint8_t dotCount);
 void drawPlex(uint8_t dotIndex, uint8_t dotCount);
+// Photos Immich : photo en plein écran (+ pastille « Il y a N ans » pour un souvenir)
+void drawPhotos(uint8_t dotIndex, uint8_t dotCount);
 void plexProgress();          // Plex affichée : ne redessine que la progression
 void drawAlert();
 

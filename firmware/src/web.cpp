@@ -316,7 +316,8 @@ static void renderModules(Chunks& c) {
          "aussitôt puis après chaque page, jusqu'au retour à la normale. Sans panne, Supervision "
          "n'apparaît que si un service est instable ou si Kuma ne répond pas. Crypto, Actions, Indices, "
          "Devises, Commodities, Custom : prix en dollars (indices en points) ; une valeur = courbe sur 30 jours ; deux ou trois = prix en "
-         "vedette, puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours.</p></section>");
+         "vedette, puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours. "
+         "Photos : une photo Immich en plein écran à chaque passage, avec sa propre durée.</p></section>");
 }
 
 // --------------------------------------------------------------- page « / »

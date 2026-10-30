@@ -13,7 +13,7 @@ struct V3 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[6
 struct V4 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[65]; char apSsid[33]; char gateway[96]; char ville[48];
   uint8_t pages, pageSec, nightOn; uint16_t nightStart, nightEnd; uint8_t brightDay, brightNight; char pHeure[24], pMeteo[24], pDiscord[40], pSup[300], pBtc[24];
   uint8_t validated; char pCrypto[52]; char pPlex[4]; uint8_t ext26; uint8_t reserve[6]; };
-static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO) | (1 << PG_INDICES) | (1 << PG_CUSTOM);
+static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO) | (1 << PG_INDICES) | (1 << PG_CUSTOM) | (1 << PG_PHOTOS);
 
 int main() {
   // 1. Ancien firmware Discord (firmware différent)
@@ -69,10 +69,10 @@ int main() {
     memset(v5.reserve, 0, sizeof(v5.reserve));
     ecrire(v5); loadConfig();
     CHECK(cfg.validated == 1 && !strcmp(cfg.pActions, "s1=AAPL") && !strcmp(cfg.pCrypto, "s1=solana")
-          && !strcmp(cfg.wifiSsid, "Maison"), "2.9.1 -> 2.11 : validation et reglages conserves");
+          && !strcmp(cfg.wifiSsid, "Maison"), "2.9.1 -> 2.12 : validation et reglages conserves");
     CHECK((cfg.pages & 1 << PG_INDICES) && (cfg.pages & 1 << PG_CUSTOM) && !(cfg.pages & 1 << PG_METEO)
           && !cfg.pIndices[0] && !cfg.pCustom[0],
-          "2.9.1 -> 2.11 : pages Indices et Custom activees (valeurs du compose), pages decochees conservees");
+          "2.9.1 -> 2.12 : pages Indices et Custom activees (valeurs du compose), pages decochees conservees");
   }
 
   // 3d. Display 2.10 (structure 6, sans pCustom) validee, octets suivants quelconques
@@ -84,14 +84,29 @@ int main() {
     memset(v6.pCustom, 0xFF, sizeof(v6.pCustom));          // hors de la structure 6 : n'importe quoi
     ecrire(v6); loadConfig();
     CHECK(cfg.validated == 1 && !strcmp(cfg.pIndices, "s1=FCHI") && !strcmp(cfg.pActions, "s1=AAPL"),
-          "2.10 -> 2.11 : validation et reglages conserves");
-    CHECK((cfg.pages & 1 << PG_CUSTOM) && cfg.pCustom[0] == 0, "2.10 -> 2.11 : page Custom activee, reglage vide");
+          "2.10 -> 2.12 : validation et reglages conserves");
+    CHECK((cfg.pages & 1 << PG_CUSTOM) && cfg.pCustom[0] == 0 && (cfg.pages & 1 << PG_PHOTOS) && !cfg.pPhotos[0],
+          "2.10 -> 2.12 : pages Custom et Photos activees, reglages vides");
+  }
+
+  // 3e. Display 2.11 (structure 7, sans pPhotos) validee, octets suivants quelconques
+  {
+    Config v7{};
+    memcpy(&v7, &cfg, sizeof(cfg));
+    v7.version = 7; v7.validated = 1; v7.pages &= ~(1 << PG_PHOTOS);
+    strcpy(v7.pCustom, "s1=c%3Abitcoin");
+    memset(v7.pPhotos, 0xFF, sizeof(v7.pPhotos));
+    ecrire(v7); loadConfig();
+    CHECK(cfg.validated == 1 && !strcmp(cfg.pCustom, "s1=c%3Abitcoin") && !strcmp(cfg.pIndices, "s1=FCHI"),
+          "2.11 -> 2.12 : validation et reglages conserves");
+    CHECK((cfg.pages & 1 << PG_PHOTOS) && cfg.pPhotos[0] == 0, "2.11 -> 2.12 : page Photos activee, reglage vide");
   }
 
   // 4. Nouvelle version du MEME firmware (structure actuelle) : tout est conserve
   strcpy(cfg.pActions, "s1=AAPL&s2=MC.PA&m=BNP.PA%2CORA.PA"); strcpy(cfg.pCommo, "s1=GC%3DF");
   strcpy(cfg.pIndices, "s1=FCHI&s2=GSPC&m=%5EIBEX");
   strcpy(cfg.pCustom, "s1=c%3Abitcoin&s2=a%3ATSLA&s3=m%3AGC%3DF");
+  strcpy(cfg.pPhotos, "s=a%3A1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b&duree=120");
   cfg.pages &= ~(1 << PG_DEVISES); saveConfig();
   loadConfig();
   CHECK(cfg.validated == 1 && !strcmp(cfg.pActions, "s1=AAPL&s2=MC.PA&m=BNP.PA%2CORA.PA") && !strcmp(cfg.pCommo, "s1=GC%3DF")
@@ -99,6 +114,8 @@ int main() {
   CHECK(modParam(PG_ACTIONS, "m") == "BNP.PA,ORA.PA" && modParam(PG_COMMO, "s1") == "GC=F", "reglages relus et decodes");
   CHECK(modParam(PG_INDICES, "s2") == "GSPC" && modParam(PG_INDICES, "m") == "^IBEX", "indices conserves et decodes");
   CHECK(modParam(PG_CUSTOM, "s1") == "c:bitcoin" && modParam(PG_CUSTOM, "s3") == "m:GC=F", "custom conserve et decode");
+  CHECK(modParam(PG_PHOTOS, "s") == "a:1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b" && modParam(PG_PHOTOS, "duree") == "120",
+        "photos : album et duree conserves");
 
   // 5. Firmware inconnu / EEPROM vierge
   memset(EEPROM.data, 0xFF, sizeof(EEPROM.data)); loadConfig();

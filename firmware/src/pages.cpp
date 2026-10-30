@@ -1302,3 +1302,28 @@ void drawPlex(uint8_t dotIndex, uint8_t dotCount) {
   staleMark(gPlex.stale);
   pageDots(dotIndex, dotCount, PLEX);
 }
+
+// ------------------------------------------------------------------ Photos
+// Une photo Immich en plein écran, choisie par la passerelle à chaque passage
+// (recadrée, ou entière sur un fond flou d'elle-même si elle est en hauteur).
+// Pas de texte ni de points de pagination : la photo seule. Pour un souvenir,
+// une pastille « Il y a N ans » en haut à gauche.
+void drawPhotos(uint8_t dotIndex, uint8_t dotCount) {
+  JsonDocument doc;
+  const int code = gwGet(modulePath(PG_PHOTOS), doc);
+  const char* jeton = doc["i"] | "";
+  if (code != 200 || !jeton[0] || !gwImage(jeton, 0, 0, 240, 240, BG, 0, false)) {
+    tft.fillScreen(BG);
+    errorPage("Photos", code == -5 ? String(doc["err"] | "") : code != 200 ? String(gwErrorText(code))
+                                   : String("Photo indisponible"));
+    pageDots(dotIndex, dotCount, ETH);
+    return;
+  }
+  const char* badge = doc["b"] | "";
+  if (badge[0]) {
+    // Coins non lissés : un lissage se ferait vers le noir, visible sur la photo
+    const int w = textW(badge, F_13) + 20, h = 22;
+    tft.fillRoundRect(10, 10, w, h, h / 2, VIOLET);
+    drawText(badge, 10 + w / 2, 10 + h / 2 + 1, F_13, TXT, VIOLET, MC_DATUM);
+  }
+}

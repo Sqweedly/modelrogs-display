@@ -18,7 +18,7 @@ from aiohttp import web
 
 from .cache import SourceIndisponible, cache
 from . import images
-from .modules import Module, btc, cotations, custom, discord_vocal, meteo, plex, supervision
+from .modules import Module, btc, cotations, custom, discord_vocal, immich, meteo, plex, supervision
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("passerelle")
@@ -32,10 +32,10 @@ PORT = int(os.environ.get("PORT", "8080"))
 CATALOGUE: dict[str, Module] = {m.id: m for m in (
     meteo.MODULE_HEURE, meteo.MODULE_METEO, discord_vocal.MODULE, supervision.MODULE, btc.MODULE, plex.MODULE,
     cotations.MODULE_ACTIONS, cotations.MODULE_INDICES, cotations.MODULE_DEVISES, cotations.MODULE_COMMODITIES,
-    custom.MODULE,
+    custom.MODULE, immich.MODULE,
 )}
 # Autres noms acceptés dans MODULES
-ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities", "indice": "indices"}
+ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities", "indice": "indices", "photos": "immich"}
 
 SESSION = web.AppKey("session", aiohttp.ClientSession)
 ACTIFS = web.AppKey("actifs", list)

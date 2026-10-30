@@ -66,6 +66,14 @@ void TFT_eSPI::fillSmoothRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, i
   }
 }
 
+void TFT_eSPI::fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color) {
+  float x0 = x + r, x1 = x + w - 1 - r, y0 = y + r, y1 = y + h - 1 - r;   // sans lissage
+  for (int j = y; j < y + h; j++) for (int i = x; i < x + w; i++) {
+    float dx = std::max({x0 - i, 0.f, i - x1}), dy = std::max({y0 - j, 0.f, j - y1});
+    if (dx * dx + dy * dy <= (float)r * r) drawPixel(i, j, color);
+  }
+}
+
 void TFT_eSPI::drawWideLine(float ax, float ay, float bx, float by, float wd, uint32_t fg, uint32_t bg) {
   float r = wd / 2;
   int minx = (int)std::floor(std::min(ax, bx) - r - 1), maxx = (int)std::ceil(std::max(ax, bx) + r + 1);
@@ -313,6 +321,10 @@ int main(int argc, char** argv) {
                  : strcmp(k[0], "/indices") == 0 ? PG_INDICES : strcmp(k[0], "/custom") == 0 ? PG_CUSTOM : PG_COMMO;
     drawCours(page, 5, 9); save(k[2]);
   }
+  // Photos Immich : en largeur, souvenir, en hauteur
+  fixtures["/immich"] = FX("photos");          drawPhotos(6, 7); save("31_photos");
+  fixtures["/immich"] = FX("photos_souvenir"); drawPhotos(6, 7); save("31b_photos_souvenir");
+  fixtures["/immich"] = FX("photos_haute");    drawPhotos(6, 7); save("31c_photos_hauteur");
   drawPlex(5, 6);                  save("14_plex_1");
   fixtures["/plex"] = FX("plex1s"); pollPlex();
   drawPlex(5, 6);                  save("14b_plex_serie");

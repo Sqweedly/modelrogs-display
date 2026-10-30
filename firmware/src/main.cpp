@@ -10,7 +10,7 @@
 // - Mode secours : après 3 plantages au démarrage, seuls le Wi-Fi,
 //   l'interface web et l'OTA tournent (l'OTA reste toujours joignable)
 // - Pages en rotation : Heure, Météo, Discord, Supervision, Crypto, Actions,
-//   Indices, Devises, Commodities, Custom, Plex
+//   Indices, Devises, Commodities, Custom, Photos, Plex
 //   (+ écran d'alerte prioritaire en cas de panne). Discord et Plex ne
 //   s'affichent que s'il y a quelqu'un / une lecture, et passent devant
 //   dès une arrivée / le début d'une lecture.
@@ -109,6 +109,16 @@ static void positionPage(uint8_t p, uint8_t& idx, uint8_t& cnt) {
   }
 }
 
+// Durée d'affichage d'une page : la durée commune, sauf la page Photos, qui a
+// la sienne (réglage « duree » de la page, 30 s par défaut).
+static uint32_t dureeDe(int p) {
+  if (p == PG_PHOTOS) {
+    long s = modParam(PG_PHOTOS, "duree").toInt();
+    return (uint32_t)(s >= 5 && s <= 600 ? s : 30) * 1000UL;
+  }
+  return (uint32_t)cfg.pageSec * 1000UL;
+}
+
 static void showPage(uint8_t p, bool restartTimer = true) {
   curPage = p;
   if (restartTimer) pageSince = millis();
@@ -128,6 +138,7 @@ static void showPage(uint8_t p, bool restartTimer = true) {
     case PG_COMMO:
     case PG_INDICES:
     case PG_CUSTOM:  drawCours(p, idx, cnt); break;
+    case PG_PHOTOS:  drawPhotos(idx, cnt); break;
     case PG_PLEX:
       drawPlex(idx, cnt);
       drawnPlexVersion = gPlex.version;
@@ -401,7 +412,7 @@ void loop() {
     if (now - pageSince > 5000UL || !idleShown) nextPage();
     return;
   }
-  if (now - pageSince >= dureePage) {
+  if (now - pageSince >= dureeDe(curPage)) {
     // Pages de cours : pages dédiées (+/- 5 % sur 7 jours) avant de passer à la suite
     if (pageCours(curPage)) {
       uint8_t idx, cnt;

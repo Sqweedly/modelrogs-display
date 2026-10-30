@@ -43,10 +43,10 @@ services:
 
       # ---------------------------------------------------------------
       # MODULES ACTIFS — retirer un nom désactive le module.
-      # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities, custom,
+      # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities, custom, immich,
       # supervision, discord, plex   (« btc », l'ancien nom de crypto, reste accepté)
       # ---------------------------------------------------------------
-      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,supervision,discord,plex
+      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,immich,supervision,discord,plex
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
       # Page de statut Kuma : toutes ses sondes sont suivies par l'afficheur
@@ -70,6 +70,14 @@ services:
       # d'un compte administrateur (support Plex : « Finding an authentication token »).
       PLEX_URL: http://192.168.1.10:32400
       PLEX_TOKEN: "colle-ici-le-jeton-plex"
+
+      # --- Module « immich » (page Photos) ---------------------------
+      # Clé d'API à créer dans Immich (Paramètres du compte > Clés d'API) avec
+      # les droits album.read, asset.read, asset.view et memory.read. Source
+      # (hasard, favoris, souvenirs, un album) et durée d'affichage : dans
+      # l'interface de l'afficheur.
+      IMMICH_URL: http://192.168.1.10:2283
+      IMMICH_KEY: "colle-ici-la-cle-immich"
 
       # --- Pages de cours : crypto, actions, indices, devises, commodities, custom
       # Tous les prix sont en dollars, sauf les indices (en points). 3 valeurs au plus par page, séparées par

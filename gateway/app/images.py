@@ -40,16 +40,17 @@ from collections import OrderedDict
 
 import aiohttp
 from aiohttp import web
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 log = logging.getLogger("images")
 
-MAX_COTE = 160            # pixels, par côté (l'écran fait 240)
+MAX_COTE = 240            # pixels, par côté : l'écran entier (photos)
 MAX_SOURCES = 300         # jetons connus
 MAX_ORIGINAUX = 40        # images téléchargées gardées en mémoire
 MAX_RENDUS = 120          # images converties gardées en mémoire
 TAILLE_MAX_SOURCE = 4 * 1024 * 1024
 DUREE_ECHEC = 3600        # secondes : image introuvable, pas de nouvel essai avant
+PHOTO_HAUTEUR = 1.15      # photo plus haute que 1,15 x sa largeur : posée entière sur fond flou
 REMPLISSAGE = 0.94        # logo rogné : 94 % du cadre (3 % de marge de chaque côté)
 SEUIL_ALPHA = 16          # pixel transparent : alpha <= 16
 SEUIL_FOND = 24           # pixel « de fond » : écart <= 24 avec la couleur des coins
@@ -60,6 +61,7 @@ EXTENSIONS = (".png", ".webp", ".jpg", ".jpeg")    # par ordre de préférence
 RELECTURE_PERSO = 30      # secondes entre deux relectures du dossier personnel
 
 _sources: "OrderedDict[str, tuple[list[str], dict]]" = OrderedDict()
+_photos: "OrderedDict[str, bool]" = OrderedDict()     # jetons à traiter en photo (voir convertir)
 _echecs: dict[str, float] = {}
 _originaux: "OrderedDict[str, tuple[bytes, bool]]" = OrderedDict()   # (octets, rognable)
 _rendus: "OrderedDict[tuple, bytes]" = OrderedDict()
@@ -75,14 +77,17 @@ def _ranger(dico: OrderedDict, cle, valeur, maximum: int) -> None:
         dico.popitem(last=False)
 
 
-def enregistrer(url: str | list[str] | None, entetes: dict | None = None) -> str:
+def enregistrer(url: str | list[str] | None, entetes: dict | None = None, photo: bool = False) -> str:
     """Adresse(s) d'image -> jeton court à transmettre à l'afficheur ("" si aucune).
-    Plusieurs adresses : essayées dans l'ordre."""
+    Plusieurs adresses : essayées dans l'ordre. photo : image en plein écran
+    (une photo en hauteur est posée entière sur un fond flou d'elle-même)."""
     urls = [u for u in ([url] if isinstance(url, str) else (url or [])) if u]
     if not urls:
         return ""
     jeton = hashlib.sha1("|".join(urls).encode("utf-8")).hexdigest()[:12]
     _ranger(_sources, jeton, (urls, entetes or {}), MAX_SOURCES)
+    if photo:
+        _ranger(_photos, jeton, True, MAX_SOURCES)
     return jeton
 
 
@@ -233,15 +238,42 @@ def rogner(image: Image.Image) -> Image.Image:
     return image.crop(utile)
 
 
+def _recadrer(source: Image.Image, w: int, h: int) -> Image.Image:
+    """Remplit tout le cadre, recadrage au centre."""
+    echelle = max(w / source.width, h / source.height)
+    tw, th = max(w, round(source.width * echelle)), max(h, round(source.height * echelle))
+    source = source.resize((tw, th), Image.LANCZOS)
+    g, t = (tw - w) // 2, (th - h) // 2
+    return source.crop((g, t, g + w, t + h))
+
+
+def _photo(source: Image.Image, w: int, h: int) -> Image.Image:
+    """Photo plein écran. En largeur (ou presque carrée) : recadrée au centre.
+    En hauteur : posée entière au centre, sur un fond fait d'elle-même,
+    agrandie, floutée et assombrie (les côtés ne restent jamais noirs)."""
+    if source.height <= source.width * PHOTO_HAUTEUR:
+        return _recadrer(source, w, h)
+    fond = _recadrer(source, w, h).filter(ImageFilter.GaussianBlur(max(2, w // 18)))
+    fond = Image.blend(fond, Image.new("RGBA", fond.size, (0, 0, 0, 255)), 0.45)
+    echelle = min(w / source.width, h / source.height)
+    photo = source.resize((max(1, round(source.width * echelle)), max(1, round(source.height * echelle))),
+                          Image.LANCZOS)
+    fond.alpha_composite(photo, ((w - photo.width) // 2, (h - photo.height) // 2))
+    return fond
+
+
 def convertir(donnees: bytes, w: int, h: int, fond: tuple[int, int, int], rayon: int,
-              ajuster: bool = False, rognable: bool = False) -> bytes:
+              ajuster: bool = False, rognable: bool = False, photo: bool = False) -> bytes:
     """Recadre (ou ajuste, pour un logo) l'image en w x h, arrondit, pose sur le fond.
-    Logo rognable : sa marge est retirée, puis il est agrandi pour remplir le cadre."""
+    Logo rognable : sa marge est retirée, puis il est agrandi pour remplir le cadre.
+    Photo : voir _photo."""
     source = Image.open(io.BytesIO(donnees))
     source.draft("RGB", (w * 2, h * 2))          # JPEG : décodage réduit, plus rapide
     source = source.convert("RGBA")
 
-    if ajuster:   # logo : entier, centré, sans déformation
+    if photo:
+        image = _photo(source, w, h)
+    elif ajuster:   # logo : entier, centré, sans déformation
         if rognable:
             source = rogner(source)
             cadre_w, cadre_h = max(1, round(w * REMPLISSAGE)), max(1, round(h * REMPLISSAGE))
@@ -253,11 +285,7 @@ def convertir(donnees: bytes, w: int, h: int, fond: tuple[int, int, int], rayon:
         image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         image.paste(source, ((w - source.width) // 2, (h - source.height) // 2))
     else:         # affiche, avatar : remplit tout le cadre, recadrage au centre
-        echelle = max(w / source.width, h / source.height)
-        tw, th = max(w, round(source.width * echelle)), max(h, round(source.height * echelle))
-        source = source.resize((tw, th), Image.LANCZOS)
-        g, t = (tw - w) // 2, (th - h) // 2
-        image = source.crop((g, t, g + w, t + h))
+        image = _recadrer(source, w, h)
 
     # Coins arrondis / cercle, lissés (masque dessiné 4x plus grand)
     if rayon > 0:
@@ -294,7 +322,8 @@ async def route_image(request: web.Request, session: aiohttp.ClientSession) -> w
         fond = bytes.fromhex(q.get("f", "000000")[:6].rjust(6, "0"))
     except ValueError:
         fond = b"\x00\x00\x00"
-    cle = (jeton, w, h, fond, rayon, ajuster)
+    photo = jeton in _photos
+    cle = (jeton, w, h, fond, rayon, ajuster, photo)
 
     if cle in _rendus:
         _rendus.move_to_end(cle)
@@ -303,7 +332,7 @@ async def route_image(request: web.Request, session: aiohttp.ClientSession) -> w
         try:
             donnees, rognable = await _original(session, jeton)
             corps = await asyncio.get_running_loop().run_in_executor(
-                None, convertir, donnees, w, h, tuple(fond), rayon, ajuster, rognable)
+                None, convertir, donnees, w, h, tuple(fond), rayon, ajuster, rognable, photo)
         except Exception as exc:  # noqa: BLE001 — l'afficheur dessine alors un remplaçant
             log.warning("Image %s indisponible : %s", jeton, exc)
             _echecs[jeton] = time.time()

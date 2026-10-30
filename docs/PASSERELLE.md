@@ -260,6 +260,29 @@ C'est le seul module qui **ne va pas chercher** l'information à chaque appel :
 - Un compteur de lectures (`ev`) augmente à chaque nouvelle lecture : l'afficheur fait alors passer la page Plex en priorité. Sans lecture, la page est masquée.
 - Seule la progression change d'un appel à l'autre : l'afficheur ne redessine alors que les barres, sans retélécharger l'affiche.
 
+### Photos Immich (`/immich`, module `immich`)
+
+- **Accès** : `IMMICH_URL` (ex. `http://192.168.1.10:2283`, l'adresse du serveur Immich) et `IMMICH_KEY`, clé d'API créée dans Immich (Paramètres du compte > Clés d'API). La passerelle interroge Immich sur le réseau local, avec l'en-tête `x-api-key` ; aucune photo ne sort de chez soi.
+- **Droits nécessaires de la clé d'API** (côté Immich ; la page ne fait que lire) :
+
+  | Droit | Pour |
+  |---|---|
+  | `album.read` | la liste des albums de l'interface, et leurs photos |
+  | `asset.read` | la recherche des photos : au hasard, favoris, photos d'un album |
+  | `asset.view` | l'image elle-même |
+  | `memory.read` | les souvenirs (« Il y a N ans ») |
+
+  Un droit manquant donne « Clé Immich refusée » sur l'afficheur, et la requête refusée apparaît dans le log de la passerelle.
+- **Réglages de l'afficheur** : `s`, la source (vide = au hasard, `favoris`, `souvenirs`, `a:<id>` pour un album, liste fournie par `/immich/sources`), et `duree`, la durée d'affichage de la page en secondes (10 s à 5 min, 30 s par défaut). L'afficheur utilise cette durée à la place de la durée commune des pages.
+- **Choix de la photo** : à chaque passage, une photo au hasard dans la source, en évitant les 20 dernières montrées ; quand toutes ont été vues, un nouveau tour commence, sans remontrer la dernière. Les listes d'un album et des favoris sont gardées 10 minutes ; vidéos et photos de la corbeille sont ignorées.
+- **Photos d'un album** : demandées à la recherche d'Immich, filtrée sur l'album (`POST /api/search/metadata`, `albumIds`), page par page (5 000 photos au plus) : les versions récentes ne listent plus les photos dans la fiche de l'album, et refusent tout paramètre inconnu (erreur 400). Les versions plus anciennes sont lues dans la fiche de l'album (`GET /api/albums/<id>`).
+- **Favoris** : même recherche (`isFavorite`) ; si le filtre « photos seulement » côté Immich ne renvoie rien, la passerelle relance sans lui et trie elle-même.
+- **Log** : une ligne par chargement de liste (« 128 photo(s) dans l'album … », « 3 photo(s) dans les favoris ») et, en cas d'échec, la source, la requête et le code d'erreur d'Immich.
+- **Souvenirs** : photos prises un jour comme aujourd'hui, les années passées (`/api/memories?for=AAAA-MM-JJ&type=on_this_day`, la date du jour dans le fuseau `TZ`). La réponse porte alors `b` (« Il y a 3 ans »), affiché en pastille en haut à gauche. Sans souvenir ce jour-là, ou si Immich refuse les souvenirs (droit `memory.read` manquant), une photo au hasard, sans pastille ; la cause est écrite dans le log.
+- **Réponse** : `{"ok":1,"i":"<jeton>"}` (+ `b`), ou `{"ok":0,"err":"Clé Immich refusée" | "Album introuvable" | "Requête refusée par Immich" | "Immich indisponible" | "Aucune photo"}`.
+- **Tester depuis le docker passerelle** (adresse et port de la passerelle, pas ceux d'Immich) : `curl -s "http://<passerelle>:8080/immich/sources"`, puis `curl -s "http://<passerelle>:8080/immich?s=a%3A<id d'album>"` ; réponse attendue `{"ok":1,"i":"…"}`.
+- **Image** : la version réduite d'Immich (`/api/assets/<id>/thumbnail?size=preview`), préparée en **mode photo** (voir `/img`) : 240 × 240, recadrée au centre ; une photo nettement plus haute que large (plus de 1,15 fois) est posée entière au centre, sur un fond fait d'elle-même, agrandie, floutée et assombrie. L'afficheur la dessine en plein écran, sans texte ni points de pagination (environ 115 Ko, 1 à 2 secondes).
+
 ### Images (`/img`)
 
 L'ESP8266 n'a pas la mémoire pour décoder un JPEG ou un PNG confortablement. La passerelle fait donc tout le travail, avec la bibliothèque **Pillow** :
@@ -267,6 +290,8 @@ L'ESP8266 n'a pas la mémoire pour décoder un JPEG ou un PNG confortablement. L
 2. l'afficheur demande `/img?t=<jeton>&w=78&h=117&f=000000&r=8` : taille exacte, couleur du fond de l'écran sous l'image, rayon des coins (`r` = moitié de la taille pour un cercle), `m=a` pour un logo à garder entier ;
 3. la passerelle télécharge l'image (une fois), la recadre, arrondit les coins avec un bord lissé, la pose sur le fond et renvoie **w × h pixels RGB565 bruts** (2 octets par pixel, ordre de l'ESP) : 18 Ko pour une affiche, 1,8 Ko pour un logo. Un **logo** (`m=a`) est d'abord **rogné** (depuis la 2.9.1) : sa marge transparente, ou son fond uni de la couleur des coins (Logo.dev pose l'icône au milieu d'un grand carré), est retirée, puis le logo est agrandi pour occuper 94 % du cadre. Les **icônes personnelles** ne sont jamais rognées : leur cadrage est respecté ;
 4. l'afficheur les envoie à l'écran **ligne par ligne au fil de la réception** : il n'utilise qu'une ligne de mémoire (moins de 320 octets), jamais l'image entière.
+
+Une image enregistrée **en mode photo** (module `immich`) est toujours recadrée pour remplir le cadre, ou posée entière sur un fond flou d'elle-même si elle est nettement plus haute que large. Taille maximale : 240 × 240 (l'écran entier).
 
 Une image indisponible renvoie une erreur HTTP ; l'afficheur dessine alors un remplaçant (pastille de couleur avec le code). L'échec est mémorisé une heure : pas de nouvelle tentative à chaque affichage.
 
@@ -313,6 +338,7 @@ Ce jeu de caractères doit rester identique à celui des polices du firmware (`f
 | Sortant | Discord | WebSocket sécurisé (HTTPS) |
 | Sortant | Uptime Kuma, Plex | HTTP sur le réseau local |
 | Sortant | Images : CDN Discord, CoinGecko, Logo.dev, GitHub (nvstly/icons) | HTTPS |
+| Sortant | Immich (photos) | HTTP sur le réseau local |
 
 Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers Internet.
 

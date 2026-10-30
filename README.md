@@ -12,6 +12,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 | `indices` | 1 à 3 indices boursiers (CAC 40, S&P 500, Nasdaq…), en points, même présentation | — |
 | `commodities` | 1 à 3 matières premières (or, pétrole, café…), avec leur icône | — |
 | `custom` | 1 à 3 valeurs de toutes catégories sur une même page (ex. Bitcoin, Tesla, or), même présentation | — |
+| `immich` | Page Photos : une photo de votre serveur Immich en plein écran à chaque passage (au hasard, favoris, souvenirs ou un album), avec sa propre durée d'affichage | `IMMICH_URL`, `IMMICH_KEY` (clé d'API Immich avec les droits `album.read`, `asset.read`, `asset.view`, `memory.read`) |
 | `supervision` | Services Uptime Kuma en défaut (+ écran PANNE en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
 | `plex` | Lectures en cours avec leur affiche ; une seule : grande affiche, qui regarde, bibliothèque et mode de lecture | Plex dans `docker-compose.yml` |
@@ -315,6 +316,7 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 | `/indices?s1=FCHI&m=SP500`, `/indices/30j?id=` | Indices boursiers, en points |
 | `/devises?s1=EUR`, `/devises/30j?id=` | Devises cotées en dollars |
 | `/custom?s1=c%3Abitcoin&s2=a%3ATSLA`, `/custom/30j?id=`, `/custom/liste` | Page Custom : valeurs préfixées par catégorie |
+| `/immich?s=souvenirs`, `/immich/sources` | Page Photos : une photo (jeton d'image, pastille « Il y a N ans » pour un souvenir), liste des sources |
 | `/commodities?s1=GC%3DF`, `/commodities/30j?id=` | Matières premières (contrats Yahoo) |
 | `/supervision` | État de tous les services de la page de statut Kuma (services en défaut et compteurs) |
 | `/discord?salon=<id>` | Présents dans le salon |

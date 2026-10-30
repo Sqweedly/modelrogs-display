@@ -20,7 +20,7 @@
 //    structure l'incrémente ET ajoute une migration dans config.cpp.
 //    Pour ajouter un réglage sans migration, prendre de la place dans `reserve`.
 #define PRODUCT_MAGIC   0x5044524DUL   // "MRDP"
-#define CONFIG_VERSION  6
+#define CONFIG_VERSION  7
 #define LEGACY_MAGIC    0x4D524447UL   // "MRDG" : firmware Discord (v1), Display 2.0/2.1 (v2, v3)
 
 // Une page = un module de la passerelle (même identifiant que /modules).
@@ -35,6 +35,7 @@ enum PageId : uint8_t {
   PG_DEVISES,
   PG_COMMO,
   PG_INDICES,   // 2.10 : indices boursiers (même rendu)
+  PG_CUSTOM,    // 2.11 : 3 valeurs de toutes catégories (même rendu)
   PG_COUNT
 };
 
@@ -42,7 +43,7 @@ extern const char* const PAGE_NAMES[PG_COUNT];   // libellés affichés
 extern const char* const PAGE_IDS[PG_COUNT];     // identifiants des modules
 // Ordre d'affichage (rotation et interface) : les pages de cours se suivent.
 extern const uint8_t ROTATION[PG_COUNT];
-// Pages de cours : Crypto, Actions, Indices, Devises, Commodities
+// Pages de cours : Crypto, Actions, Indices, Devises, Commodities, Custom
 bool pageCours(uint8_t page);
 
 struct Config {
@@ -81,6 +82,9 @@ struct Config {
   char pIndices[56];    // 2.10 : pris sur `reserve` (structure 6, même taille que la 5)
 
   uint8_t reserve[8];   // place libre pour de futurs réglages (initialisée à 0)
+
+  // 2.11 (structure 7) : ajouté à la fin, les structures 5 et 6 en sont le début
+  char pCustom[96];     // valeurs préfixées par catégorie : « s1=c%3Abitcoin&s2=a%3ATSLA… »
 };
 
 extern Config cfg;

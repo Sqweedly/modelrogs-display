@@ -19,7 +19,7 @@ firmware/                  Firmware de l'afficheur (ESP8266, PlatformIO)
   tools/make_fonts.py      Régénère les polices (facultatif, voir § 6)
   tools/simulateur/        Aperçu des écrans sur PC, sans flasher (voir § 5)
 gateway/                   Passerelle Python (aiohttp), un module par page
-  app/modules/             heure, meteo, btc (crypto), cotations (actions, indices, devises,
+  app/modules/             heure, meteo, btc (crypto), custom, cotations (actions, indices, devises,
                            commodities), cours (outils communs), supervision,
                            discord_vocal, plex
   app/icones/              Pastilles de devises, icônes et logos inclus dans l'image (LICENCES.md)
@@ -95,7 +95,7 @@ Les autres modules demandent leurs variables (les mêmes que dans `docker-compos
 | `supervision` | `KUMA_URL`, `KUMA_STATUS_SLUG` |
 | `discord` | `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `DISCORD_MEMBERS_INTENT`) |
 | `plex` | `PLEX_URL`, `PLEX_TOKEN` |
-| `crypto`, `actions`, `indices`, `devises`, `commodities` | facultatives : `CRYPTOS`, `ACTIONS`, `INDICES`, `DEVISES`, `COMMODITIES` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY`, `ICONES_PERSO` (dossier d'icônes personnelles, `/icones` par défaut) |
+| `crypto`, `actions`, `indices`, `devises`, `commodities`, `custom` | facultatives : `CRYPTOS`, `ACTIONS`, `INDICES`, `DEVISES`, `COMMODITIES`, `CUSTOM` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY`, `ICONES_PERSO` (dossier d'icônes personnelles, `/icones` par défaut) |
 | tous | `TZ`, `VILLE_DEFAUT` |
 
 Ne jamais enregistrer de jeton dans un fichier suivi par git.

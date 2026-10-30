@@ -206,7 +206,7 @@ async def principal() -> int:
         "KUMA_URL": base + "/kuma", "KUMA_STATUS_SLUG": "modelrogs",
         "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris", "ICONES_PERSO": tempfile.mkdtemp(),
         # Discord demandé mais non configuré : doit être signalé, pas planter
-        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,inconnu",
+        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,custom,inconnu",
     })
     os.environ.pop("DISCORD_TOKEN", None)
     from app.main import creer_app   # importé après la configuration
@@ -235,12 +235,13 @@ async def principal() -> int:
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
             ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex",
-                                                                  "actions", "indices", "devises", "commodities"]
+                                                                  "actions", "indices", "devises", "commodities", "custom"]
                 and next(m for m in d["m"] if m["id"] == "discord")["ok"] == 0),
             # Cours : 3 listes + saisie ; 10 options ; valeurs du compose annoncées
             ("/modules", lambda d: all(
                 [p["k"] for p in m["p"]] == ["s1", "s2", "s3", "m"] and m["nt"]
-                for m in d["m"] if m["id"] in ("btc", "actions", "indices", "devises", "commodities"))
+                for m in d["m"] if m["id"] in ("btc", "actions", "indices", "devises", "commodities", "custom"))
+                and next(m for m in d["m"] if m["id"] == "custom")["src"] == "/custom/liste"
                 and next(m for m in d["m"] if m["id"] == "indices")["o"][0] == {"id": "FCHI", "n": "CAC 40"}
                 and next(m for m in d["m"] if m["id"] == "btc")["src"] == "/btc/liste"
                 and len(next(m for m in d["m"] if m["id"] == "actions")["o"]) == 10
@@ -295,6 +296,23 @@ async def principal() -> int:
             ("/indices?m=cac%2040", lambda d: d["c"][0]["id"] == "FCHI"),
             ("/indices/30j?id=FCHI", lambda d: d["ok"] and d["c"][0]["px"] == "8 123"),
             ("/indices?m=ZZZ", lambda d: d["c"][0] == {"id": "ZZZ", "s": "ZZZ", "e": 1}),
+            # Custom : 3 valeurs de catégories différentes, servies comme sur leur page d'origine
+            ("/custom?s1=c%3Abitcoin&s2=a%3AAAPL&s3=m%3AGC%3DF", lambda d: [c["id"] for c in d["c"]]
+                == ["c:bitcoin", "a:AAPL", "m:GC=F"] and [c["px"] for c in d["c"]] == ["62 100 $", "268,40 $", "4 112 $"]
+                and [c["f"] for c in d["c"]] == [0, 1, 2] and all("p30" not in c for c in d["c"])),
+            # Sans préfixe : catégorie devinée (indice connu, devise, crypto du top 50, action)
+            ("/custom?m=CAC40,EUR,ETH", lambda d: [c["id"] for c in d["c"]] == ["i:FCHI", "d:EUR", "c:ethereum"]
+                and d["c"][0]["px"] == "8 123"),
+            ("/custom?m=AAPL", lambda d: d["c"][0]["id"] == "a:AAPL" and len(d["c"][0]["p30"]) == 22 and d["c"][0]["rep"]),
+            ("/custom?m=c%3Abitcoin", lambda d: len(d["c"][0]["p30"]) == 60 and d["c"][0]["rep"]),
+            ("/custom/30j?id=m%3AGC%3DF", lambda d: d["ok"] and d["c"][0]["id"] == "m:GC=F" and d["c"][0]["p30"]),
+            ("/custom?m=c%3Azzzz,a%3AXYZ", lambda d: [c.get("e") for c in d["c"]] == [1, 1]),
+            # Rien de choisi : valeurs par défaut (CUSTOM absent : Bitcoin, Tesla, or)
+            ("/custom", lambda d: [c["id"] for c in d["c"]] == ["c:bitcoin", "a:TSLA", "m:GC=F"]),
+            ("/custom/liste", lambda d: d["s"][0]["id"].startswith("c:") and any(o["id"] == "i:FCHI" for o in d["s"])
+                and any(o["n"] == "Matière · Or" for o in d["s"])
+                and sum(not o["id"].startswith("c:") for o in d["s"]) == 20
+                and sum(o["id"].startswith("c:") for o in d["s"]) == 5),
             ("/devises", lambda d: [c["px"] for c in d["c"]] == ["1,160 $", "0,006612 $"]
                 and all(c["i"] and c["f"] == 2 for c in d["c"])),
             ("/devises?m=krw", lambda d: d["c"][0]["s"] == "KRW" and d["c"][0]["px"] == "0,0007300 $"

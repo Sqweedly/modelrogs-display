@@ -10,7 +10,7 @@
 // - Mode secours : après 3 plantages au démarrage, seuls le Wi-Fi,
 //   l'interface web et l'OTA tournent (l'OTA reste toujours joignable)
 // - Pages en rotation : Heure, Météo, Discord, Supervision, Crypto, Actions,
-//   Indices, Devises, Commodities, Plex
+//   Indices, Devises, Commodities, Custom, Plex
 //   (+ écran d'alerte prioritaire en cas de panne). Discord et Plex ne
 //   s'affichent que s'il y a quelqu'un / une lecture, et passent devant
 //   dès une arrivée / le début d'une lecture.
@@ -126,7 +126,8 @@ static void showPage(uint8_t p, bool restartTimer = true) {
     case PG_ACTIONS:
     case PG_DEVISES:
     case PG_COMMO:
-    case PG_INDICES: drawCours(p, idx, cnt); break;
+    case PG_INDICES:
+    case PG_CUSTOM:  drawCours(p, idx, cnt); break;
     case PG_PLEX:
       drawPlex(idx, cnt);
       drawnPlexVersion = gPlex.version;

@@ -43,10 +43,10 @@ services:
 
       # ---------------------------------------------------------------
       # MODULES ACTIFS — retirer un nom désactive le module.
-      # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities,
+      # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities, custom,
       # supervision, discord, plex   (« btc », l'ancien nom de crypto, reste accepté)
       # ---------------------------------------------------------------
-      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,supervision,discord,plex
+      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,supervision,discord,plex
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
       # Page de statut Kuma : toutes ses sondes sont suivies par l'afficheur
@@ -71,7 +71,7 @@ services:
       PLEX_URL: http://192.168.1.10:32400
       PLEX_TOKEN: "colle-ici-le-jeton-plex"
 
-      # --- Pages de cours : crypto, actions, indices, devises, commodities
+      # --- Pages de cours : crypto, actions, indices, devises, commodities, custom
       # Tous les prix sont en dollars, sauf les indices (en points). 3 valeurs au plus par page, séparées par
       # des virgules. Valeurs par défaut : celles choisies dans l'interface de
       # l'afficheur passent avant (3 listes + une saisie libre par page).
@@ -84,6 +84,8 @@ services:
       COMMODITIES: GC=F,CL=F            # contrats Yahoo : GC=F or, SI=F argent, HG=F cuivre,
                                         # CL=F pétrole, NG=F gaz, ZW=F blé, ZC=F maïs,
                                         # ZS=F soja, KC=F café, CC=F cacao
+      CUSTOM: c:bitcoin,a:TSLA,m:GC=F   # page Custom : 3 valeurs de toutes catégories, préfixées
+                                        # c: crypto, a: action, i: indice, d: devise, m: matière
       # Logos des actions : clé publique gratuite Logo.dev (compte « Community »),
       # commence par pk_. Sans clé : logos des grandes actions américaines inclus,
       # sinon une pastille avec le code.

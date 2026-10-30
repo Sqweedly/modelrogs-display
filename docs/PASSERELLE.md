@@ -151,9 +151,9 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
   - un **code d'icône** de 0 à 8, que l'afficheur dessine. La nuit, le soleil devient une lune.
 - Les températures sont arrondies au degré.
 
-### Pages de cours : Crypto, Actions, Indices, Devises, Commodities
+### Pages de cours : Crypto, Actions, Indices, Devises, Commodities, Custom
 
-Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, chacune avec sa page dédiée `/<page>/30j?id=<id>`. Tous les prix sont **en dollars**, sauf les indices, en **points** (sans unité).
+Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, chacune avec sa page dédiée `/<page>/30j?id=<id>`. Tous les prix sont **en dollars**, sauf les indices, en **points** (sans unité).
 
 - **Sélection**, la même pour les quatre pages : `?s1=&s2=&s3=` (les trois listes de l'interface) puis `?m=` (saisie libre, une ou plusieurs valeurs séparées par des virgules ou des espaces). Les **3 premières** valeurs, dans l'ordre des champs, sont retenues. Si l'afficheur n'envoie rien, la passerelle prend la variable du compose : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`.
 - **Une valeur** (et page dédiée `/30j`) : la réponse contient sa **courbe sur 30 jours** (`p30`, normalisée de 0 à 100) et ses **repères de prix** (`rep`, depuis la 2.9.1) : `[{"y": 21, "t": "55 000"}, {"y": 74, "t": "60 000"}]`.
@@ -191,6 +191,14 @@ Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, chacune ave
   - indices : **pastilles incluses** (`icones/indices/`) avec le nom court de l'indice (CAC, S&P, NDQ, DOW, DAX, FTSE, SX5E, NKY, HSI, SMI), produites par le même script ;
   - matières premières : icônes incluses (`icones/commodities/`).
   - Les licences des icônes incluses sont décrites dans `gateway/app/icones/LICENCES.md`.
+
+**Custom** (module `custom.py`, variable `CUSTOM`)
+- Jusqu'à 3 valeurs de toutes catégories sur une même page (ex. Bitcoin, l'action Tesla et l'or). Chaque valeur est servie exactement comme sur sa page d'origine : cours, variations, logo, unité (dollars, points pour un indice), courbe et repères pour une seule valeur.
+- **Saisie** : `catégorie:valeur`, avec `c:` (crypto), `a:` (action), `i:` (indice), `d:` (devise), `m:` (matière première) ; les noms longs sont acceptés (`crypto:`, `action:`, `indice:`, `devise:`, `matiere:`). Exemples : `c:pepe`, `a:MC.PA`, `i:CAC40`, `d:EUR`, `m:CL=F`.
+- **Sans préfixe**, la catégorie est devinée : contrat `=F` ou matière connue, puis `^…` ou indice connu, puis code de devise connu, puis crypto parmi les 50 premières capitalisations ; sinon, action.
+- **Listes de l'interface** : `/custom/liste` propose les **5 premières valeurs de chaque catégorie** (25 en tout : 5 cryptos, 5 actions, 5 indices, 5 devises, 5 matières), avec la catégorie devant le nom (« Crypto · Bitcoin (BTC) », « Matière · Or ») ; toute autre valeur se saisit dans le champ libre.
+- Les identifiants des réponses sont préfixés (`c:bitcoin`, `a:TSLA`) : la page dédiée est demandée à `/custom/30j?id=a:TSLA`.
+- Valeurs par défaut : `CUSTOM: c:bitcoin,a:TSLA,m:GC=F`.
 
 **Icônes personnelles** (toutes les pages de cours)
 

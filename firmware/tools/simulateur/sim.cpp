@@ -304,11 +304,13 @@ int main(int argc, char** argv) {
     {"/commodities", "commo3b", "28_commodities_3b"},
     {"/indices", "indices1", "29_indices_1"}, {"/indices", "indices2", "29b_indices_2"},
     {"/indices", "indices3", "29c_indices_3"},
+    {"/custom", "custom1", "30_custom_1"}, {"/custom", "custom2", "30b_custom_2"},
+    {"/custom", "custom3", "30c_custom_3"}, {"/custom", "custom3b", "30d_custom_3b"},
   };
   for (auto& k : COURS) {
     fixtures[k[0]] = FX(k[1]);
     uint8_t page = strcmp(k[0], "/actions") == 0 ? PG_ACTIONS : strcmp(k[0], "/devises") == 0 ? PG_DEVISES
-                 : strcmp(k[0], "/indices") == 0 ? PG_INDICES : PG_COMMO;
+                 : strcmp(k[0], "/indices") == 0 ? PG_INDICES : strcmp(k[0], "/custom") == 0 ? PG_CUSTOM : PG_COMMO;
     drawCours(page, 5, 9); save(k[2]);
   }
   drawPlex(5, 6);                  save("14_plex_1");

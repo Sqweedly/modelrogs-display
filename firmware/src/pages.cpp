@@ -187,7 +187,7 @@ void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
     entete += entete.length() ? String(" ") + d : String(d);
   }
   FontId fe = textW(entete, F_18) > 216 ? F_16 : F_18;
-  drawText(entete, 120, Y_ENTETE, fe, TXT2, BG, TC_DATUM);
+  drawText(entete, 120, Y_ENTETE, fe, TXT, BG, TC_DATUM);
   JsonDocument doc;
   bool ok = gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) == 200;   // sinon l'horloge reste seule
   placerChiffres(carteMeteoDuJour(doc, ok));
@@ -758,11 +758,10 @@ static void courbe(JsonArray pts, int x0, int x1, int haut, int bas, uint16_t li
 // Couleurs des pages de cours : gris strictement neutres (R = V = B). Les gris
 // bleutés de l'interface (MUTED, DIM, CARD) tirent nettement vers le bleu sur
 // l'écran du SmallTV.
-static constexpr uint16_t GRIS_CLAIR  = RGB(0xC8, 0xC8, 0xC8);   // intitulés 24 h / 7 j / 30 j, dates
+static constexpr uint16_t GRIS_CLAIR  = RGB(0xC8, 0xC8, 0xC8);   // dates, indice des très petits prix
 static constexpr uint16_t GRIS_REPERE = RGB(0xA0, 0xA0, 0xA0);   // libellés des repères de prix
 static constexpr uint16_t GRIS_GRILLE = RGB(0x3C, 0x3C, 0x3C);   // pointillés des repères
-static constexpr uint16_t GRIS_DISQUE = RGB(0x26, 0x26, 0x26);   // disque sous un logo « posé », « ? »
-static constexpr uint16_t CARTE       = RGB(0x14, 0x14, 0x14);   // cartes des écrans à 2 et 3 valeurs
+static constexpr uint16_t GRIS_DISQUE = RGB(0x26, 0x26, 0x26);   // disque « ? » d'une valeur introuvable
 
 // Couleur de la pastille de remplacement : fixe pour un même code
 static uint16_t accentCode(const char* s) {
@@ -773,9 +772,9 @@ static uint16_t accentCode(const char* s) {
 }
 
 // Logo (via la passerelle) selon sa forme « f » :
-//   0 logo rond (crypto, CoinGecko) ; 1 logo ou icône posé sur un disque gris
-//   foncé (actions, matières premières) ; 2 image découpée en rond (drapeaux,
-//   lingots). Sans image : pastille de couleur avec le code (4 caractères au
+//   0 logo rond (crypto, CoinGecko) ; 1 logo ou icône sans contour, sur toute
+//   la taille (actions, matières premières) ; 2 image découpée en rond
+//   (pastilles de devises et d'indices, lingots). Sans image : pastille de couleur avec le code (4 caractères au
 //   plus). Valeur introuvable (« e ») : disque gris avec « ? ».
 static void logoCrypto(JsonObject c, int x, int y, int d, uint16_t fond) {
   const char* sym = c["s"] | "?";
@@ -787,9 +786,8 @@ static void logoCrypto(JsonObject c, int x, int y, int d, uint16_t fond) {
   }
   const int forme = c["f"] | 0;
   if (forme == 1) {
-    tft.fillSmoothCircle(cx, cy, d / 2, GRIS_DISQUE, fond);
-    const int di = (d * 64 / 100) & ~1;
-    if (gwImage(c["i"] | "", cx - di / 2, cy - di / 2, di, di, GRIS_DISQUE, 0, true)) return;
+    // Logo d'action ou icône de matière première : sans disque, sur toute la taille
+    if (gwImage(c["i"] | "", x, y, d, d, fond, 0, true)) return;
   } else if (gwImage(c["i"] | "", x, y, d, d, fond, d / 2, forme == 0)) {
     return;
   }
@@ -827,7 +825,7 @@ static void bullesVariations(JsonObject c, int y) {
     const bool hausse = c[UP[i]] | 1;
     const uint16_t fond = hausse ? VERT_BG : ROUGE_BG;
     card(x, y - 3, w[i], H, H / 2, fond);
-    drawText(LAB[i], x + PAD, y + 8, F_16, GRIS_CLAIR, fond, ML_DATUM);
+    drawText(LAB[i], x + PAD, y + 8, F_16, TXT, fond, ML_DATUM);
     drawText(c[VAL[i]] | "", x + PAD + wl[i] + ESP, y + 8, F_16, hausse ? VERT : ROUGE_TX, fond, ML_DATUM);
     x += w[i] + ENTRE;
   }
@@ -869,6 +867,7 @@ static uint16_t accentPage(uint8_t page, JsonArray cs) {
     case PG_DEVISES: return VERT;
     case PG_COMMO:   return AMBRE;
     case PG_INDICES: return VIOLET;
+    case PG_CUSTOM:  return CORAIL;
     default:         return accentCrypto(cs[0]["s"] | "");
   }
 }
@@ -934,15 +933,15 @@ static void noterDediee(JsonObject c) {
 }
 
 // « Prix en vedette » à 2 ou 3 valeurs, identique pour Crypto, Actions,
-// Devises et Commodities. Une carte par valeur sur toute la largeur :
-//  - ligne 1 : logo collé à gauche, aussi grand que la carte le permet, et
+// Devises et Commodities. Un bloc par valeur sur toute la largeur, sans fond :
+//  - ligne 1 : logo collé à gauche, aussi grand que le bloc le permet, et
 //    prix centré sur sa hauteur, au milieu de la place restante (32 px, 26 ou
 //    18 px seulement s'il est trop long) ;
 //  - ligne 2 : bulles « 24 h … » et « 7 j … » centrées (intitulé gris, valeur
 //    et fond selon le sens).
 // Tailles fixes, ne dépendant que du nombre de valeurs (2 ou 3). Si un prix ou
 // des variations sont trop longs, la police réduite s'applique à toutes les
-// cartes de l'écran : les lignes restent strictement identiques.
+// blocs de l'écran : les lignes restent strictement identiques.
 static const char* const BUL_LAB[2] = { "24 h", "7 j" };
 static const char* const BUL_VAL[2] = { "v24", "v7" };
 static const char* const BUL_UP[2]  = { "u24", "u7" };
@@ -961,7 +960,7 @@ static void bulles24h7j(JsonObject c, int cx, int yHaut, FontId f, int h, int pa
     const int wl = textW(BUL_LAB[i], f), wv = textW(c[BUL_VAL[i]] | "", f);
     const int w = pad + wl + esp + wv + pad;
     card(x, yHaut, w, h, h / 2, fond, bgEcran);
-    drawText(BUL_LAB[i], x + pad, yHaut + h / 2 + 1, f, GRIS_CLAIR, fond, ML_DATUM);
+    drawText(BUL_LAB[i], x + pad, yHaut + h / 2 + 1, f, TXT, fond, ML_DATUM);
     drawText(c[BUL_VAL[i]] | "", x + pad + wl + esp, yHaut + h / 2 + 1, f, hausse ? VERT : ROUGE_TX, fond, ML_DATUM);
     x += w + entre;
   }
@@ -976,7 +975,7 @@ static void vedetteCartes(JsonArray cs, uint8_t n, uint8_t dotIndex, uint8_t dot
   const int X0 = 4, X1 = 236, Y0 = 4, Y1 = 219;         // zone utile (points de pagination dessous)
   const int ESPC = deux ? 6 : 5, PAD = deux ? 7 : 4, GAPL = deux ? 6 : 3, HB = deux ? 24 : 19;
   const FontId FB = deux ? F_16 : F_13;
-  const int hc = (Y1 - Y0 - (n - 1) * ESPC) / n;        // hauteur d'une carte
+  const int hc = (Y1 - Y0 - (n - 1) * ESPC) / n;        // hauteur d'un bloc
   const int L = hc - 2 * PAD - GAPL - HB;               // logo : 61 px (2 valeurs), 39 px (3)
   const int xg = X0 + PAD + L + 6, xd = X1 - PAD;        // place du prix, à droite du logo
   const int place = X1 - X0 - 2 * PAD;                   // place des bulles
@@ -1008,23 +1007,19 @@ static void vedetteCartes(JsonArray cs, uint8_t n, uint8_t dotIndex, uint8_t dot
     JsonObject c = cs[k];
     noterDediee(c);
     const int y = Y0 + k * (hc + ESPC), xl = X0 + PAD;
-    card(X0, y, X1 - X0, hc, deux ? 16 : 12, CARTE, BG);
-    // Logo sur toute la taille, sans contour : le disque gris des logos « posés »
-    // (actions, matières premières) se confondrait avec la carte.
-    if (!((c["f"] | 0) == 1 && !(c["e"] | 0) && gwImage(c["i"] | "", xl, y + PAD, L, L, CARTE, 0, true)))
-      logoCrypto(c, xl, y + PAD, L, CARTE);
+    logoCrypto(c, xl, y + PAD, L, BG);
     // Prix centré sur la hauteur du logo, au milieu de la place restante
     const int xp = xg + (xd - xg - min(xd - xg, largeurPrixOuCode(c, fp))) / 2;
     const int base = y + PAD + L / 2 + g0.dy - g0.h / 2;
     const int yb = y + PAD + L + GAPL;
     if (c["e"] | 0) {
       const FontId fc = policeCode(fp);
-      drawText(c["s"] | "?", xp, base - fontAscent(fc), fc, TXT, CARTE);
-      drawText(texteErreur(c), 120, yb + HB / 2, fb, couleurErreur(c), CARTE, MC_DATUM);
+      drawText(c["s"] | "?", xp, base - fontAscent(fc), fc, TXT, BG);
+      drawText(texteErreur(c), 120, yb + HB / 2, fb, couleurErreur(c), BG, MC_DATUM);
       continue;
     }
-    dessinerPrix(c["px"] | "", xp, base, fp, CARTE);
-    bulles24h7j(c, 120, yb, fb, HB, pad, esp, entre, CARTE);
+    dessinerPrix(c["px"] | "", xp, base, fp, BG);
+    bulles24h7j(c, 120, yb, fb, HB, pad, esp, entre, BG);
   }
   if (perime) staleMark(true);
   pageDots(dotIndex, dotCount, accent);

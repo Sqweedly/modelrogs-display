@@ -6,19 +6,21 @@ static_assert(sizeof(Config) <= EEPROM_SIZE, "Config trop grande pour l'EEPROM")
 static_assert(PG_COUNT <= 16, "pages : masque de 16 bits");
 
 const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Crypto", "Plex",
-                                           "Actions", "Devises", "Commodities", "Indices" };
+                                           "Actions", "Devises", "Commodities", "Indices", "Custom" };
 const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc", "plex",
-                                           "actions", "devises", "commodities", "indices" };
+                                           "actions", "devises", "commodities", "indices", "custom" };
 const uint8_t ROTATION[PG_COUNT] = { PG_HEURE, PG_METEO, PG_DISCORD, PG_SUP, PG_BTC, PG_ACTIONS,
-                                     PG_INDICES, PG_DEVISES, PG_COMMO, PG_PLEX };
+                                     PG_INDICES, PG_DEVISES, PG_COMMO, PG_CUSTOM, PG_PLEX };
 // Pages ajoutées en 2.9 : activées à la mise à jour (affichées seulement si
 // le module est actif sur la passerelle)
 static const uint16_t PAGES_29 = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO);
 // Page ajoutée en 2.10, activée de la même façon
 static const uint16_t PAGES_210 = 1 << PG_INDICES;
+static const uint16_t PAGES_211 = 1 << PG_CUSTOM;
 
 bool pageCours(uint8_t page) {
-  return page == PG_BTC || page == PG_ACTIONS || page == PG_DEVISES || page == PG_COMMO || page == PG_INDICES;
+  return page == PG_BTC || page == PG_ACTIONS || page == PG_DEVISES || page == PG_COMMO || page == PG_INDICES
+         || page == PG_CUSTOM;
 }
 
 // --- Anciennes structures, lues une seule fois lors de la mise à jour ------
@@ -224,6 +226,18 @@ void loadConfig() {
     return;
   }
 
+  // --- Même firmware, 2.10 (structure 6) : la structure 7 commence comme elle ;
+  //     le réglage de la page Custom, ajouté à la fin, part vide (valeurs du
+  //     compose). Tout est conservé, validation comprise ; la page Custom est activée.
+  if (magic == PRODUCT_MAGIC && version == 6) {
+    EEPROM.get(0, cfg);
+    memset(cfg.pCustom, 0, sizeof(cfg.pCustom));
+    cfg.pages |= PAGES_211;
+    Serial.println(F("EEPROM : reprise de la configuration 2.10."));
+    saveConfig();
+    return;
+  }
+
   // --- Même firmware, 2.9.0 et 2.9.1 (structure 5) : même disposition, le
   //     réglage des indices occupe une partie de l'ancienne réserve (vide).
   //     Tout est conservé, validation comprise ; la page Indices est activée.
@@ -231,7 +245,8 @@ void loadConfig() {
     EEPROM.get(0, cfg);
     memset(cfg.pIndices, 0, sizeof(cfg.pIndices));
     memset(cfg.reserve, 0, sizeof(cfg.reserve));
-    cfg.pages |= PAGES_210;
+    memset(cfg.pCustom, 0, sizeof(cfg.pCustom));
+    cfg.pages |= PAGES_210 | PAGES_211;
     Serial.println(F("EEPROM : reprise de la configuration 2.9.0-2.9.1."));
     saveConfig();
     return;
@@ -249,7 +264,7 @@ void loadConfig() {
     copyStr(cfg.apSsid, sizeof(cfg.apSsid), old.apSsid);
     copyStr(cfg.gateway, sizeof(cfg.gateway), old.gateway);
     copyStr(cfg.ville, sizeof(cfg.ville), old.ville);
-    cfg.pages = old.pages | PAGES_29 | PAGES_210 | (old.ext26 == 1 ? 0 : 1 << PG_PLEX);
+    cfg.pages = old.pages | PAGES_29 | PAGES_210 | PAGES_211 | (old.ext26 == 1 ? 0 : 1 << PG_PLEX);
     cfg.pageSec = old.pageSec;
     cfg.nightOn = old.nightOn;
     cfg.nightStart = old.nightStart;
@@ -319,7 +334,7 @@ void loadConfig() {
     Serial.println(F("EEPROM : configuration absente -> valeurs par defaut."));
   }
 
-  cfg.pages |= (1 << PG_PLEX) | PAGES_29 | PAGES_210;   // pages apparues depuis (si le module est actif)
+  cfg.pages |= (1 << PG_PLEX) | PAGES_29 | PAGES_210 | PAGES_211;   // pages apparues depuis (si le module est actif)
   cfg.validated = 0;   // firmware différent ou jamais validé : validation requise
   saveConfig();
 }
@@ -348,6 +363,7 @@ char* modParams(uint8_t page) {
     case PG_DEVISES: return cfg.pDevises;
     case PG_COMMO:   return cfg.pCommo;
     case PG_INDICES: return cfg.pIndices;
+    case PG_CUSTOM:  return cfg.pCustom;
     default:         return cfg.pCrypto;
   }
 }
@@ -363,6 +379,7 @@ size_t modParamsSize(uint8_t page) {
     case PG_DEVISES: return sizeof(cfg.pDevises);
     case PG_COMMO:   return sizeof(cfg.pCommo);
     case PG_INDICES: return sizeof(cfg.pIndices);
+    case PG_CUSTOM:  return sizeof(cfg.pCustom);
     default:         return sizeof(cfg.pCrypto);
   }
 }

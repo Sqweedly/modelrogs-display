@@ -12,6 +12,28 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.11.0] — 2026-10-30
+
+Nouvelle page **Custom** (valeurs de toutes catégories sur une même page), et pages de cours épurées : plus de fond gris ni de disque autour des logos, intitulés en blanc.
+
+### Ajouté
+- **Page Custom** (module `custom`) : jusqu'à 3 valeurs de toutes catégories sur une même page, par exemple Bitcoin, l'action Tesla et l'or.
+  - Chaque valeur est servie comme sur sa page d'origine (cours, variations, logo, dollars ou points pour un indice) ; mêmes écrans que les autres pages de cours : sur 30 jours pour une valeur, blocs à 2 et 3 valeurs, page dédiée.
+  - Interface : 3 listes avec les **5 premières valeurs de chaque catégorie** (« Crypto · Bitcoin (BTC) », « Action · Tesla », « Matière · Or »…) et une saisie libre.
+  - Saisie libre `catégorie:valeur` : `c:` crypto, `a:` action, `i:` indice, `d:` devise, `m:` matière première (`c:pepe`, `a:MC.PA`, `i:CAC40`, `m:CL=F`). Sans préfixe, la catégorie est devinée (matière, indice, devise, crypto du top 50, sinon action).
+  - Valeurs par défaut dans `docker-compose.yml` : `CUSTOM: c:bitcoin,a:TSLA,m:GC=F`.
+  - Rotation : Heure, Météo, Discord, Supervision, Crypto, Actions, Indices, Devises, Commodities, **Custom**, Plex. Couleur de la page : corail.
+
+### Modifié
+- **Écrans à 2 et 3 valeurs** : plus de carte grise autour de chaque valeur ; logo, prix et bulles sont posés directement sur le fond noir, aux mêmes places.
+- **Logos des actions et matières premières** : plus de disque gris autour, sur tous les écrans. Sur la page sur 30 jours, le logo prend toute la place de l'ancienne pastille (44 px au lieu de 28), sans déplacer le prix ni les bulles.
+- **En blanc** : les intitulés « 24 h », « 7 j », « 30 j » de toutes les bulles, et l'en-tête de la page Heure (« jeudi 29 octobre »).
+- **Configuration de l'afficheur** (structure 7, 844 octets) : reprise automatique d'une 2.9 ou 2.10, validation comprise ; la page Custom est activée (affichée si le module est actif).
+
+### Mise à jour
+- Dans `docker-compose.yml`, ajouter `custom` à `MODULES` et, si besoin, `CUSTOM` (voir le fichier de la release). Puis `docker compose pull && docker compose up -d` : le log affiche `Passerelle 2.11.0`.
+- Ensuite l'afficheur (`/update`) : la configuration est conservée et la page Custom apparaît dans l'interface.
+
 ## [2.10.0] — 2026-10-29
 
 Nouvelle page **Indices boursiers**, et retouches de couleurs et de lisibilité sur les pages de cours et Plex.

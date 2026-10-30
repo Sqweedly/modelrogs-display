@@ -1,5 +1,7 @@
 # Développer sur MODELROGS Display
 
+Pour l'état du projet, les règles de travail, les choix de design et le backlog, lire d'abord [CONTEXTE.md](CONTEXTE.md).
+
 Ce guide permet de reprendre le projet **depuis un clone vierge** : compiler et flasher le firmware, lancer la passerelle sur son PC, prévisualiser les écrans, régénérer les polices et publier sa propre version.
 
 Le dépôt contient tout ce qu'il faut ; seuls les outils (PlatformIO, Python, g++) et, pour les polices, les fichiers Inter sont à télécharger.
@@ -28,7 +30,8 @@ gateway/                   Passerelle Python (aiohttp), un module par page
   Dockerfile
 docker-compose.yml         Modèle de déploiement de la passerelle (sans jetons)
 .github/workflows/         Vérification à chaque envoi, publication à chaque tag
-docs/                      PASSERELLE.md (fonctionnement), DEVELOPPEMENT.md (ce guide)
+docs/                      PASSERELLE.md (fonctionnement), DEVELOPPEMENT.md (ce guide),
+                           CONTEXTE.md (reprise : état, règles, design, backlog)
 ```
 
 ## 2. Outils à installer
@@ -108,7 +111,7 @@ cd gateway
 python -m tests.test_passerelle
 ```
 
-Ils simulent Open-Meteo, CoinGecko, Yahoo Finance, la BCE, Logo.dev, Kuma et Plex : aucun accès Internet ni jeton n'est nécessaire. La dernière ligne doit être « Tous les tests sont passés. »
+Ils simulent Open-Meteo, CoinGecko, Yahoo Finance, la BCE, Logo.dev, Kuma, Plex et Immich : aucun accès Internet ni jeton n'est nécessaire. La dernière ligne doit être « Tous les tests sont passés. »
 
 ### Image Docker
 

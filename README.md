@@ -62,6 +62,8 @@ Le dépôt ne contient que des **sources**. Les fichiers prêts à l'emploi (fir
 | `firmware/src/`, `firmware/platformio.ini` | Sources du firmware (PlatformIO) |
 | `firmware/tools/` | Version, compression du binaire, polices, simulateur et test de configuration |
 | `docs/PASSERELLE.md` | Fonctionnement détaillé de la passerelle |
+| `docs/DEVELOPPEMENT.md` | Guide du développeur : outils, compilation, tests, simulateur, publication |
+| `docs/CONTEXTE.md` | Reprise du projet : état, règles de travail, choix de design, backlog |
 | `CHANGELOG.md` | Journal des versions ; la section de chaque version est reprise dans les notes de sa Release |
 | `.github/workflows/verification.yml` | À chaque envoi sur `main` : tests et compilation, sans publication |
 | `.github/workflows/publication.yml` | À chaque tag `vX.Y.Z` : tests, firmware, image Docker et Release |

@@ -12,6 +12,28 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [2.12.1] — 2026-10-31
+
+Correctif de clôture : page Photos plus robuste, documentation de reprise du projet.
+
+### Corrigé
+- Page Photos, liste des albums de l'interface : bornée pour rester sous 2 048 octets, la limite lue par l'afficheur. Avant, 30 albums dépassaient cette limite (2,2 Ko avec des noms courts, 3 Ko avec des noms longs). Les albums sont proposés par ordre alphabétique : 24 environ avec des noms courts, 17 environ avec des noms longs (40 caractères affichés au plus).
+- Page Photos, mémoire : les listes gardées 10 minutes (albums, favoris, souvenirs) ne conservent que l'identifiant et la date de chaque photo, et plus la fiche complète d'Immich (une trentaine de champs par photo, jusqu'à 5 000 photos par album).
+
+### Documentation
+- Nouveau `docs/CONTEXTE.md` pour reprendre le projet : état à la clôture, règles de travail et de livraison, choix de design validés, règles techniques, backlog et vérifications à faire sur le matériel réel.
+- `docs/PASSERELLE.md`, page Photos :
+  - un droit `memory.read` manquant ne bloque plus la page (photo au hasard) ;
+  - limite de la liste des albums ;
+  - commandes de test des souvenirs ;
+  - limites connues : délai de 2,5 s de l'afficheur sur une machine lente ; version réduite d'Immich à garder en JPEG, car Pillow est compilé sans WebP en armv7.
+- `README.md` et `docs/DEVELOPPEMENT.md` renvoient vers `docs/CONTEXTE.md`.
+
+### Mise à jour
+- Passerelle seule (`docker compose pull && docker compose up -d`). Le firmware est inchangé depuis la 2.12.0 ; le mettre à jour n'est pas nécessaire, la Release le fournit au numéro 2.12.1.
+
+---
+
 ## [2.12.0] — 2026-10-30
 
 Nouvelle page **Photos** : vos photos Immich en plein écran.

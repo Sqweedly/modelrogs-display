@@ -38,6 +38,7 @@ Droits de la clé d'API (Immich > Paramètres du compte > Clés d'API) :
 """
 
 import datetime as dt
+import json
 import logging
 import os
 import random
@@ -58,6 +59,8 @@ TTL_LISTE = 10 * 60          # liste d'un album ou des favoris gardée 10 minute
 HISTORIQUE = 20              # photos récentes à ne pas remontrer
 DUREES = [10, 20, 30, 45, 60, 90, 120, 300]
 DUREE_DEFAUT = 30
+MAX_ALBUMS = 30                # albums proposés dans l'interface
+MAX_OCTETS_LISTE = 1900       # sous la limite de 2048 octets lue par l'afficheur
 
 _vues: dict[str, deque] = {}
 
@@ -81,8 +84,11 @@ async def _get(session: aiohttp.ClientSession, chemin: str, params: dict | None 
 
 
 def _images(assets) -> list[dict]:
-    """Photos seulement (pas de vidéo, rien de la corbeille)."""
-    return [a for a in (assets or []) if isinstance(a, dict) and a.get("id")
+    """Photos seulement (pas de vidéo, rien de la corbeille), réduites à ce qui sert :
+    un album de milliers de photos reste léger en mémoire (fiche Immich complète :
+    une trentaine de champs par photo)."""
+    return [{"id": a["id"], "localDateTime": a.get("localDateTime"), "fileCreatedAt": a.get("fileCreatedAt")}
+            for a in (assets or []) if isinstance(a, dict) and a.get("id")
             and (a.get("type") or "IMAGE") == "IMAGE" and not a.get("isTrashed")]
 
 
@@ -260,8 +266,18 @@ async def sources(session: aiohttp.ClientSession, q: dict) -> dict:
     except (aiohttp.ClientError, TimeoutError) as exc:
         return {"ok": 0, "err": _cause(exc, "")}
     albums = sorted(albums or [], key=lambda a: (a.get("albumName") or "").lower())
-    liste += [{"id": f"a:{a['id']}", "n": ecran(f"Album · {a.get('albumName') or 'sans nom'}", 40)}
-              for a in albums[:30] if a.get("id")]
+    # Réponse lue par l'afficheur : moins de 2048 octets, d'où au plus 30 albums et
+    # un arrêt avant la limite (identifiant d'album : 38 caractères à lui seul)
+    taille = len(json.dumps({"ok": 1, "s": liste}, ensure_ascii=False).encode())
+    for a in albums[:MAX_ALBUMS]:
+        if not a.get("id"):
+            continue
+        option = {"id": f"a:{a['id']}", "n": ecran(f"Album · {a.get('albumName') or 'sans nom'}", 40)}
+        taille += len(json.dumps(option, ensure_ascii=False).encode()) + 1
+        if taille > MAX_OCTETS_LISTE:
+            log.info("liste des albums limitée à %d (taille de la réponse)", len(liste) - 2)
+            break
+        liste.append(option)
     return {"ok": 1, "s": liste}
 
 

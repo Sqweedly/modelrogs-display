@@ -24,6 +24,7 @@ MAINTENANT = datetime.now(timezone.utc)
 APPELS_GEO: list[str] = []
 APPELS_YAHOO: list[str] = []
 SOUVENIRS_REFUSES = [False]
+BEAUCOUP_ALBUMS = [False]
 PLEX: list[dict] = []
 base_faux = ""
 REQUETES_KUMA: list[dict] = []
@@ -227,6 +228,9 @@ def faux_internet() -> web.Application:
                                   {"type": "birthday", "data": {"year": annee}, "assets": [actif("p2")]}])
 
     async def im_albums(r):
+        if BEAUCOUP_ALBUMS[0]:              # 40 albums aux noms longs : réponse bornée
+            return web.json_response([{"id": f"9de3b847-d1b9-4d93-973a-1d2eb559f8{i:02d}",
+                                       "albumName": f"Anniversaire des 18 ans de Justine n°{i:02d}"} for i in range(40)])
         return web.json_response([{"id": "alb1", "albumName": "Vacances", "assetCount": 3}])
 
     async def im_album(r):
@@ -635,6 +639,20 @@ async def principal() -> int:
         ok = d["ok"] == 1 and d["i"] and "b" not in d
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} Immich : souvenirs refusés -> photo au hasard {d}")
+        BEAUCOUP_ALBUMS[0] = True
+        r = await c.get("/immich/sources")
+        texte = await r.text()
+        BEAUCOUP_ALBUMS[0] = False
+        d = json.loads(texte)
+        n = len(d["s"]) - 2
+        ok = d["ok"] == 1 and len(texte.encode()) < 2048 and 10 <= n < 40 and d["s"][2]["id"].startswith("a:9de3b847")
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : 40 albums -> {n} proposés, {len(texte.encode())} octets (< 2048)")
+        # Fiches de photos réduites en mémoire
+        ok = IMM._images([{"id": "x", "type": "IMAGE", "exifInfo": {"a": 1}, "localDateTime": "2020-01-01"}]) \
+            == [{"id": "x", "localDateTime": "2020-01-01", "fileCreatedAt": None}]
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : fiches de photos réduites à l'identifiant et à la date")
 
         APPELS_YAHOO.clear()
         await c.get("/actions?m=XYZ"); await c.get("/actions?m=XYZ")

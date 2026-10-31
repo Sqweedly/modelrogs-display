@@ -73,10 +73,6 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 La page Photos (2.12.x) n'a été validée sur le vrai serveur que pour la source « Au hasard ». Après `docker compose pull && docker compose up -d` sur le docker passerelle :
 
 ```
-curl -s "http://192.168.1.212:8680/immich?s=souvenirs" ; echo     # attendu : "b":"Il y a N ans"
-curl -s "http://192.168.1.212:8680/immich?s=favoris" ; echo       # attendu : {"ok":1,"i":"…"}
-curl -s "http://192.168.1.212:8680/immich?s=a%3A9de3b847-d1b9-4d93-973a-1d2eb559f80e" ; echo
-curl -s "http://192.168.1.212:8680/immich/sources" ; echo
 docker logs modelrogs-gateway 2>&1 | grep -i immich | tail -10
 ```
 

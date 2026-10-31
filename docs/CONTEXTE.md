@@ -14,15 +14,14 @@ Il rassemble ce que le code ne dit pas : l'état à la clôture, la façon de tr
 
 ## 1. État à la clôture (2026-10-31)
 
-- **Dernière version : 2.12.1**, tag `v2.12.1` sur `main`. Le numéro ne vient que du tag : GitHub Actions l'injecte dans le firmware et dans l'image. Aucun numéro n'est écrit dans le code.
+- **Dernière version : 2.13.0**, tag `v2.13.0` sur `main` (démarrage plus sûr, voir `CHANGELOG.md`). Version validée sur le matériel réel par le propriétaire, à partir du firmware compilé par Actions sur la branche `beta`. Le numéro ne vient que du tag : GitHub Actions l'injecte dans le firmware et dans l'image. Aucun numéro n'est écrit dans le code.
 - **Vérifié avant la clôture**, sur une copie vierge du dépôt :
   - tests de la passerelle (`python -m tests.test_passerelle`), tous passés ;
   - test de conservation de la configuration du firmware (structure `Config` v8, 908 octets sur 1024) ;
   - simulateur (44 écrans, 420 cas de placement de textes, 0 différence) ;
-  - compilation complète du firmware ESP8266 : 592 Ko, RAM 46 %, IRAM 93 %. Elle a été faite avec arduino-cli et les mêmes options que `platformio.ini`. La compilation PlatformIO officielle est celle de GitHub Actions.
+  - compilation complète du firmware ESP8266 avec PlatformIO 6.1.16 (version de la CI) : RAM 45,4 %, code en IRAM 28 627 octets sur 32 768. Seule la compilation de GitHub Actions fait foi pour les binaires livrés.
 - **Non vérifié avant la clôture** :
   - la construction de l'image Docker (pas de Docker disponible pour la vérification ; GitHub Actions la construit à chaque tag) ;
-  - le fonctionnement sur le matériel réel : voir le § 5, « À vérifier en premier ».
 
 ## 2. Environnement du propriétaire
 

@@ -12,16 +12,23 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [Non publié] — branche `beta`
+## [2.13.0] — 2026-10-31
 
-Essai en cours, compilé par Actions → Vérification sur la branche `beta`. À renommer en numéro de version au moment de la publication.
+Afficheur : démarrage plus sûr. Un plantage pendant l'initialisation mène désormais toujours au mode secours, où l'OTA reste joignable.
 
 ### Corrigé
-- Afficheur, démarrage : le compteur de plantages est lu avant l'initialisation du rétroéclairage. Avant, un plantage dans cette initialisation se répétait à chaque démarrage sans jamais mener au mode secours. Seule une écriture de broche (écran éteint) précède désormais ce compteur ; la PWM du rétroéclairage est réglée ensuite.
-- Afficheur, mode secours : l'écran rouge s'allume par une simple écriture de broche, à pleine luminosité (30 % avant), sans dépendre de la PWM du rétroéclairage.
+- Démarrage : le compteur de plantages est lu avant l'initialisation du rétroéclairage. Avant, un plantage dans cette initialisation se répétait à chaque démarrage sans jamais mener au mode secours. Seule une écriture de broche (écran éteint) précède désormais ce compteur ; la PWM du rétroéclairage (`analogWrite`, inchangée) est réglée ensuite.
+- Mode secours : l'écran rouge s'allume par une simple écriture de broche, à pleine luminosité (30 % avant), sans dépendre de la PWM du rétroéclairage.
 
 ### Documentation
-- `docs/CONTEXTE.md` : versions de test sur la branche `beta` ; backlog (icônes horloge de l'interface, erreur Yahoo HTTP2) ; règles techniques (réception des images à garder en `readBytes`, état réel de l'IRAM).
+- `docs/CONTEXTE.md` :
+  - versions de test sur une branche `beta`, compilées par Actions → Vérification (lancement manuel) ;
+  - backlog : icônes horloge de l'interface (plage nocturne), erreur Yahoo HTTP2 sur l'indice `^GSPC` ;
+  - règles techniques : réception des images à garder en `readBytes` (une lecture en bloc a provoqué des réceptions interrompues lors d'un essai), état réel de l'IRAM (28,6 Ko de code sur 32 Ko, le projet n'en utilise presque pas).
+
+### Mise à jour
+- Afficheur seul (`/update`). La configuration est conservée (structure inchangée).
+- Passerelle : aucun changement de code. L'image est republiée au numéro 2.13.0 ; `docker compose pull && docker compose up -d` est facultatif.
 
 ---
 

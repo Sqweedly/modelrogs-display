@@ -227,11 +227,13 @@ void setup() {
   delay(200);
   Serial.println(F("\n=== MODELROGS DISPLAY v" FW_VERSION " ==="));
 
+  // Écran éteint pendant l'initialisation (pas de flash la nuit) : simple
+  // écriture de broche, rien d'autre avant la lecture du compteur de plantages.
   pinMode(PIN_BACKLIGHT, OUTPUT);
-  analogWriteRange(1023);
-  analogWriteFreq(1000);
-  applyBacklight(0);      // écran éteint pendant l'initialisation (pas de flash la nuit)
+  digitalWrite(PIN_BACKLIGHT, HIGH);
 
+  // Compteur de plantages lu AVANT tout le reste : un plantage dans la suite
+  // de setup() (rétroéclairage compris) mène bien au mode secours.
   gSafeMode = santeDemarrage();
 
   loadConfig();
@@ -243,9 +245,14 @@ void setup() {
     webBegin();
     uiBegin();
     tft.fillScreen(Col::ALERTE2);   // écran rouge sombre uni = mode secours
-    applyBacklight(30);
+    // Pleine luminosité par simple écriture de broche : le mode secours ne
+    // dépend pas de la PWM du rétroéclairage.
+    digitalWrite(PIN_BACKLIGHT, LOW);
     return;
   }
+
+  analogWriteRange(1023);
+  analogWriteFreq(1000);
 
   uiBegin();
   // Après un redémarrage planifié de nuit, on reste à la luminosité de nuit.

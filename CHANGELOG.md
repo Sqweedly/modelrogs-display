@@ -12,6 +12,19 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [Non publié] — branche `beta`
+
+Essai en cours, compilé par Actions → Vérification sur la branche `beta`. À renommer en numéro de version au moment de la publication.
+
+### Corrigé
+- Afficheur, démarrage : le compteur de plantages est lu avant l'initialisation du rétroéclairage. Avant, un plantage dans cette initialisation se répétait à chaque démarrage sans jamais mener au mode secours. Seule une écriture de broche (écran éteint) précède désormais ce compteur ; la PWM du rétroéclairage est réglée ensuite.
+- Afficheur, mode secours : l'écran rouge s'allume par une simple écriture de broche, à pleine luminosité (30 % avant), sans dépendre de la PWM du rétroéclairage.
+
+### Documentation
+- `docs/CONTEXTE.md` : versions de test sur la branche `beta` ; backlog (icônes horloge de l'interface, erreur Yahoo HTTP2) ; règles techniques (réception des images à garder en `readBytes`, état réel de l'IRAM).
+
+---
+
 ## [2.12.1] — 2026-10-31
 
 Correctif de clôture : page Photos plus robuste, documentation de reprise du projet.

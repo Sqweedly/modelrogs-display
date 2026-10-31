@@ -58,6 +58,7 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
    git push --force origin vX.Y.Z    # version remplacée
    ```
 8. **Être précis et autocritique** dans les comptes rendus : ce qui est vérifié, ce qui ne l'est pas, ce qui reste supposé.
+9. **Versions de test : branche `beta`**. Les essais se font sur la branche `beta`, jamais sur `main`. Après `git push origin beta`, le firmware de test se compile par **Actions → Vérification → Run workflow → Branch: beta**. Il est téléchargeable 7 jours dans la rubrique « Artifacts » de l'exécution (`firmware-dev`, version affichée `dev-<commit>`). Aucune Release n'est créée. Seuls ces binaires de GitHub font foi : un binaire compilé ailleurs (arduino-cli, par exemple) n'est pas identique.
 
 ## 4. Backlog
 
@@ -67,6 +68,8 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 2. **Plex, nouveautés** : un écran des derniers ajouts du serveur Plex, avec une page Films et une page Séries (affiche et date d'ajout).
 3. **Tesla** : afficher la charge de la batterie d'une Tesla, source à définir (TeslaMate ou autre).
 4. **Piste d'amélioration (non demandée)** : préparer à l'avance la photo suivante de la page Photos. Aujourd'hui, l'image est téléchargée et convertie quand l'afficheur la demande ; sur une machine lente, le délai de 2,5 s de l'afficheur peut être dépassé. Voir « Limites connues » dans `docs/PASSERELLE.md`.
+5. **Interface web, plage nocturne** : passer en blanc les 2 icônes « horloge » des champs Début et Fin de la section Nuit et luminosité. Ce sont les icônes que le navigateur dessine dans les champs `<input type='time'>` (`firmware/src/web.cpp`, champs `nd` et `nf`), et elles ressortent mal sur le fond sombre. Piste : la propriété CSS `color-scheme: dark` sur ces champs, qui fait dessiner les contrôles natifs pour un fond sombre (MDN, « color-scheme »). À vérifier sur le navigateur du téléphone utilisé pour l'interface.
+6. **Passerelle, Yahoo** : erreur intermittente `curl: (16) Error in the HTTP2 framing layer` sur l'indice `^GSPC` (journal du 2026-10-31). La donnée précédente reste affichée ; à examiner.
 
 ## 5. Choix de design retenus
 
@@ -110,6 +113,8 @@ Ces choix ont été validés par le propriétaire sur maquette. Ne pas les chang
   - la migration est couverte par `tools/simulateur/test_config.cpp` ;
   - les réglages de l'utilisateur ne doivent jamais être perdus lors d'une mise à jour.
 - **`PageId`** : ajouter les nouvelles pages à la fin ; l'ordre d'affichage est donné par `ROTATION`.
-- **Taille du firmware et de l'IRAM** : l'IRAM est à 93 %. Ne rien ajouter en `IRAM_ATTR` sans nécessité.
+- **Taille du firmware et de l'IRAM** : ne rien ajouter en `IRAM_ATTR` sans nécessité (voir ci-dessous).
 - **Images** : la passerelle fait tout le travail (Pillow) et envoie du RGB565 ligne par ligne, 240 × 240 au plus. L'afficheur ne garde jamais une image entière en mémoire.
+- **Réception des images** (`gwImage`, `firmware/src/net.cpp`) : garder `readBytes`. Un essai de lecture en bloc (`WiFiClient::read` avec `available()`/`connected()`) a provoqué des « réceptions interrompues » (photos indisponibles, icônes remplacées par une pastille) sans gain de vitesse (essai du 2026-10-31). La réception d'une photo (115 200 octets) prend 1 à 2,2 s : la limite est le débit réseau de l'ESP8266, pas le processeur.
+- **IRAM** : 93 % affiché, mais ce chiffre compte les 32 Ko réservés au cache. Le code en IRAM fait 28,6 Ko sur 32 Ko, dont environ 30 octets pour le projet lui-même : aucune optimisation n'est nécessaire tant qu'on n'ajoute rien en IRAM.
 - **Textes affichés** : tout passe par `ecran()` (`gateway/app/text.py`). Le jeu de caractères doit rester identique à celui des polices.

@@ -32,8 +32,8 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 |---|---|
 | Dépôt | `github.com/Sqweedly/modelrogs-display`, privé. Le propriétaire pousse lui-même : pas d'application Claude installée sur GitHub. |
 | Image de la passerelle | `ghcr.io/sqweedly/modelrogs-gateway:2` (`pull_policy: always`) |
-| « Docker passerelle » | la machine qui fait tourner le conteneur `modelrogs-gateway`, à l'adresse `192.168.1.212:8680` (port publié 8680) |
-| Immich | `http://192.168.1.241:2283`. Version annoncée « 3.10 », à confirmer dans Administration > À propos. Albums « 18 ans Justine » et « Alana ». |
+| « Docker passerelle » | la machine qui fait tourner le conteneur `modelrogs-gateway`, à l'adresse `192.168.1.X:8680` (port publié 8680) |
+| Immich | `http://192.168.1.X:2283`. Version annoncée « 3.10 », à confirmer dans Administration >  |
 | Afficheur | GeekMagic SmallTV (ESP8266, écran ST7789 240 × 240). Mise à jour par `http://<afficheur>/update`, à conserver. |
 
 ## 3. Façon de travailler (règles du propriétaire)

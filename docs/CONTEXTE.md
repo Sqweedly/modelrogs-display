@@ -45,7 +45,7 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
    - majeure (**X**.0.0) : grand changement. L'étiquette `:2` de l'image change alors dans `docker-compose.yml`.
 3. **`CHANGELOG.md` complet**, mis à jour à chaque version, y compris quand une version est remplacée.
 4. **Avant de corriger, dire ce qu'on va faire** : cause trouvée, correction proposée, puis attendre l'accord. Pour un changement d'écran, montrer un design (maquette PNG produite avec le simulateur) et attendre sa validation. Le propriétaire demande souvent « résume et propose » : un résumé précis et complet, puis une proposition.
-5. **Pour faire tester une fonction ou une page de la passerelle**, parler du « docker passerelle » et donner des commandes qui visent son adresse et son port, par exemple `curl -s "http://192.168.1.212:8680/immich?s=souvenirs" ; echo`. Ne pas donner de commandes visant le port d'Immich ou de Plex, sauf pour un diagnostic explicite, en le disant.
+5. **Pour faire tester une fonction ou une page de la passerelle**, parler du « docker passerelle » et donner des commandes qui visent son adresse et son port, par exemple `curl -s "http://192.168.1.X:8680/immich?s=souvenirs" ; echo`. Ne pas donner de commandes visant le port d'Immich ou de Plex, sauf pour un diagnostic explicite, en le disant.
 6. **Jamais de jeton ni de clé** dans un fichier suivi par Git.
 7. **Livraison** : un zip du dépôt **avec le dossier `.git`** (historique, `main`, tags), pour que le propriétaire pousse lui-même. Un zip sans `.git` (`git archive`) ne convient pas. Dans le zip :
    - `core.fileMode=false`, sinon `apercu.sh` paraît modifié après une décompression sous Windows ;

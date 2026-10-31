@@ -68,25 +68,7 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 3. **Tesla** : afficher la charge de la batterie d'une Tesla, source à définir (TeslaMate ou autre).
 4. **Piste d'amélioration (non demandée)** : préparer à l'avance la photo suivante de la page Photos. Aujourd'hui, l'image est téléchargée et convertie quand l'afficheur la demande ; sur une machine lente, le délai de 2,5 s de l'afficheur peut être dépassé. Voir « Limites connues » dans `docs/PASSERELLE.md`.
 
-## 5. À vérifier en premier (sur le matériel réel)
-
-La page Photos (2.12.x) n'a été validée sur le vrai serveur que pour la source « Au hasard ». Après `docker compose pull && docker compose up -d` sur le docker passerelle :
-
-```
-docker logs modelrogs-gateway 2>&1 | grep -i immich | tail -10
-```
-
-Le log doit afficher « N photo(s) en souvenir aujourd'hui », « N photo(s) dans les favoris » et « N photo(s) dans l'album … ».
-
-Points précis à confirmer :
-- **Souvenirs** (corrigés en 2.12.0, deuxième version) :
-  - le format `for=AAAA-MM-JJ` vient de la spécification OpenAPI d'Immich (`open-api/immich-openapi-specs.json`, branche `main`) ;
-  - `/api/assets/memory-lane` n'existe plus et n'est plus appelé.
-- **Favoris** : le propriétaire a 1 favori qui ne s'affichait pas avant la 2.12.0. La relance sans le filtre « photos seulement » n'est pas confirmée sur son serveur.
-- **Albums** : lus par `POST /api/search/metadata` avec `albumIds`, non confirmé sur son serveur.
-- Vérifier aussi que la publication GitHub Actions de `v2.12.1` est verte : onglet Actions, puis la Release et l'image `2.12.1` sur ghcr.io.
-
-## 6. Choix de design retenus
+## 5. Choix de design retenus
 
 Ces choix ont été validés par le propriétaire sur maquette. Ne pas les changer sans demande.
 
@@ -120,7 +102,7 @@ Ces choix ont été validés par le propriétaire sur maquette. Ne pas les chang
   - durée d'affichage propre à la page (30 s par défaut, de 10 s à 5 min).
 - **Ordre de rotation** : Heure, Météo, Discord, Supervision, Crypto, Actions, Indices, Devises, Commodities, Custom, Photos, Plex. Plex passe en priorité au début d'une lecture ; Discord et Plex sont masqués quand ils n'ont rien à montrer.
 
-## 7. Règles techniques à ne pas casser
+## 6. Règles techniques à ne pas casser
 
 - **Réponses lues par l'afficheur** : moins de 2 048 octets, 4 096 pour `/modules`. Les tests le vérifient pour chaque route.
 - **Configuration de l'afficheur en EEPROM** (`Config`, `firmware/src/config.h`) :

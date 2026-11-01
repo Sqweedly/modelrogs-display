@@ -444,6 +444,53 @@ async def principal() -> int:
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} /supervision/services retiré -> {r.status}")
 
+        # --- Diagnostic : /ping, /debug, X-Req, étapes, activation à la volée
+        from app import diagnostic as DG
+        r = await c.get("/ping")
+        texte = await r.text()
+        ok = r.status == 200 and json.loads(texte) == {"ok": 1} and len(texte.encode()) < 2048
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} /ping -> {texte}")
+        d = await (await c.get("/debug")).json()
+        ok = d["ok"] == 1 and d["diagnostic"] == 0 and d["requetes"] == [] and "boucle" in d and "images" in d
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} /debug désactivé par défaut -> diagnostic={d['diagnostic']}, "
+              f"{len(d['requetes'])} requête(s)")
+        sans = await (await c.get("/btc?s1=ethereum")).read()
+        d = await (await c.get("/debug?on=1")).json()
+        ok = d["diagnostic"] == 1
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} /debug?on=1 -> diagnostic={d['diagnostic']}")
+        avec = await (await c.get("/btc?s1=ethereum", headers={"X-Req": "4242"})).read()
+        ok = avec == sans
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} réponse identique avec ou sans diagnostic ({len(avec)} o)")
+        await c.get("/meteo?ville=Grenoble", headers={"X-Req": "4243"})
+        d = await (await c.get("/debug")).json()
+        par_id = {q["x"]: q for q in d["requetes"]}
+        meteo_e = [e["n"] for e in par_id.get("4243", {}).get("e", [])]
+        ok = ("4242" in par_id and par_id["4242"]["s"] == 200 and par_id["4242"]["r"] == "/btc?s1=ethereum"
+              and any(n.startswith("cache ") for n in meteo_e) and any(n.startswith("http ") for n in meteo_e)
+              and "/meteo" in d["routes"] and d["routes"]["/meteo"]["n"] >= 1 and d["sorties"])
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} X-Req retrouvé, étapes de /meteo -> {meteo_e}")
+        jeton = json.loads(avec)["c"][0]["i"]
+        await c.get(f"/img?t={jeton}&w=40&h=40&f=000000&m=a", headers={"X-Req": "4244"})
+        await c.get(f"/img?t={jeton}&w=40&h=40&f=000000&m=a", headers={"X-Req": "4245"})
+        d = await (await c.get("/debug?n=10")).json()
+        par_id = {q["x"]: [e["n"] for e in q["e"]] for q in d["requetes"]}
+        ok = ("img conversion" in par_id.get("4244", []) and "img original" in par_id.get("4244", [])
+              and par_id.get("4245") == ["img rendu en cache"] and len(d["requetes"]) <= 10
+              and d["images"]["rendus"] >= 1)
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} /img : 1er appel {par_id.get('4244')}, 2e appel {par_id.get('4245')}")
+        avant = len(DG._requetes)
+        d = await (await c.get("/debug?off=1")).json()
+        await c.get("/ping")
+        ok = d["diagnostic"] == 0 and len(DG._requetes) == avant
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} /debug?off=1 -> plus rien d'enregistré ({len(DG._requetes)} requêtes gardées)")
+
         # --- Plex : une lecture (affiche), puis trois (liste, sans affiche)
         from app.cache import cache as C
         PLEX.append({"sessionKey": "1", "type": "movie", "title": "Les Gardiens du Phare", "year": 2024,

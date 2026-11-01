@@ -121,6 +121,8 @@ docker build -t modelrogs-gateway:dev --build-arg VERSION=dev gateway
 
 Puis, dans `docker-compose.yml`, remplacer `image:` par `modelrogs-gateway:dev` et retirer `pull_policy: always`.
 
+Pour tester la passerelle d'une branche sans créer de version : pousser la branche `beta`, puis **Actions → Vérification → Run workflow → Branch: beta**. L'exécution publie l'image `ghcr.io/sqweedly/modelrogs-gateway:beta` (et le firmware de test dans « Artifacts »).
+
 ### Ajouter une page
 
 Une page = un module dans `gateway/app/modules/` (fiche `MODULE` : nom, variables requises, réglages proposés à l'afficheur, routes) **et** un écran dans `firmware/src/pages.cpp`, appelé par la rotation de `main.cpp`. Côté firmware, une page ajoutée prend un identifiant dans `PageId` (`config.h`), un nom et un identifiant de module (`PAGE_NAMES`, `PAGE_IDS`), une place dans l'ordre d'affichage (`ROTATION`) et, si elle a des réglages, un tampon dans `Config` : toute modification de `Config` augmente `CONFIG_VERSION` et ajoute une migration dans `config.cpp`, vérifiée par `test_config.cpp`. Le format des réponses et des réglages est décrit dans `docs/PASSERELLE.md`.

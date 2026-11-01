@@ -42,6 +42,8 @@ import aiohttp
 from aiohttp import web
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
+from . import diagnostic
+
 log = logging.getLogger("images")
 
 MAX_COTE = 240            # pixels, par côté : l'écran entier (photos)
@@ -307,12 +309,19 @@ def _entier(q: dict, cle: str, defaut: int, mini: int, maxi: int) -> int:
         return defaut
 
 
+def compteurs() -> dict:
+    """Tailles des mémoires d'images (diagnostic)."""
+    return {"jetons": len(_sources), "originaux": len(_originaux), "rendus": len(_rendus), "bloques": len(_echecs)}
+
+
 async def route_image(request: web.Request, session: aiohttp.ClientSession) -> web.Response:
     q = request.query
     jeton = q.get("t", "")
     if jeton not in _sources:
+        diagnostic.etape("img jeton inconnu")
         return web.Response(status=404, text="image inconnue")
     if time.time() - _echecs.get(jeton, 0) < DUREE_ECHEC:
+        diagnostic.etape("img bloquée après un échec", reste_s=int(DUREE_ECHEC - (time.time() - _echecs[jeton])))
         return web.Response(status=404, text="image introuvable")
     w = _entier(q, "w", 32, 1, MAX_COTE)
     h = _entier(q, "h", 32, 1, MAX_COTE)
@@ -328,13 +337,21 @@ async def route_image(request: web.Request, session: aiohttp.ClientSession) -> w
     if cle in _rendus:
         _rendus.move_to_end(cle)
         corps = _rendus[cle]
+        diagnostic.etape("img rendu en cache", px=f"{w}x{h}")
     else:
         try:
+            deja = jeton in _originaux
+            t0 = time.perf_counter()
             donnees, rognable = await _original(session, jeton)
+            diagnostic.etape("img original", (time.perf_counter() - t0) * 1000,
+                             src="mémoire" if deja else "téléchargé", o=len(donnees))
+            t0 = time.perf_counter()
             corps = await asyncio.get_running_loop().run_in_executor(
                 None, convertir, donnees, w, h, tuple(fond), rayon, ajuster, rognable, photo)
+            diagnostic.etape("img conversion", (time.perf_counter() - t0) * 1000, px=f"{w}x{h}")
         except Exception as exc:  # noqa: BLE001 — l'afficheur dessine alors un remplaçant
             log.warning("Image %s indisponible : %s", jeton, exc)
+            diagnostic.etape("img en échec", err=type(exc).__name__)
             _echecs[jeton] = time.time()
             if len(_echecs) > MAX_SOURCES:
                 _echecs.pop(next(iter(_echecs)))

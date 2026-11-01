@@ -26,6 +26,7 @@
 
 #include "app.h"
 #include "config.h"
+#include "diag.h"
 #include "net.h"
 #include "pages.h"
 #include "sante.h"
@@ -237,6 +238,7 @@ void setup() {
   gSafeMode = santeDemarrage();
 
   loadConfig();
+  diagBegin();            // diagnostic : compteurs et événements Wi-Fi (voir diag.h)
 
   if (gSafeMode) {
     // Le strict minimum, OTA en priorité : pas de polices, pas de passerelle.
@@ -270,6 +272,8 @@ void loop() {
   netTick();
 
   if (gSafeMode) return;   // mode secours : rien d'autre ne tourne
+
+  netSonde();     // mode diagnostic seulement : sonde réseau toutes les 30 s
 
   // --- Luminosité / nuit (appliquée dans tous les états). Après un
   //     redémarrage de nuit, la luminosité de nuit est gardée jusqu'à

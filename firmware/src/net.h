@@ -34,6 +34,10 @@ bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int r
              bool ajuster = false);
 const char* gwErrorText(int code);
 
+// Sonde réseau du mode diagnostic (diag.h) : GET /ping toutes les 30 s, sans
+// effet sur la temporisation des autres appels. À appeler dans loop().
+void netSonde();
+
 String urlEncode(const char* s);
 
 extern int gwLastCode;

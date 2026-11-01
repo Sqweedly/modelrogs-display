@@ -1,7 +1,12 @@
 # Vérification à chaque envoi sur main (et sur les pull requests) :
 # tests de la passerelle, test de la configuration du firmware, compilation
-# du firmware. Rien n'est publié. Le firmware compilé reste téléchargeable
-# 7 jours dans la page de l'exécution (rubrique « Artifacts »).
+# du firmware. Le firmware compilé reste téléchargeable 7 jours dans la page
+# de l'exécution (rubrique « Artifacts »). Aucune Release n'est créée.
+#
+# Lancée à la main sur la branche beta (Actions → Vérification → Run workflow
+# → Branch: beta), elle publie en plus l'image de la passerelle avec la seule
+# étiquette « beta » (ghcr.io/sqweedly/modelrogs-gateway:beta), pour tester la
+# passerelle de la branche sans toucher aux étiquettes des versions.
 name: Vérification
 
 on:
@@ -66,3 +71,44 @@ jobs:
             firmware/.pio/build/smalltv/firmware.bin
             firmware/.pio/build/smalltv/firmware.bin.gz
           retention-days: 7
+
+  image-beta:
+    name: Image Docker « beta »
+    needs: tests
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/beta'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write    # publication de l'étiquette « beta » sur ghcr.io
+    env:
+      IMAGE: ghcr.io/sqweedly/modelrogs-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Connexion à ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construction multi-architecture et publication (étiquette beta seule)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./gateway
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          build-args: |
+            VERSION=beta
+            REVISION=${{ github.sha }}
+          tags: ${{ env.IMAGE }}:beta
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Résumé
+        run: |
+          echo "### Image $IMAGE:beta" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit ${GITHUB_SHA::7}. Dans docker-compose.yml : image: $IMAGE:beta, puis docker compose pull && docker compose up -d." >> "$GITHUB_STEP_SUMMARY"

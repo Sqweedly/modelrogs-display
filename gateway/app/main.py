@@ -9,6 +9,7 @@ Le manifeste /modules décrit les modules actifs et les réglages que
 l'utilisateur doit renseigner dans l'interface de l'afficheur.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -17,7 +18,7 @@ import aiohttp
 from aiohttp import web
 
 from .cache import SourceIndisponible, cache
-from . import images
+from . import diagnostic, images
 from .modules import Module, btc, cotations, custom, discord_vocal, immich, meteo, plex, supervision
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
@@ -39,6 +40,7 @@ ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities"
 
 SESSION = web.AppKey("session", aiohttp.ClientSession)
 ACTIFS = web.AppKey("actifs", list)
+SURVEILLANCE = web.AppKey("surveillance", asyncio.Task)
 
 
 def _json(donnees: dict) -> web.Response:
@@ -105,12 +107,36 @@ async def route_sante(request: web.Request) -> web.Response:
     return _json({"ok": 1, "version": VERSION, "modules": detail})
 
 
+async def route_ping(request: web.Request) -> web.Response:
+    """Réponse minimale : sonde réseau du diagnostic de l'afficheur."""
+    return _json({"ok": 1})
+
+
+async def route_debug(request: web.Request) -> web.Response:
+    """Diagnostic (voir diagnostic.py) : /debug, /debug?on=1, /debug?off=1, /debug?n=20.
+    Réponse destinée à un humain (curl), pas à l'afficheur : pas de limite de 2 Ko."""
+    q = request.query
+    if q.get("on") == "1":
+        diagnostic.activer(True)
+    elif q.get("off") == "1":
+        diagnostic.activer(False)
+    try:
+        n = max(0, min(diagnostic.MAX_REQUETES, int(q.get("n", diagnostic.MAX_REQUETES))))
+    except ValueError:
+        n = diagnostic.MAX_REQUETES
+    extra = {"version": VERSION, "cache": {"entrees": len(cache)}, "images": images.compteurs()}
+    return web.json_response(diagnostic.etat(n, extra),
+                             dumps=lambda o: json.dumps(o, ensure_ascii=False, indent=1))
+
+
 async def demarrage(app: web.Application) -> None:
     cache.nettoyer_disque()
     app[SESSION] = aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=8),
         headers={"User-Agent": f"MODELROGS-Display/{VERSION}"},
+        trace_configs=[diagnostic.trace_config()],
     )
+    app[SURVEILLANCE] = asyncio.create_task(diagnostic.surveiller_boucle())
     for m in app[ACTIFS]:
         erreur = m.erreur_config()
         if erreur:
@@ -123,9 +149,12 @@ async def demarrage(app: web.Application) -> None:
         log.info("Yahoo Finance : client %s", cotations.client_yahoo())
     images.inventaire_perso()
     log.info("Passerelle %s%s prête sur le port %d", VERSION, f" ({REVISION})" if REVISION else "", PORT)
+    if diagnostic.actif():
+        log.info("Diagnostic activé (DIAGNOSTIC=1) : requêtes journalisées, détail sur /debug")
 
 
 async def arret(app: web.Application) -> None:
+    app[SURVEILLANCE].cancel()
     for m in app[ACTIFS]:
         if m.arreter and not m.erreur_config():
             await m.arreter()
@@ -133,9 +162,11 @@ async def arret(app: web.Application) -> None:
 
 
 def creer_app() -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[diagnostic.intergiciel])
     app[ACTIFS] = modules_demandes()
     app.router.add_get("/health", route_sante)
+    app.router.add_get("/ping", route_ping)
+    app.router.add_get("/debug", route_debug)
     app.router.add_get("/modules", route_modules)
     app.router.add_get("/time", route_heure)
     app.router.add_get("/img", route_image)

@@ -354,6 +354,7 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 | `/plex` | toutes les 5 s | Montrer la page dès le début d'une lecture, suivre la progression |
 | `/meteo`, `/btc`, `/actions`, `/devises`, `/commodities` | à chaque affichage de la page | Données en cache côté passerelle |
 | `/img` | à chaque dessin d'une page avec image | Images converties gardées en mémoire par la passerelle |
+| `/ping` | toutes les 30 s, en mode diagnostic de l'afficheur seulement | Sonde réseau (§ 11) |
 
 ## 10. Observer la passerelle
 
@@ -363,6 +364,43 @@ curl http://IP_SERVEUR:8080/health                # état de chaque module, bot 
 curl http://IP_SERVEUR:8080/modules               # ce que voit l'afficheur
 curl "http://IP_SERVEUR:8080/supervision" # exactement ce que reçoit l'écran
 docker stats modelrogs-gateway                    # mémoire et processeur
+curl "http://IP_SERVEUR:8080/debug?n=20"          # diagnostic (§ 11)
 ```
 
 N'importe quelle adresse appelée par l'afficheur peut s'ouvrir dans un navigateur : on voit exactement les données qu'il reçoit. C'est le meilleur réflexe de diagnostic quand une page affiche « Données indisponibles ».
+
+## 11. Diagnostic de bout en bout
+
+Pour comprendre un message « Passerelle injoignable » ou une page lente, la même requête se suit des deux côtés grâce à un numéro : l'afficheur ajoute à chaque appel l'en-tête **`X-Req`** (numéro croissant depuis son démarrage), et la passerelle le journalise.
+
+**Côté passerelle** (`app/diagnostic.py`), désactivé par défaut :
+- activation : `DIAGNOSTIC: "1"` dans `docker-compose.yml`, ou à la volée avec `curl "http://IP_SERVEUR:8080/debug?on=1"` (arrêt : `?off=1`, ou au redémarrage) ;
+- chaque requête reçue est journalisée (logger `diagnostic`) : adresse de l'afficheur, route, code, taille, durée de traitement, `X-Req`, puis ses étapes :
+  - `cache <clé>` : donnée fraîche, rechargée (avec la durée de l'appel à la source), ou échec avec repli sur la valeur périmée ;
+  - `http <hôte>` : chaque appel sortant fait avec la session aiohttp (mesure jusqu'aux en-têtes de la réponse) ;
+  - `img …` : rendu servi depuis la mémoire, image originale (en mémoire ou téléchargée), durée de conversion ;
+- un retard de la boucle asyncio de plus de 100 ms (traitement bloquant) est signalé ;
+- `/debug` (JSON indenté, pour un humain) : état, retard de la boucle, statistiques par route et par source (nombre, durée médiane, 95e centile, pire durée, erreurs), tailles des mémoires d'images et du cache, et les 100 dernières requêtes (`?n=` pour en voir moins). Pas de limite de 2 Ko : cette route n'est pas lue par l'afficheur ;
+- `/ping` : réponse minimale `{"ok":1}`, utilisée par la sonde de l'afficheur.
+
+La durée mesurée est celle du traitement (de la requête à la réponse prête). L'envoi du corps à l'afficheur n'y est pas compté : l'afficheur le mesure de son côté.
+
+Exemple de ligne :
+
+```
+INFO diagnostic : 192.168.1.50 /meteo?ville=Lyon -> 200, 250 o, 312.4 ms, X-Req=1287 | http api.open-meteo.com 301.2 ms (s=200) ; cache meteo-45.75-4.85 305.0 ms (etat=rechargé)
+```
+
+**Côté afficheur** (page **Diagnostic** de l'interface, `/debug` ; données brutes sur `/debug.json`) :
+- toujours tenus : requêtes par type et pire durée, réussites, échecs par cause (connexion impossible, délai dépassé, connexion perdue, code HTTP, JSON illisible, image incomplète), temporisations déclenchées, appels et images sautés pendant une temporisation, déconnexions Wi-Fi et leur raison (code du SDK), dernier échec et dernière temporisation ;
+- en mode diagnostic (bouton « Activer », gardé en mémoire vive, arrêté au redémarrage) : journal des 32 dernières requêtes (numéro `X-Req`, route, résultat, temps jusqu'aux en-têtes, temps total, octets, signal Wi-Fi) et sonde `/ping` toutes les 30 s (temps de base du réseau).
+
+**Lecture croisée** :
+
+| Afficheur | Passerelle (même `X-Req`) | Conclusion |
+|---|---|---|
+| connexion impossible | aucune ligne | réseau ou Wi-Fi |
+| délai dépassé | durée de plus de 2,5 s | passerelle lente (source externe, cache rechargé) |
+| délai dépassé | réponse rapide | perte sur le réseau pendant la réponse |
+| appels sautés juste après un échec | aucune ligne | temporisation de l'afficheur : un seul vrai échec |
+

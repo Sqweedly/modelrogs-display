@@ -18,6 +18,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from . import diagnostic
+
 log = logging.getLogger("cache")
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/cache"))
@@ -88,6 +90,7 @@ class Cache:
         if entree is not None:
             self._valeurs.move_to_end(cle)
             if time.time() - entree[0] < ttl:
+                diagnostic.etape("cache " + cle, etat="frais")
                 return entree[1], False
 
         verrou = self._verrou(cle)
@@ -95,14 +98,20 @@ class Cache:
             async with verrou:
                 entree = self._valeurs.get(cle, entree)
                 if entree is not None and time.time() - entree[0] < ttl:
+                    diagnostic.etape("cache " + cle, etat="frais (après attente)")
                     return entree[1], False
+                t0 = time.perf_counter()
                 try:
                     valeur = await charger()
                 except Exception as exc:  # noqa: BLE001 — toute erreur de source
                     log.warning("Source %s en échec : %s", cle, exc)
+                    diagnostic.etape("cache " + cle, (time.perf_counter() - t0) * 1000,
+                                     etat="échec, valeur périmée" if entree is not None else "échec, aucune valeur",
+                                     err=type(exc).__name__)
                     if entree is not None:
                         return entree[1], True
                     raise SourceIndisponible(str(exc)) from exc
+                diagnostic.etape("cache " + cle, (time.perf_counter() - t0) * 1000, etat="rechargé")
 
                 nouvelle = (time.time(), valeur)
                 self._ranger(cle, nouvelle, persistant)

@@ -1,6 +1,7 @@
 #include "web.h"
 #include "app.h"
 #include "config.h"
+#include "diag.h"
 #include "net.h"
 #include "sante.h"
 
@@ -375,6 +376,7 @@ static void handleRoot() {
     << F("<b>Fonctionne depuis</b><span>") << (long)(millis() / 60000) << F(" min</span>")
     << F("<b>Version</b><span>") << FW_VERSION << F("</span></div>");
 
+  c << F("<p><a class='sm' href='/debug'>Diagnostic</a></p>");
   c << F("<p class='note'>Afficher maintenant :</p>");
   for (uint8_t i = 0; i < PG_COUNT; i++) {
     const uint8_t p = ROTATION[i];
@@ -553,6 +555,153 @@ static void handleShow() {
   server.send(303, F("text/plain"), "");
 }
 
+// ------------------------------------------------------------ diagnostic
+// Page /debug (lecture humaine) et /debug.json : compteurs toujours tenus,
+// journal des dernières requêtes en mode diagnostic (voir diag.h).
+// /debug?on=1 active le mode, /debug?off=1 l'arrête (mémoire vive seulement).
+
+static String ilYa(uint32_t quandMs) {
+  if (!quandMs) return F("jamais");
+  uint32_t s = (millis() - quandMs) / 1000;
+  if (s < 120) return String(F("il y a ")) + s + F(" s");
+  if (s < 7200) return String(F("il y a ")) + (s / 60) + F(" min");
+  return String(F("il y a ")) + (s / 3600) + F(" h");
+}
+
+static bool basculerDiag() {
+  if (server.arg("on") == "1") return diagActiver(true);
+  if (server.arg("off") == "1") diagActiver(false);
+  return true;
+}
+
+static void handleDebug() {
+  bool memoireOk = basculerDiag();
+  const DiagCompteurs& k = diagCompteurs();
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, F("text/html; charset=utf-8"), "");
+  Chunks c;
+  c << F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
+         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+         "<title>MODELROGS — Diagnostic</title>")
+    << FPSTR(STYLE)
+    << F("<style>table{width:100%;border-collapse:collapse;font-size:12px}"
+         "td,th{padding:3px 4px;border-bottom:1px solid #2A3140;text-align:right;white-space:nowrap}"
+         "th{color:var(--mut);font-weight:500}td.g,th.g{text-align:left}"
+         ".tab{overflow-x:auto}</style></head><body><h1>Diagnostic</h1>");
+
+  // --- Mode
+  c << F("<section><h2>Mode diagnostic</h2><p class='") << (diagActif() ? "ok'>Actif" : "warn'>Arrêté")
+    << F("</p><p class='note'>Actif : journal des 32 dernières requêtes et sonde réseau toutes les 30 s. "
+         "Il s'arrête au redémarrage. Les compteurs ci-dessous sont toujours tenus.</p>");
+  if (!memoireOk) c << F("<p class='ko'>Mémoire insuffisante pour le journal.</p>");
+  c << (diagActif() ? F("<a class='sm' href='/debug?off=1'>Arrêter</a>") : F("<a class='sm' href='/debug?on=1'>Activer</a>"))
+    << F("<a class='sm' href='/debug'>Actualiser</a><a class='sm' href='/debug.json'>JSON</a>"
+         "<a class='sm' href='/'>Retour</a></section>");
+
+  // --- Wi-Fi et mémoire
+  c << F("<section><h2>Wi-Fi et mémoire</h2><div class='kv'>")
+    << F("<b>Signal</b><span>") << (long)WiFi.RSSI() << F(" dBm — canal ") << (long)WiFi.channel() << F("</span>")
+    << F("<b>Adresse</b><span>") << WiFi.localIP().toString() << F(" — passerelle ") << esc(cfg.gateway) << F("</span>")
+    << F("<b>Déconnexions</b><span>") << (long)k.deconnexions;
+  if (k.deconnexionMs) c << F(" — dernière ") << ilYa(k.deconnexionMs) << F(", raison ") << (long)k.raison;
+  c << F("</span><b>Mémoire libre</b><span>") << (long)ESP.getFreeHeap() << F(" o — minimum ")
+    << (long)santeMinTasLibre() << F(" o</span><b>Plus grand bloc</b><span>") << (long)ESP.getMaxFreeBlockSize()
+    << F(" o — minimum ") << (long)santeMinBlocLibre() << F(" o — fragmentation ")
+    << (long)ESP.getHeapFragmentation() << F(" %</span><b>Fonctionne depuis</b><span>")
+    << (long)(millis() / 60000) << F(" min</span></div></section>");
+
+  // --- Compteurs
+  c << F("<section><h2>Requêtes depuis le démarrage</h2><div class='kv'>")
+    << F("<b>Données (JSON)</b><span>") << (long)k.requetes[DG_JSON] << F(" — pire ") << (long)k.maxMs[DG_JSON] << F(" ms</span>")
+    << F("<b>Images</b><span>") << (long)k.requetes[DG_IMG] << F(" — pire ") << (long)k.maxMs[DG_IMG] << F(" ms</span>")
+    << F("<b>Réussies</b><span class='ok'>") << (long)k.reussies << F("</span>")
+    << F("<b>Connexion impossible</b><span>") << (long)k.connexion << F("</span>")
+    << F("<b>Délai dépassé</b><span>") << (long)k.delai << F("</span>")
+    << F("<b>Connexion perdue</b><span>") << (long)k.perdue << F("</span>")
+    << F("<b>Autres erreurs réseau</b><span>") << (long)k.autresReseau << F("</span>")
+    << F("<b>Code HTTP autre que 200</b><span>") << (long)k.http << F("</span>")
+    << F("<b>JSON illisible</b><span>") << (long)k.jsonKo << F("</span>")
+    << F("<b>Image incomplète</b><span>") << (long)k.imageKo << F("</span>")
+    << F("<b>Temporisations</b><span>") << (long)k.tempos << F(" — appels sautés ") << (long)k.sautesAppels
+    << F(", images sautées ") << (long)k.sautesImages << F("</span>")
+    << F("<b>Dernier échec</b><span>");
+  if (k.dernierEchecMs) c << diagTexteCode(k.dernierCode) << F(" — ") << esc(k.dernierChemin) << F(" — ") << ilYa(k.dernierEchecMs);
+  else c << F("aucun");
+  c << F("</span><b>Dernière temporisation</b><span>");
+  if (k.tempoMs) c << diagTexteCode(k.tempoCode) << F(" — ") << esc(k.tempoChemin) << F(" — ") << ilYa(k.tempoMs);
+  else c << F("aucune");
+  c << F("</span><b>Sonde /ping</b><span>") << (long)k.sondes << F(" — échecs ") << (long)k.sondesKo;
+  uint32_t okSondes = k.sondes - k.sondesKo;
+  if (okSondes) c << F(" — ") << (long)k.sondeMin << F(" / ") << (long)(k.sondeSomme / okSondes) << F(" / ")
+                  << (long)k.sondeMax << F(" ms (min / moy / max)");
+  c << F("</span></div></section>");
+
+  // --- Journal
+  c << F("<section><h2>Dernières requêtes</h2>");
+  if (!diagActif()) {
+    c << F("<p class='note'>Journal disponible en mode diagnostic.</p>");
+  } else {
+    c << F("<div class='tab'><table><tr><th>X-Req</th><th>il y a</th><th class='g'>route</th><th class='g'>résultat</th>"
+           "<th>en-têtes</th><th>total</th><th>octets</th><th>dBm</th></tr>");
+    for (uint8_t i = 0; i < diagNbEntrees(); i++) {
+      const DiagEntree* e = diagEntree(i);
+      c << F("<tr><td>") << (long)e->id << F("</td><td>") << (long)((millis() - e->quandMs) / 1000)
+        << F(" s</td><td class='g'>") << diagNomType(e->type) << F(" ") << esc(e->route)
+        << F("</td><td class='g ") << (e->code == 200 ? "ok" : (e->code == DG_SOURCE ? "warn" : "ko")) << F("'>")
+        << diagTexteCode(e->code) << F("</td><td>") << (long)e->enTetesMs << F(" ms</td><td>") << (long)e->totalMs
+        << F(" ms</td><td>") << (long)e->octets << F("</td><td>") << (long)e->rssi << F("</td></tr>");
+    }
+    c << F("</table></div><p class='note'>Le numéro X-Req se retrouve dans le journal de la passerelle "
+           "(DIAGNOSTIC=1 ou /debug?on=1 sur la passerelle).</p>");
+  }
+  c << F("</section></body></html>");
+  c.flush();
+  server.sendContent("");
+}
+
+static void handleDebugJson() {
+  basculerDiag();
+  const DiagCompteurs& k = diagCompteurs();
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, F("application/json; charset=utf-8"), "");
+  Chunks c;
+  uint32_t okSondes = k.sondes - k.sondesKo;
+  c << F("{\"diag\":") << (long)diagActif() << F(",\"version\":\"") << FW_VERSION << F("\",\"depuis_s\":") << (long)(millis() / 1000)
+    << F(",\"rssi\":") << (long)WiFi.RSSI() << F(",\"canal\":") << (long)WiFi.channel()
+    << F(",\"ip\":\"") << WiFi.localIP().toString() << F("\",\"tas\":") << (long)ESP.getFreeHeap()
+    << F(",\"tas_min\":") << (long)santeMinTasLibre() << F(",\"bloc\":") << (long)ESP.getMaxFreeBlockSize()
+    << F(",\"bloc_min\":") << (long)santeMinBlocLibre() << F(",\"frag\":") << (long)ESP.getHeapFragmentation()
+    << F(",\"compteurs\":{\"json\":") << (long)k.requetes[DG_JSON] << F(",\"images\":") << (long)k.requetes[DG_IMG]
+    << F(",\"sondes\":") << (long)k.sondes << F(",\"reussies\":") << (long)k.reussies
+    << F(",\"connexion\":") << (long)k.connexion << F(",\"delai\":") << (long)k.delai << F(",\"perdue\":") << (long)k.perdue
+    << F(",\"autres_reseau\":") << (long)k.autresReseau << F(",\"http\":") << (long)k.http << F(",\"json_ko\":") << (long)k.jsonKo
+    << F(",\"image_ko\":") << (long)k.imageKo << F(",\"tempos\":") << (long)k.tempos
+    << F(",\"sautes_appels\":") << (long)k.sautesAppels << F(",\"sautes_images\":") << (long)k.sautesImages
+    << F(",\"max_ms\":{\"json\":") << (long)k.maxMs[DG_JSON] << F(",\"image\":") << (long)k.maxMs[DG_IMG]
+    << F(",\"sonde\":") << (long)k.maxMs[DG_PING] << F("},\"deconnexions\":") << (long)k.deconnexions
+    << F(",\"deconnexion_raison\":") << (long)k.raison
+    << F(",\"deconnexion_il_y_a_s\":") << (long)(k.deconnexionMs ? (millis() - k.deconnexionMs) / 1000 : -1)
+    << F(",\"sonde_ko\":") << (long)k.sondesKo << F(",\"sonde_min_ms\":") << (long)k.sondeMin
+    << F(",\"sonde_moy_ms\":") << (long)(okSondes ? k.sondeSomme / okSondes : 0) << F(",\"sonde_max_ms\":") << (long)k.sondeMax
+    << F("},\"dernier_echec\":{\"code\":") << (long)k.dernierCode << F(",\"texte\":\"") << diagTexteCode(k.dernierCode)
+    << F("\",\"chemin\":\"") << k.dernierChemin
+    << F("\",\"il_y_a_s\":") << (long)(k.dernierEchecMs ? (millis() - k.dernierEchecMs) / 1000 : -1)
+    << F("},\"derniere_tempo\":{\"code\":") << (long)k.tempoCode << F(",\"texte\":\"") << diagTexteCode(k.tempoCode)
+    << F("\",\"chemin\":\"") << k.tempoChemin
+    << F("\",\"il_y_a_s\":") << (long)(k.tempoMs ? (millis() - k.tempoMs) / 1000 : -1) << F("},\"journal\":[");
+  for (uint8_t i = 0; i < diagNbEntrees(); i++) {
+    const DiagEntree* e = diagEntree(i);
+    c << (i ? F(",{\"x\":") : F("{\"x\":")) << (long)e->id << F(",\"il_y_a_s\":") << (long)((millis() - e->quandMs) / 1000)
+      << F(",\"type\":\"") << diagNomType(e->type) << F("\",\"route\":\"") << e->route
+      << F("\",\"code\":") << (long)e->code << F(",\"texte\":\"") << diagTexteCode(e->code)
+      << F("\",\"entetes_ms\":") << (long)e->enTetesMs << F(",\"total_ms\":") << (long)e->totalMs
+      << F(",\"octets\":") << (long)e->octets << F(",\"rssi\":") << (long)e->rssi << F("}");
+  }
+  c << F("]}");
+  c.flush();
+  server.sendContent("");
+}
+
 // Portail captif : toute adresse inconnue renvoie vers la configuration,
 // sauf si l'on s'adresse directement à l'afficheur (vraie page introuvable).
 static void handleNotFound() {
@@ -572,6 +721,8 @@ void webBegin() {
   server.on("/save", HTTP_POST, handleSave);
   server.on("/show", HTTP_GET, handleShow);
   server.on("/restart", HTTP_GET, handleRestart);
+  server.on("/debug", HTTP_GET, handleDebug);
+  server.on("/debug.json", HTTP_GET, handleDebugJson);
 
   // OTA : même mécanisme qu'avant (ESP8266HTTPUpdateServer sur /update),
   // enregistré UNE seule fois.

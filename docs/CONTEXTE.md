@@ -57,7 +57,7 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
    git push --force origin vX.Y.Z    # version remplacée
    ```
 8. **Être précis et autocritique** dans les comptes rendus : ce qui est vérifié, ce qui ne l'est pas, ce qui reste supposé.
-9. **Versions de test : branche `beta`**. Les essais se font sur la branche `beta`, jamais sur `main`. Après `git push origin beta`, le firmware de test se compile par **Actions → Vérification → Run workflow → Branch: beta**. Il est téléchargeable 7 jours dans la rubrique « Artifacts » de l'exécution (`firmware-dev`, version affichée `dev-<commit>`). Aucune Release n'est créée. Seuls ces binaires de GitHub font foi : un binaire compilé ailleurs (arduino-cli, par exemple) n'est pas identique.
+9. **Versions de test : branche `beta`**. Les essais se font sur la branche `beta`, jamais sur `main`. Après `git push origin beta`, le firmware de test se compile par **Actions → Vérification → Run workflow → Branch: beta**. Il est téléchargeable 7 jours dans la rubrique « Artifacts » de l'exécution (`firmware-dev`, version affichée `dev-<commit>`). La même exécution publie l'image de la passerelle avec la seule étiquette `beta` (`ghcr.io/sqweedly/modelrogs-gateway:beta`), à mettre temporairement dans le `docker-compose.yml`. Aucune Release n'est créée. Seuls ces binaires de GitHub font foi : un binaire compilé ailleurs (arduino-cli, par exemple) n'est pas identique.
 
 ## 4. Backlog
 
@@ -111,7 +111,8 @@ Ces choix ont été validés par le propriétaire sur maquette. Ne pas les chang
 
 ## 6. Règles techniques à ne pas casser
 
-- **Réponses lues par l'afficheur** : moins de 2 048 octets, 4 096 pour `/modules`. Les tests le vérifient pour chaque route.
+- **Réponses lues par l'afficheur** : moins de 2 048 octets, 4 096 pour `/modules`. Les tests le vérifient pour chaque route. `/debug` (passerelle et afficheur) est destiné à un humain et n'a pas cette limite.
+- **Diagnostic** (`gateway/app/diagnostic.py`, `firmware/src/diag.cpp`) : tout appel de l'afficheur à la passerelle porte l'en-tête `X-Req` et passe par `diagRequete()` ; le diagnostic ne doit jamais modifier un code de retour ni la temporisation. Une nouvelle source appelée avec la session aiohttp est mesurée automatiquement ; un nouveau cache passe par `cache.obtenir()` pour l'être aussi.
 - **Configuration de l'afficheur en EEPROM** (`Config`, `firmware/src/config.h`) :
   - toute modification ajoute ses champs **à la fin** de la structure, augmente `CONFIG_VERSION` et ajoute une migration dans `config.cpp` ;
   - la migration est couverte par `tools/simulateur/test_config.cpp` ;

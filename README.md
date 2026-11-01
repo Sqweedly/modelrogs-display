@@ -251,7 +251,8 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
   - cause du dernier démarrage (mise sous tension, redémarrage planifié, urgence, mise à jour, plantage) ;
   - nombre de redémarrages préventifs depuis la mise sous tension ;
   - flash et place libre pour l'OTA ;
-  - boutons « Afficher maintenant ».
+  - boutons « Afficher maintenant » ;
+  - lien vers la page **Diagnostic** : compteurs des requêtes et de leurs échecs par cause, Wi-Fi, mémoire, et en mode diagnostic (activé à la demande) le journal des 32 dernières requêtes et une sonde réseau. Voir `docs/PASSERELLE.md`, § 11.
 
 **Comportement**
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
@@ -326,6 +327,8 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 | `/plex` | Lectures Plex en cours |
 | `/img?t=<jeton>&w=&h=&f=&r=` | Image (affiche, logo, photo) en pixels RGB565 bruts, prête à afficher |
 | `/health` | État de la passerelle et de chaque module |
+| `/ping` | Réponse minimale : sonde réseau du diagnostic de l'afficheur |
+| `/debug` | Diagnostic de la passerelle (JSON pour un humain ; `?on=1`, `?off=1`) : voir `docs/PASSERELLE.md`, § 11 |
 
 **Types de réglages** compris par l'afficheur dans le manifeste :
 - `text` : zone de texte ;

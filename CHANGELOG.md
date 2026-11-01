@@ -12,6 +12,21 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [Non publié] — branche `beta`
+
+Essai en cours, compilé par Actions → Vérification sur la branche `beta`. À renommer en numéro de version au moment de la publication.
+
+### Ajouté
+- Diagnostic de bout en bout, pour comprendre les messages « Passerelle injoignable » et les pages lentes (`docs/PASSERELLE.md`, § 11) :
+  - afficheur : en-tête `X-Req` sur chaque appel à la passerelle ; compteurs toujours tenus (requêtes, échecs par cause, temporisations, appels et images sautés, déconnexions Wi-Fi) ; page **Diagnostic** (`/debug`) et `/debug.json` ; mode diagnostic activé à la demande (journal des 32 dernières requêtes, sonde `/ping` toutes les 30 s), gardé en mémoire vive ;
+  - passerelle : `DIAGNOSTIC=1` ou `/debug?on=1` ; journal de chaque requête (durée, `X-Req`, étapes : cache, appels sortants, images) ; retard de la boucle asyncio ; `/debug` (statistiques et 100 dernières requêtes) ; route `/ping`.
+- Vérification GitHub lancée à la main sur la branche `beta` : publie aussi l'image `ghcr.io/sqweedly/modelrogs-gateway:beta`.
+
+### Mise à jour
+- Diagnostic arrêté par défaut des deux côtés : aucun changement de comportement sans activation. Coût sur l'afficheur : 272 octets de RAM statique, 1 Ko de plus en mode diagnostic, rien en IRAM.
+
+---
+
 ## [2.13.0] — 2026-10-31
 
 Afficheur : démarrage plus sûr. Un plantage pendant l'initialisation mène désormais toujours au mode secours, où l'OTA reste joignable.

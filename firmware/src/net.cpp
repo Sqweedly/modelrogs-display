@@ -1,5 +1,6 @@
 #include "net.h"
 #include "config.h"
+#include "diag.h"
 #include "ui.h"
 
 #include <ESP8266WiFi.h>
@@ -92,30 +93,43 @@ uint32_t gwRetryInSeconds() {
 
 int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool interactif) {
   int code;
+  int16_t diagCode = 0;   // code détaillé pour le diagnostic (diag.h)
   if (!staConnected()) {
     code = -1;
   } else if (cfg.gateway[0] == '\0') {
     code = -2;
   } else if (!interactif && gwRetryInSeconds() > 0) {
+    diagSaute(false);
     return -3;   // temporisation en cours : pas de tentative, réponse immédiate
   } else {
     WiFiClient client;
     HTTPClient http;
     String url = String(cfg.gateway) + path;
     code = -3;
+    diagCode = DG_ADRESSE;
+    const uint32_t id = diagNouvelId();
+    const uint32_t t0 = millis();
+    uint32_t tEnTetes = t0;
+    int taille = 0;
     if (http.begin(client, url)) {
       http.setTimeout(2500);   // borne aussi la connexion TCP
       http.useHTTP10(true);    // pas de « chunked » : lecture directe du flux
       http.setReuse(false);
+      http.addHeader(F("X-Req"), String(id));   // diagnostic : même numéro dans le journal de la passerelle
       int httpCode = http.GET();
+      tEnTetes = millis();
+      diagCode = httpCode;
       if (httpCode == HTTP_CODE_OK) {
+        taille = http.getSize();
         DeserializationError err = filter
           ? deserializeJson(doc, http.getStream(), DeserializationOption::Filter(*filter))
           : deserializeJson(doc, http.getStream());
         if (err) {
           code = -4;
+          diagCode = DG_JSON_KO;
         } else if (!(doc["ok"] | 0)) {
           code = -5;
+          diagCode = DG_SOURCE;
         } else {
           code = 200;
         }
@@ -124,12 +138,14 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
       }
       http.end();
     }
+    diagRequete(DG_JSON, id, path.c_str(), diagCode, tEnTetes - t0, millis() - t0, taille > 0 ? taille : 0);
   }
   // Passerelle injoignable ou en erreur serveur : on espace les tentatives.
   if (code == -3 || code >= 500) {
     if (gwFails < 255) gwFails++;
     uint8_t i = min<uint8_t>(gwFails, sizeof(GW_PAUSES_S) / sizeof(GW_PAUSES_S[0])) - 1;
     gwRetryAt = millis() + GW_PAUSES_S[i] * 1000UL;
+    diagTempo(path.c_str(), code >= 500 ? (int16_t)code : diagCode);
   } else if (code != -1 && code != -2) {
     gwFails = 0;   // la passerelle a répondu : rythme normal
   }
@@ -140,7 +156,8 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
 
 bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int rayon, bool ajuster) {
   if (!jeton || !jeton[0] || w <= 0 || h <= 0 || w > 240 || h > 240) return false;
-  if (!staConnected() || cfg.gateway[0] == '\0' || gwRetryInSeconds() > 0) return false;
+  if (!staConnected() || cfg.gateway[0] == '\0') return false;
+  if (gwRetryInSeconds() > 0) { diagSaute(true); return false; }
 
   // RGB565 -> RRGGBB (couleur exacte du fond sous les coins arrondis)
   uint8_t r = (fond >> 11) << 3, g = ((fond >> 5) & 0x3F) << 2, b = (fond & 0x1F) << 3;
@@ -152,25 +169,70 @@ bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int r
   WiFiClient client;
   HTTPClient http;
   bool ok = false;
+  const uint32_t id = diagNouvelId();
+  const uint32_t t0 = millis();
+  uint32_t tEnTetes = t0, recus = 0;
+  int16_t diagCode = DG_ADRESSE;
   if (http.begin(client, String(cfg.gateway) + path)) {
     http.setTimeout(2500);
     http.useHTTP10(true);
     http.setReuse(false);
-    if (http.GET() == HTTP_CODE_OK && http.getSize() == w * h * 2) {
+    http.addHeader(F("X-Req"), String(id));   // diagnostic : même numéro dans le journal de la passerelle
+    const int codeHttp = http.GET();
+    tEnTetes = millis();
+    const int taille = codeHttp == HTTP_CODE_OK ? http.getSize() : 0;
+    diagCode = codeHttp;
+    if (codeHttp == HTTP_CODE_OK && taille != w * h * 2) {
+      diagCode = DG_TAILLE;
+      recus = taille > 0 ? taille : 0;
+    }
+    if (codeHttp == HTTP_CODE_OK && taille == w * h * 2) {
       WiFiClient& flux = http.getStream();
       uint16_t ligne[240];
       tft.setSwapBytes(true);        // pixels reçus dans l'ordre natif de l'ESP
       ok = true;
       for (int j = 0; j < h; j++) {
-        if (flux.readBytes((uint8_t*)ligne, w * 2) != (size_t)(w * 2)) { ok = false; break; }
+        size_t n = flux.readBytes((uint8_t*)ligne, w * 2);
+        recus += n;
+        if (n != (size_t)(w * 2)) { ok = false; break; }
         tft.pushImage(x, y + j, w, 1, ligne);
         if ((j & 15) == 15) yield();
       }
       tft.setSwapBytes(false);
+      if (!ok) diagCode = DG_INCOMPL;
     }
     http.end();
   }
+  diagRequete(DG_IMG, id, path, diagCode, tEnTetes - t0, millis() - t0, recus);
   return ok;
+}
+
+void netSonde() {
+  static uint32_t derniere = 0;
+  if (!diagActif() || !staConnected() || cfg.gateway[0] == '\0') return;
+  if (derniere && millis() - derniere < 30000UL) return;
+  derniere = millis();
+  WiFiClient client;
+  HTTPClient http;
+  const uint32_t id = diagNouvelId();
+  const uint32_t t0 = millis();
+  uint32_t tEnTetes = t0;
+  int16_t code = DG_ADRESSE;
+  int taille = 0;
+  if (http.begin(client, String(cfg.gateway) + F("/ping"))) {
+    http.setTimeout(2500);
+    http.useHTTP10(true);
+    http.setReuse(false);
+    http.addHeader(F("X-Req"), String(id));
+    code = http.GET();
+    tEnTetes = millis();
+    if (code == HTTP_CODE_OK) {
+      taille = http.getSize();
+      http.getString();          // lit la réponse ({"ok":1}) jusqu'au bout
+    }
+    http.end();
+  }
+  diagRequete(DG_PING, id, "/ping", code, tEnTetes - t0, millis() - t0, taille > 0 ? taille : 0);
 }
 
 const char* gwErrorText(int code) {

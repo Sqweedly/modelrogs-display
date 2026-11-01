@@ -7,10 +7,13 @@ from pathlib import Path
 
 ICI = Path(__file__).resolve().parent
 sys.path.insert(0, str(ICI.parents[2] / "gateway"))
-# images.py importe aiohttp pour sa route HTTP : inutile ici
+# images.py importe aiohttp pour sa route HTTP, et diagnostic.py pour son
+# intergiciel et la mesure des appels sortants : inutiles ici
 faux = types.ModuleType("aiohttp")
-faux.web = types.SimpleNamespace(Request=object, Response=object)
+faux.web = types.SimpleNamespace(Request=object, Response=object, HTTPException=Exception,
+                                 middleware=lambda f: f)
 faux.ClientSession = object
+faux.TraceConfig = object
 sys.modules.setdefault("aiohttp", faux)
 from app.images import convertir  # noqa: E402
 

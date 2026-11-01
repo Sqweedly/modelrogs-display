@@ -1217,26 +1217,19 @@ static void plexLignes(uint8_t n, int autres) {
     const int wPill = textW(t, F_11) + 14, hPill = 19;
     if (grand) {
       int basU = 0, basT = 0;
-      // Titre : 16 px sur une ligne, sinon 14 px sur une ligne, sinon 14 px sur deux
+      // Titre toujours sur une ligne : 16 px, sinon 14 px, sinon 12 px, et en
+      // dernier recours raccourci par « … ». Sur deux lignes, il poussait la
+      // pastille du mode de lecture jusque sur la barre de progression.
       FontId fT = policeQuiTient(l.titre, F_16, F_13, w);
-      String t1 = l.titre, t2 = "";
-      if (textW(t1, fT) > w) {
-        int coupe = -1;
-        for (int k = 0; k < (int)t1.length(); k++)
-          if (t1[k] == ' ' && textW(t1.substring(0, k), fT) <= w) coupe = k;
-        if (coupe > 0) { t2 = fitText(t1.substring(coupe + 1), fT, w); t1 = t1.substring(0, coupe); }
-        else t1 = fitText(t1, fT, w);
-      }
+      if (fT == F_13 && textW(l.titre, F_13) > w) fT = F_11;
+      String t1 = fitText(l.titre, fT, w);
       // Qui regarde : centré sur la colonne de droite et un peu sous le haut de
-      // l'affiche, comme pour une seule lecture (au ras du haut si le titre
-      // prend deux lignes : la place manque)
+      // l'affiche, comme pour une seule lecture
       String u = fitText(l.user, F_16, w);
-      drawText(u, xG + (w - textW(u, F_16)) / 2, baseDepuisHaut(u, F_16, y0 + (t2.length() ? 0 : 6), &basU),
-               F_16, PLEX, BG);
+      drawText(u, xG + (w - textW(u, F_16)) / 2, baseDepuisHaut(u, F_16, y0 + 6, &basU), F_16, PLEX, BG);
       drawText(t1, xG, baseDepuisHaut(t1, fT, basU + 9, &basT), fT, TXT, BG);
-      if (t2.length()) drawText(t2, xG, baseDepuisHaut(t2, fT, basT + 5, &basT), fT, TXT, BG);
       // Pastille + épisode (« S2 · E5 », ou « S2E5 » si la place manque)
-      const int yP = basT + (t2.length() ? 7 : 9);
+      const int yP = basT + 9;
       tft.fillSmoothRoundRect(xG, yP, wPill, hPill, hPill / 2 - 2, cP, BG);
       drawText(t, xG + wPill / 2, yP + hPill / 2 + 1, F_11, fP, cP, MC_DATUM);
       String info = l.ep;

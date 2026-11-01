@@ -12,18 +12,27 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [Non publié] — branche `beta`
+## [2.14.0] — 2026-11-01
 
-Essai en cours, compilé par Actions → Vérification sur la branche `beta`. À renommer en numéro de version au moment de la publication.
+Diagnostic de bout en bout (afficheur et passerelle), écran Plex à 2 lectures corrigé.
 
 ### Ajouté
 - Diagnostic de bout en bout, pour comprendre les messages « Passerelle injoignable » et les pages lentes (`docs/PASSERELLE.md`, § 11) :
-  - afficheur : en-tête `X-Req` sur chaque appel à la passerelle ; compteurs toujours tenus (requêtes, échecs par cause, temporisations, appels et images sautés, déconnexions Wi-Fi) ; page **Diagnostic** (`/debug`) et `/debug.json` ; mode diagnostic activé à la demande (journal des 32 dernières requêtes, sonde `/ping` toutes les 30 s), gardé en mémoire vive ;
-  - passerelle : `DIAGNOSTIC=1` ou `/debug?on=1` ; journal de chaque requête (durée, `X-Req`, étapes : cache, appels sortants, images) ; retard de la boucle asyncio ; `/debug` (statistiques et 100 dernières requêtes) ; route `/ping`.
+  - afficheur : en-tête `X-Req` sur chaque appel à la passerelle ; compteurs toujours tenus (requêtes, échecs par cause, temporisations, appels et images sautés, déconnexions Wi-Fi) ; page **Diagnostic** (`/debug`, lien dans la section État) et `/debug.json` ; mode diagnostic activé à la demande (journal des 32 dernières requêtes, sonde `/ping` toutes les 30 s), gardé en mémoire vive ;
+  - passerelle : `DIAGNOSTIC: "1"` dans `docker-compose.yml`, ou `/debug?on=1` sans redémarrer ; journal de chaque requête (durée, `X-Req`, étapes : cache, appels sortants, images) ; retard de la boucle asyncio ; `/debug` (statistiques et 100 dernières requêtes) ; route `/ping`.
 - Vérification GitHub lancée à la main sur la branche `beta` : publie aussi l'image `ghcr.io/sqweedly/modelrogs-gateway:beta`.
 
+### Corrigé
+- Afficheur, Plex à 2 lectures : le titre tient toujours sur une ligne (16 px, sinon 14 px, sinon 12 px, puis raccourci par « … »). Sur deux lignes, il poussait la pastille du mode de lecture (direct, pause, transcodage) jusque sur la barre de progression.
+- Simulateur (`genimg.py`) : les affiches de test sont de nouveau générées (le faux module aiohttp ne connaissait pas `TraceConfig` ni `web.middleware`, utilisés par le diagnostic).
+
+### Documentation
+- `docs/PASSERELLE.md` § 11 (diagnostic et lecture croisée des deux journaux), `README.md`, `docker-compose.yml` (variable `DIAGNOSTIC`, image `:beta` en commentaire), `docs/DEVELOPPEMENT.md` (image `:beta`).
+- `docs/CONTEXTE.md` : version cible 3.0.0 ; backlog complété (photos en JPEG, pile réseau « Higher Bandwidth », rétroéclairage sigma-delta, réception en mode bloc, interface web, nouvel essai immédiat après un échec réseau, Plex et Discord moins souvent au repos) ; règles du diagnostic.
+
 ### Mise à jour
-- Diagnostic arrêté par défaut des deux côtés : aucun changement de comportement sans activation. Coût sur l'afficheur : 272 octets de RAM statique, 1 Ko de plus en mode diagnostic, rien en IRAM.
+- Passerelle puis afficheur. Si l'image `:beta` est encore dans `docker-compose.yml`, remettre `ghcr.io/sqweedly/modelrogs-gateway:2`, puis `docker compose pull && docker compose up -d` (le log affiche `Passerelle 2.14.0`).
+- Diagnostic arrêté par défaut des deux côtés : aucun changement de comportement sans activation. Coût sur l'afficheur : 272 octets de RAM statique, 1 Ko de plus en mode diagnostic, rien en IRAM. La configuration de l'afficheur est conservée (structure inchangée).
 
 ---
 

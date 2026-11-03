@@ -14,13 +14,10 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ## [Non publié] — branche `beta`
 
-Essai en cours, compilé par Actions → Vérification sur la branche `beta`. À renommer en numéro de version au moment de la publication.
+En cours, compilé par Actions → Vérification sur la branche `beta`. À renommer en numéro de version au moment de la publication (cible : 3.0.0).
 
-### Modifié
-- Afficheur : pile réseau lwIP « Higher Bandwidth » (`-D PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH`, bibliothèque `lwip2-1460-feat`) au lieu de « Lower Memory » : segments TCP de 1 460 octets au lieu de 536, fenêtre de réception de 5 840 octets au lieu de 2 144, tampon d'envoi de 2 920 octets au lieu de 1 072. But : réception plus rapide des photos (115 200 octets). IRAM et RAM statique inchangées ; tampons réseau plus grands dans le tas pendant les transferts. Seul changement de cette beta (backlog n° 8).
-
-### Mise à jour
-- Afficheur seul (`/update`) ; passerelle inchangée (2.14.0). La configuration de l'afficheur est conservée.
+### Essai abandonné
+- Pile réseau lwIP « Higher Bandwidth » essayée puis retirée : plus d'images incomplètes (103 sur 1 049) avec un signal plus faible, sans gain mesurable sur les photos ; cause non établie (backlog n° 8). L'afficheur reste en « Lower Memory », comme la 2.14.0.
 
 ---
 

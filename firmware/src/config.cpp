@@ -6,11 +6,13 @@ static_assert(sizeof(Config) <= EEPROM_SIZE, "Config trop grande pour l'EEPROM")
 static_assert(PG_COUNT <= 16, "pages : masque de 16 bits");
 
 const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Crypto", "Plex",
-                                           "Actions", "Devises", "Commodities", "Indices", "Custom", "Photos" };
+                                           "Actions", "Devises", "Commodities", "Indices", "Custom", "Photos",
+                                           "Tesla" };
 const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc", "plex",
-                                           "actions", "devises", "commodities", "indices", "custom", "immich" };
+                                           "actions", "devises", "commodities", "indices", "custom", "immich",
+                                           "tesla" };
 const uint8_t ROTATION[PG_COUNT] = { PG_HEURE, PG_METEO, PG_DISCORD, PG_SUP, PG_BTC, PG_ACTIONS,
-                                     PG_INDICES, PG_DEVISES, PG_COMMO, PG_CUSTOM, PG_PHOTOS, PG_PLEX };
+                                     PG_INDICES, PG_DEVISES, PG_COMMO, PG_CUSTOM, PG_PHOTOS, PG_TESLA, PG_PLEX };
 // Pages ajoutées en 2.9 : activées à la mise à jour (affichées seulement si
 // le module est actif sur la passerelle)
 static const uint16_t PAGES_29 = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO);
@@ -18,6 +20,9 @@ static const uint16_t PAGES_29 = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << P
 static const uint16_t PAGES_210 = 1 << PG_INDICES;
 static const uint16_t PAGES_211 = 1 << PG_CUSTOM;
 static const uint16_t PAGES_212 = 1 << PG_PHOTOS;
+// 2.15 : page Tesla, sans réglage ni changement de structure. Activée une seule
+// fois (repère dans reserve[0]) : une fois décochée par l'utilisateur, elle le reste.
+static const uint8_t RES_PAGE_TESLA = 0x01;
 
 bool pageCours(uint8_t page) {
   return page == PG_BTC || page == PG_ACTIONS || page == PG_DEVISES || page == PG_COMMO || page == PG_INDICES
@@ -175,6 +180,10 @@ static void sanitize() {
   terminate(cfg.ville, sizeof(cfg.ville));
   for (uint8_t p = 0; p < PG_COUNT; p++) terminate(modParams(p), modParamsSize(p));
   if (cfg.apSsid[0] == '\0') copyStr(cfg.apSsid, sizeof(cfg.apSsid), AP_DEFAUT);
+  if (!(cfg.reserve[0] & RES_PAGE_TESLA)) {   // première lecture par la 2.15 ou plus récente
+    cfg.pages |= 1u << PG_TESLA;
+    cfg.reserve[0] |= RES_PAGE_TESLA;
+  }
   cfg.pages &= (1u << PG_COUNT) - 1;
   cfg.pageSec = constrain(cfg.pageSec, 5, 120);
   cfg.nightStart %= 1440;
@@ -373,7 +382,8 @@ char* modParams(uint8_t page) {
     case PG_METEO:   return cfg.pMeteo;
     case PG_DISCORD: return cfg.pDiscord;
     case PG_SUP:     return cfg.pSup;
-    case PG_PLEX:    return cfg.pPlex;
+    case PG_PLEX:
+    case PG_TESLA:   return cfg.pPlex;   // pages sans réglage : même tampon vide
     case PG_ACTIONS: return cfg.pActions;
     case PG_DEVISES: return cfg.pDevises;
     case PG_COMMO:   return cfg.pCommo;
@@ -390,7 +400,8 @@ size_t modParamsSize(uint8_t page) {
     case PG_METEO:   return sizeof(cfg.pMeteo);
     case PG_DISCORD: return sizeof(cfg.pDiscord);
     case PG_SUP:     return sizeof(cfg.pSup);
-    case PG_PLEX:    return sizeof(cfg.pPlex);
+    case PG_PLEX:
+    case PG_TESLA:   return sizeof(cfg.pPlex);
     case PG_ACTIONS: return sizeof(cfg.pActions);
     case PG_DEVISES: return sizeof(cfg.pDevises);
     case PG_COMMO:   return sizeof(cfg.pCommo);

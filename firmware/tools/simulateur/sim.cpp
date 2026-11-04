@@ -325,6 +325,11 @@ int main(int argc, char** argv) {
   fixtures["/immich"] = FX("photos");          drawPhotos(6, 7); save("31_photos");
   fixtures["/immich"] = FX("photos_souvenir"); drawPhotos(6, 7); save("31b_photos_souvenir");
   fixtures["/immich"] = FX("photos_haute");    drawPhotos(6, 7); save("31c_photos_hauteur");
+  // Tesla : 4 états (branchée : point ambre, serveur MQTT perdu ; charge : ligne la plus longue)
+  for (const char* e : {"route", "stationnee", "branchee", "charge"}) {
+    fixtures["/tesla"] = FX((std::string("tesla_") + e).c_str()); pollTesla();
+    drawTesla(); save(std::string("32_tesla_") + e);
+  }
   drawPlex(5, 6);                  save("14_plex_1");
   fixtures["/plex"] = FX("plex1s"); pollPlex();
   drawPlex(5, 6);                  save("14b_plex_serie");

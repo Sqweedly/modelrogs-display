@@ -41,6 +41,9 @@ static const uint32_t TIME_RETRY_MS   = 30UL * 1000;
 static const uint32_t DISCORD_POLL_MS = 5UL * 1000;
 static const uint32_t SUP_POLL_MS     = 30UL * 1000;
 static const uint32_t PLEX_POLL_MS    = 5UL * 1000;
+// Tesla : la passerelle répond de sa mémoire (MQTT) ; 15 s suffisent pour
+// montrer la page au début d'une charge et suivre la durée restante.
+static const uint32_t TESLA_POLL_MS   = 15UL * 1000;
 static const uint32_t MODULES_MS      = 10UL * 60 * 1000;
 
 enum ScreenState : uint8_t { S_BOOT, S_VALIDATE, S_SETUP, S_CONNECTING, S_NO_GATEWAY, S_PAGES };
@@ -55,11 +58,13 @@ static bool     idleShown = false;
 static int8_t   forcedPage = -1;
 static bool     priorityDiscord = false;
 static bool     priorityPlex = false;
+static bool     priorityTesla = false;   // une charge vient de commencer
 static bool     configChanged = false;
 static bool     screenOff = false;
 static uint8_t  lastBrightness = 255;
 static uint32_t drawnDiscVersion = 0, drawnSupVersion = 0;
 static uint32_t drawnPlexVersion = 0, drawnPlexProgres = 0;
+static uint32_t drawnTeslaVersion = 0, drawnTeslaInfos = 0;
 
 // Mode secours, redémarrage préventif et mesures mémoire : voir sante.cpp
 
@@ -85,6 +90,7 @@ static bool pageAvailable(uint8_t p) {
   if (!pageEnabled(p) || !moduleUsable(p)) return false;   // désactivée ici ou sur la passerelle
   if (p == PG_DISCORD) return gDisc.ok && gDisc.n > 0;     // masquée si personne
   if (p == PG_PLEX) return gPlex.ok && gPlex.n > 0;        // masquée sans lecture
+  if (p == PG_TESLA) return gTesla.ok;                     // masquée tant que rien n'est reçu
   // Supervision : pendant une panne, elle passe dans le bloc « PANNE +
   // Supervision » (hors rotation). Sans panne, elle n'est dans la rotation que
   // si un service est instable ou si Kuma / la passerelle ne répond pas.
@@ -140,6 +146,11 @@ static void showPage(uint8_t p, bool restartTimer = true) {
     case PG_INDICES:
     case PG_CUSTOM:  drawCours(p, idx, cnt); break;
     case PG_PHOTOS:  drawPhotos(idx, cnt); break;
+    case PG_TESLA:
+      drawTesla();
+      drawnTeslaVersion = gTesla.version;
+      drawnTeslaInfos = gTesla.infos;
+      break;
     case PG_PLEX:
       drawPlex(idx, cnt);
       drawnPlexVersion = gPlex.version;
@@ -323,6 +334,10 @@ void loop() {
       (gPlex.lastPoll == 0 || now - gPlex.lastPoll > PLEX_POLL_MS)) {
     if (pollPlex()) priorityPlex = true;
   }
+  if (pageEnabled(PG_TESLA) && moduleUsable(PG_TESLA) &&
+      (gTesla.lastPoll == 0 || now - gTesla.lastPoll > TESLA_POLL_MS)) {
+    if (pollTesla()) priorityTesla = true;
+  }
   bool supAlert = pageEnabled(PG_SUP) && moduleUsable(PG_SUP) && gSup.alert;
 
   // --- Écran éteint la nuit (luminosité de nuit à 0)
@@ -384,6 +399,15 @@ void loop() {
     if (pageAvailable(PG_PLEX)) {
       alertShown = blocSup = false;
       showPage(PG_PLEX);
+      return;
+    }
+  }
+
+  if (priorityTesla) {                     // une charge vient de commencer
+    priorityTesla = false;
+    if (pageAvailable(PG_TESLA)) {
+      alertShown = blocSup = false;
+      showPage(PG_TESLA);
       return;
     }
   }
@@ -453,6 +477,15 @@ void loop() {
       if (gSup.version != drawnSupVersion) {
         if (pageAvailable(PG_SUP)) showPage(PG_SUP, false);
         else nextPage();          // tout est revenu à la normale
+      }
+      break;
+    case PG_TESLA:
+      if (gTesla.version != drawnTeslaVersion) {
+        if (pageAvailable(PG_TESLA)) showPage(PG_TESLA, false);
+        else nextPage();          // plus de données
+      } else if (gTesla.infos != drawnTeslaInfos) {
+        teslaBandeau();           // pourcentage ou durée : photo non retéléchargée
+        drawnTeslaInfos = gTesla.infos;
       }
       break;
     case PG_PLEX:

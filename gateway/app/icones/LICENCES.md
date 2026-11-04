@@ -1,6 +1,6 @@
 # Icônes incluses dans l'image de la passerelle
 
-Converties en PNG 128 × 128 (fond transparent) pour l'afficheur.
+Converties en PNG 128 × 128 (fond transparent) pour l'afficheur, sauf les photos de `tesla/`.
 
 | Dossier | Source | Licence |
 |---|---|---|
@@ -9,6 +9,7 @@ Converties en PNG 128 × 128 (fond transparent) pour l'afficheur.
 | `commodities/` (petrole, gaz, ble, mais, soja, cafe, cacao) | [microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji), style « Flat » | MIT |
 | `commodities/` (or, argent, cuivre) | lingots de [nvstly/icons](https://github.com/nvstly/icons) (cuivre : lingot d'argent recoloré) | aucune licence déclarée |
 | `actions/` | logos de [nvstly/icons](https://github.com/nvstly/icons) (fond sombre retiré pour Nvidia et Tesla) | aucune licence déclarée ; les logos restent la propriété des sociétés |
+| `tesla/` | photos provisoires 480 × 336 dessinées par `gateway/tools/photos_tesla.py` (voiture générique, sans marque), texte en police [DejaVu Sans](https://dejavu-fonts.github.io/) | licence des polices DejaVu (libre) ; les images font partie du projet |
 
 Les logos d'actions viennent d'abord de [Logo.dev](https://logo.dev) quand la clé
 `LOGO_DEV_TOKEN` est renseignée dans `docker-compose.yml` ; ceux-ci servent de

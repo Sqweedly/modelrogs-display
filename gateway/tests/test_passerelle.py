@@ -287,7 +287,9 @@ async def principal() -> int:
         "KUMA_URL": base + "/kuma", "KUMA_STATUS_SLUG": "modelrogs",
         "CACHE_DIR": tempfile.mkdtemp(), "TZ": "Europe/Paris", "ICONES_PERSO": tempfile.mkdtemp(),
         # Discord demandé mais non configuré : doit être signalé, pas planter
-        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,custom,photos,inconnu",
+        "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,custom,photos,tesla,inconnu",
+        # Tesla : serveur MQTT injoignable (port 1) ; données injectées plus bas
+        "TESLA_MQTT_HOTE": "127.0.0.1", "TESLA_MQTT_PORT": "1",
         "IMMICH_URL": base + "/immich", "IMMICH_KEY": "cle-immich",
     })
     os.environ.pop("DISCORD_TOKEN", None)
@@ -318,7 +320,7 @@ async def principal() -> int:
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),
             ("/modules", lambda d: [m["id"] for m in d["m"]] == ["heure", "meteo", "btc", "supervision", "discord", "plex",
                                                                   "actions", "indices", "devises", "commodities", "custom",
-                                                                  "immich"]
+                                                                  "immich", "tesla"]
                 and next(m for m in d["m"] if m["id"] == "discord")["ok"] == 0),
             # Cours : 3 listes + saisie ; 10 options ; valeurs du compose annoncées
             ("/modules", lambda d: all(
@@ -783,8 +785,111 @@ async def principal() -> int:
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} repli Kuma injoignable -> p=1")
 
+    echecs += await tests_tesla()
+
     print("\n" + ("Tous les tests sont passés." if not echecs else f"{echecs} test(s) en échec."))
     return 1 if echecs else 0
+
+
+async def tests_tesla() -> int:
+    """Page Tesla : états, lignes, photos, début de charge ; route /tesla ; vrai
+    serveur MQTT (mosquitto) s'il est installé sur la machine de test."""
+    import shutil
+    import subprocess
+    from app.main import creer_app
+    from app.modules import tesla as T
+
+    echecs = 0
+
+    def verifier(libelle: str, ok: bool, detail="") -> None:
+        nonlocal echecs
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Tesla : {libelle}{' -> ' + str(detail) if detail != '' else ''}")
+
+    verifier("durées", [T.duree(h) for h in (1.08, 0.75, 0.01, 11.92, 0, None)]
+             == ["1 h 05 min", "45 min", "1 min", "11 h 55 min", "", ""])
+
+    v = T.Voiture()
+    for k, m in (("state", "suspended"), ("battery_level", "52"), ("rated_battery_range_km", "221.82"),
+                 ("est_battery_range_km", b"nil"), ("plugged_in", "false"), ("charging_state", "Disconnected"),
+                 ("charge_limit_soc", "80")):
+        v.recevoir(k, m)
+    verifier("stationnée", (v.etat(), v.ligne(v.etat())) == (T.STATIONNEE, "Autonomie 222 km"))
+    v.recevoir("state", "driving")
+    verifier("en route", (v.etat(), v.ligne(v.etat())) == (T.ROUTE, "Autonomie 222 km"))
+    v.recevoir("state", "online"); v.recevoir("plugged_in", "true")
+    verifier("branchée", (v.etat(), v.ligne(v.etat())) == (T.BRANCHEE, "Limite de charge : 80 %"))
+    v.recevoir("time_to_full_charge", "1.08"); v.recevoir("charging_state", "Charging")
+    verifier("en charge, début compté", (v.etat(), v.ligne(T.CHARGE), v.evenements) == (T.CHARGE, "80 % dans 1 h 05 min", 1))
+    v.recevoir("time_to_full_charge", "")
+    verifier("durée inconnue", v.ligne(T.CHARGE), "Fin de charge à 80 %")
+    v.recevoir("charging_state", "Complete")
+    verifier("charge terminée -> branchée", v.etat() == T.BRANCHEE)
+    v.recevoir("rated_battery_range_km", "nil"); v.recevoir("est_battery_range_km", "300.4"); v.recevoir("plugged_in", "false")
+    verifier("autonomie estimée en secours", v.ligne(v.etat()), "Autonomie 300 km")
+    # Messages retenus juste après la connexion : une charge en cours n'est pas un début
+    w = T.Voiture()
+    w._fin_amorcage = time.monotonic() + 60
+    w.recevoir("battery_level", "40"); w.recevoir("charging_state", "Charging")
+    verifier("charge en cours à la connexion : pas de début", (w.etat(), w.evenements) == (T.CHARGE, 0))
+
+    async with TestClient(TestServer(creer_app())) as c:
+        d = await (await c.get("/tesla")).json()
+        verifier("serveur injoignable, rien reçu", d == {"ok": 0, "err": "TeslaMate injoignable"}, d)
+        h = await (await c.get("/health")).json()
+        verifier("santé", h["modules"]["tesla"] == "serveur MQTT injoignable", h["modules"]["tesla"])
+        T.voiture.valeurs.update(v.valeurs)
+        T.voiture.recevoir("charging_state", "Charging"); T.voiture.recevoir("time_to_full_charge", "0.75")
+        d = await (await c.get("/tesla")).json()
+        verifier("route en charge", d["ok"] == 1 and d["e"] == 3 and d["b"] == 52 and d["l"] == "80 % dans 45 min"
+                 and d["p"] == 1 and len(d["i"]) == 12, d)
+        r = await c.get(f"/img?t={d['i']}&w=240&h=168&f=000000&r=0")
+        verifier("photo provisoire 240 x 168", r.status == 200 and len(await r.read()) == 240 * 168 * 2)
+        perso = Path(os.environ["ICONES_PERSO"]) / "tesla"
+        perso.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (600, 400), (0, 80, 160)).save(perso / "charge.jpg")
+        T.images._perso_lu = 0      # relecture immédiate du dossier personnel
+        d2 = await (await c.get("/tesla")).json()
+        verifier("photo personnelle prioritaire", d2["i"] != d["i"])
+
+    if not shutil.which("mosquitto"):
+        print("-- Tesla : mosquitto absent, essai avec un vrai serveur MQTT sauté")
+        return echecs
+    port = 18831
+    conf = Path(tempfile.mkdtemp()) / "mq.conf"
+    conf.write_text(f"listener {port} 127.0.0.1\nallow_anonymous true\npersistence false\n")
+    serveur = subprocess.Popen(["mosquitto", "-c", str(conf)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        await asyncio.sleep(0.5)
+        publier = lambda k, m: subprocess.run(["mosquitto_pub", "-p", str(port), "-r", "-t",
+                                               f"teslamate/cars/1/{k}", "-m", m], check=True)
+        for k, m in (("battery_level", "64"), ("charging_state", "Charging"), ("charge_limit_soc", "90"),
+                     ("time_to_full_charge", "2.5"), ("latitude", "43.9")):
+            publier(k, m)
+        os.environ.update({"TESLA_MQTT_PORT": str(port)})
+        x = T.Voiture()
+        x.demarrer()
+        for _ in range(40):
+            await asyncio.sleep(0.1)
+            if x.connecte and "time_to_full_charge" in x.valeurs:
+                break
+        verifier("vrai serveur : messages retenus reçus, position ignorée",
+                 x.connecte and x.ligne(x.etat()) == "90 % dans 2 h 30 min" and "latitude" not in x.valeurs
+                 and x.evenements == 0, x.valeurs)
+        x._fin_amorcage = 0
+        publier("charging_state", "Stopped"); publier("plugged_in", "true")
+        await asyncio.sleep(0.3)
+        publier("charging_state", "Charging")
+        await asyncio.sleep(0.3)
+        verifier("vrai serveur : nouvelle charge comptée", x.evenements == 1, x.evenements)
+        serveur.terminate(); serveur.wait()
+        await asyncio.sleep(0.5)
+        verifier("vrai serveur arrêté : signalé", not x.connecte and x.etat_connexion() == "serveur MQTT injoignable")
+        await x.arreter()
+    finally:
+        if serveur.poll() is None:
+            serveur.terminate()
+    return echecs
 
 
 if __name__ == "__main__":

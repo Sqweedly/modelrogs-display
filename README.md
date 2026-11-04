@@ -16,6 +16,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 | `supervision` | Services Uptime Kuma en défaut (+ écran PANNE en cas de panne) | Kuma dans `docker-compose.yml` |
 | `discord` | Présents dans un salon vocal : photos de profil, micro, casque, partage d'écran | Bot dans `docker-compose.yml` |
 | `plex` | Lectures en cours avec leur affiche ; une seule : grande affiche, qui regarde, bibliothèque et mode de lecture | Plex dans `docker-compose.yml` |
+| `tesla` | Batterie de la Tesla : pourcentage, autonomie, limite ou fin de charge, une photo par état (en route, stationnée, branchée, en charge) ; en tête au début d'une charge | [TeslaMate](https://docs.teslamate.org) et son serveur MQTT |
 
 ```
  Internet (Open-Meteo, CoinGecko, Yahoo, Discord)        Réseau local
@@ -149,6 +150,20 @@ Ces fichiers restent sur votre serveur et ne sont pas redistribués : vous pouve
 1. `PLEX_URL` : l'adresse du serveur Plex vue depuis le serveur Docker, par exemple `http://192.168.1.10:32400`.
 2. `PLEX_TOKEN` : le jeton d'un compte **administrateur** du serveur. Plex explique comment le trouver dans son aide, article « Finding an authentication token / X-Plex-Token » : en bref, dans l'application web Plex, **⋯ → Obtenir des infos → Afficher le XML** sur un média, puis copier la valeur `X-Plex-Token` à la fin de l'adresse.
 3. Vérifie depuis le serveur Docker : `curl -H "X-Plex-Token: <jeton>" http://192.168.1.10:32400/status/sessions` doit répondre.
+
+### Module `tesla` : TeslaMate
+
+La page lit les données que TeslaMate publie sur son serveur MQTT (le service `mosquitto` de son `docker-compose.yml`). Rien à changer dans TeslaMate.
+
+1. Vérifie que les données arrivent, sur la machine de TeslaMate :
+   ```bash
+   docker ps --format '{{.Names}}' | grep -i -e mosquitto -e mqtt      # nom du conteneur MQTT
+   docker exec <nom> mosquitto_sub -t 'teslamate/#' -v -C 30
+   ```
+   Des lignes `teslamate/cars/1/battery_level 52` doivent s'afficher ; le chiffre après `cars/` va dans `TESLA_VOITURE`.
+2. **Passerelle sur la même machine que TeslaMate** (conseillé, sans ouvrir de port) : branche-la sur le réseau Docker de TeslaMate. Son nom : `docker network ls` (souvent `teslamate_default`). Dans `docker-compose.yml`, décommente les deux blocs `networks` et mets dans `TESLA_MQTT_HOTE` le nom du conteneur MQTT. TeslaMate doit être démarré avant la passerelle.
+3. **Autre machine** : ouvre le port 1883 du service `mosquitto` dans le `docker-compose.yml` de TeslaMate (`ports: - 1883:1883`) et mets son adresse dans `TESLA_MQTT_HOTE`. Sans mot de passe, tout appareil du réseau local peut alors lire les données de la voiture.
+4. Photos : dépose les tiennes dans `icones/tesla/` (`route`, `stationnee`, `branchee`, `charge`, en `.jpg` ou `.png`, paysage, 480 × 336 px au moins), avec le volume `./icones:/icones:ro` activé. Sinon, des images provisoires sont affichées.
 
 ---
 
@@ -325,6 +340,7 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 | `/discord?salon=<id>` | Présents dans le salon |
 | `/discord/salons` | Liste des salons vocaux |
 | `/plex` | Lectures Plex en cours |
+| `/tesla` | Batterie de la Tesla (TeslaMate) : état, pourcentage, ligne d'information, photo |
 | `/img?t=<jeton>&w=&h=&f=&r=` | Image (affiche, logo, photo) en pixels RGB565 bruts, prête à afficher |
 | `/health` | État de la passerelle et de chaque module |
 | `/ping` | Réponse minimale : sonde réseau du diagnostic de l'afficheur |

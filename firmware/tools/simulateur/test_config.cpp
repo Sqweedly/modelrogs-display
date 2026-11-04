@@ -13,7 +13,8 @@ struct V3 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[6
 struct V4 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[65]; char apSsid[33]; char gateway[96]; char ville[48];
   uint8_t pages, pageSec, nightOn; uint16_t nightStart, nightEnd; uint8_t brightDay, brightNight; char pHeure[24], pMeteo[24], pDiscord[40], pSup[300], pBtc[24];
   uint8_t validated; char pCrypto[52]; char pPlex[4]; uint8_t ext26; uint8_t reserve[6]; };
-static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO) | (1 << PG_INDICES) | (1 << PG_CUSTOM) | (1 << PG_PHOTOS);
+static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO) | (1 << PG_INDICES) | (1 << PG_CUSTOM) | (1 << PG_PHOTOS)
+                               | (1 << PG_TESLA);
 
 int main() {
   // 1. Ancien firmware Discord (firmware différent)
@@ -116,6 +117,20 @@ int main() {
   CHECK(modParam(PG_CUSTOM, "s1") == "c:bitcoin" && modParam(PG_CUSTOM, "s3") == "m:GC=F", "custom conserve et decode");
   CHECK(modParam(PG_PHOTOS, "s") == "a:1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b" && modParam(PG_PHOTOS, "duree") == "120",
         "photos : album et duree conserves");
+
+  // 4b. 2.12 a 2.14 (structure 8, reserve vide) -> 2.15 : page Tesla activee une fois
+  {
+    Config v8{};
+    memcpy(&v8, &cfg, sizeof(cfg));
+    v8.pages &= ~(1 << PG_TESLA) & ~(1 << PG_METEO); v8.reserve[0] = 0;
+    ecrire(v8); loadConfig();
+    CHECK(cfg.validated == 1 && (cfg.pages & 1 << PG_TESLA) && !(cfg.pages & 1 << PG_METEO)
+          && !strcmp(cfg.pPhotos, "s=a%3A1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b&duree=120"),
+          "2.14 -> 2.15 : page Tesla activee, le reste conserve");
+    cfg.pages &= ~(1 << PG_TESLA); saveConfig(); loadConfig();
+    CHECK(!(cfg.pages & 1 << PG_TESLA), "page Tesla decochee : le reste apres relecture");
+    CHECK(modParams(PG_TESLA) == cfg.pPlex && modParam(PG_TESLA, "x") == "", "page Tesla : aucun reglage");
+  }
 
   // 5. Firmware inconnu / EEPROM vierge
   memset(EEPROM.data, 0xFF, sizeof(EEPROM.data)); loadConfig();

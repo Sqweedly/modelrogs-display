@@ -260,6 +260,19 @@ C'est le seul module qui **ne va pas chercher** l'information à chaque appel :
 - Un compteur de lectures (`ev`) augmente à chaque nouvelle lecture : l'afficheur fait alors passer la page Plex en priorité. Sans lecture, la page est masquée.
 - Seule la progression change d'un appel à l'autre : l'afficheur ne redessine alors que les barres, sans retélécharger l'affiche.
 
+### Tesla (`/tesla`, module `tesla`)
+
+- **Source** : le serveur MQTT de [TeslaMate](https://docs.teslamate.org/docs/integrations/mqtt), sur le réseau local. TeslaMate publie chaque donnée de la voiture sur `teslamate/[espace/]cars/<n°>/<donnée>`, en **message retenu** (sauf `healthy`) : à la connexion, le serveur renvoie la dernière valeur connue, même si la voiture dort. La passerelle s'abonne seulement à 8 sujets : `state`, `battery_level`, `rated_battery_range_km`, `est_battery_range_km`, `plugged_in`, `charging_state`, `charge_limit_soc`, `time_to_full_charge`. Elle ne reçoit jamais la position.
+- **Réglages** (`docker-compose.yml`) : `TESLA_MQTT_HOTE` (obligatoire : nom ou adresse du serveur MQTT ; nom du conteneur s'il est sur le même réseau Docker), `TESLA_MQTT_PORT` (1883), `TESLA_MQTT_UTILISATEUR` et `TESLA_MQTT_MOT_DE_PASSE` (vides si le serveur n'en demande pas, cas du `docker-compose.yml` de TeslaMate), `TESLA_MQTT_ESPACE` (le `MQTT_NAMESPACE` de TeslaMate, s'il est réglé), `TESLA_VOITURE` (1).
+- **États** (`e`) : 3 en charge (`charging_state` = `Charging`) ; 0 en route (`state` = `driving`) ; 2 branchée (`plugged_in` = `true`, sans charge : charge terminée, arrêtée, en attente) ; 1 stationnée (le reste : `online`, `asleep`, `suspended`, `offline`…). Une valeur `nil` ou vide de TeslaMate compte comme absente.
+- **Ligne** (`l`) : en route ou stationnée, « Autonomie 222 km » (`rated_battery_range_km`, sinon `est_battery_range_km`) ; branchée, « Limite de charge : 80 % » ; en charge, « 80 % dans 1 h 05 min » (`time_to_full_charge`, en heures décimales ; « 80 % dans 45 min » sous une heure ; « Fin de charge à 80 % » si la durée est inconnue).
+- **Début de charge** : `ev` augmente quand la voiture passe en charge ; l'afficheur montre alors la page aussitôt. Les 5 secondes qui suivent une connexion ne comptent pas : une charge déjà en cours, reçue en message retenu, n'est pas un début.
+- **Photo** (`i`) : une par état, 240 × 168, recadrée au centre. D'abord `/icones/tesla/<état>.png` (ou `.webp`, `.jpg`) : `route`, `stationnee`, `branchee`, `charge` ; sinon l'image provisoire incluse. Conseillé : format paysage (rapport 10 × 7), 480 × 336 px au moins, moins de 4 Mo. Une photo remplacée est prise en compte en moins d'une minute.
+- **Réponse** : `{"ok":1,"e":3,"b":59,"l":"80 % dans 1 h 05 min","i":"<jeton>","ev":2,"p":0}` ; `p` = 1 quand la passerelle a perdu le serveur MQTT (dernières valeurs, point ambre sur l'écran). Rien reçu : `{"ok":0,"err":"En attente de TeslaMate"}` (connecté) ou `"TeslaMate injoignable"`.
+- **Connexion** : reprise automatique après une coupure (5 s, 10 s, 30 s, puis toutes les 60 s) ; une ligne dans le log à la connexion et à la perte du serveur. `/health` indique « connecté », « connecté, en attente de TeslaMate » ou « serveur MQTT injoignable ».
+- **Tester depuis le docker passerelle** : `curl -s "http://<passerelle>:8080/tesla" ; echo`. Côté TeslaMate : `docker exec <conteneur mosquitto> mosquitto_sub -t 'teslamate/#' -v -C 30` doit afficher des lignes `teslamate/cars/1/battery_level 52`.
+- **À vérifier sur une vraie charge** : que `time_to_full_charge` compte jusqu'à la limite de charge (comparer avec l'application Tesla).
+
 ### Photos Immich (`/immich`, module `immich`)
 
 - **Accès** : `IMMICH_URL` (ex. `http://192.168.1.10:2283`, l'adresse du serveur Immich) et `IMMICH_KEY`, clé d'API créée dans Immich (Paramètres du compte > Clés d'API). La passerelle interroge Immich sur le réseau local, avec l'en-tête `x-api-key` ; aucune photo ne sort de chez soi.
@@ -291,6 +304,8 @@ L'ESP8266 n'a pas la mémoire pour décoder un JPEG ou un PNG confortablement. L
 2. l'afficheur demande `/img?t=<jeton>&w=78&h=117&f=000000&r=8` : taille exacte, couleur du fond de l'écran sous l'image, rayon des coins (`r` = moitié de la taille pour un cercle), `m=a` pour un logo à garder entier ;
 3. la passerelle télécharge l'image (une fois), la recadre, arrondit les coins avec un bord lissé, la pose sur le fond et renvoie **w × h pixels RGB565 bruts** (2 octets par pixel, ordre de l'ESP) : 18 Ko pour une affiche, 1,8 Ko pour un logo. Un **logo** (`m=a`) est d'abord **rogné** (depuis la 2.9.1) : sa marge transparente, ou son fond uni de la couleur des coins (Logo.dev pose l'icône au milieu d'un grand carré), est retirée, puis le logo est agrandi pour occuper 94 % du cadre. Les **icônes personnelles** ne sont jamais rognées : leur cadrage est respecté ;
 4. l'afficheur les envoie à l'écran **ligne par ligne au fil de la réception** : il n'utilise qu'une ligne de mémoire (moins de 320 octets), jamais l'image entière.
+
+Les photos de la page Tesla sont recadrées au centre (240 × 168), comme une affiche.
 
 Une image enregistrée **en mode photo** (module `immich`) est toujours recadrée pour remplir le cadre, ou posée entière sur un fond flou d'elle-même si elle est nettement plus haute que large. Taille maximale : 240 × 240 (l'écran entier).
 
@@ -340,6 +355,7 @@ Ce jeu de caractères doit rester identique à celui des polices du firmware (`f
 | Sortant | Uptime Kuma, Plex | HTTP sur le réseau local |
 | Sortant | Images : CDN Discord, CoinGecko, Logo.dev, GitHub (nvstly/icons) | HTTPS |
 | Sortant | Immich (photos) | HTTP sur le réseau local |
+| Sortant | Serveur MQTT de TeslaMate (page Tesla), port 1883 | MQTT sur le réseau local (ou réseau Docker de TeslaMate) |
 
 Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers Internet.
 
@@ -352,6 +368,7 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 | `/discord` | toutes les 5 s | Réagir vite aux arrivées (réponse instantanée, depuis la mémoire) |
 | `/supervision` | toutes les 30 s | Alerte rapide en cas de panne |
 | `/plex` | toutes les 5 s | Montrer la page dès le début d'une lecture, suivre la progression |
+| `/tesla` | toutes les 15 s | Montrer la page au début d'une charge, suivre le pourcentage (réponse depuis la mémoire) |
 | `/meteo`, `/btc`, `/actions`, `/devises`, `/commodities` | à chaque affichage de la page | Données en cache côté passerelle |
 | `/img` | à chaque dessin d'une page avec image | Images converties gardées en mémoire par la passerelle |
 | `/ping` | toutes les 30 s, en mode diagnostic de l'afficheur seulement | Sonde réseau (§ 11) |

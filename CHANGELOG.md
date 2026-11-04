@@ -12,12 +12,23 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [Non publié] — branche `beta`
+## [2.15.0] — 2026-11-04
 
-En cours, compilé par Actions → Vérification sur la branche `beta`. À renommer en numéro de version au moment de la publication (cible : 3.0.0).
+Page Tesla : niveau de batterie de la voiture, lu dans TeslaMate.
+
+### Ajouté
+- Afficheur : page **Tesla**, un écran à quatre états (en route, stationnée, branchée, en charge). En haut, la batterie et le pourcentage en vert, l'état à droite (en charge : un éclair), puis une ligne : « Autonomie 222 km » en route ou stationnée, « Limite de charge : 80 % » branchée, « 80 % dans 1 h 05 min » en charge (« 80 % dans 45 min » sous une heure). En bas, une photo par état, 240 × 168 (70 % de l'écran). La page tourne avec les autres ; elle passe en tête au début d'une charge, comme Plex au début d'une lecture. Point ambre si la passerelle a perdu le serveur MQTT. Le pourcentage et la durée se mettent à jour sans retélécharger la photo.
+- Passerelle : module `tesla`, abonné au serveur MQTT de TeslaMate (bibliothèque `aiomqtt` 2.5.1, avec `paho-mqtt` 2.1.0). Il ne lit que les 8 données utiles, jamais la position. Les messages retenus de TeslaMate donnent l'état dès la connexion, même voiture endormie. Réglages dans `docker-compose.yml` : `TESLA_MQTT_HOTE` (obligatoire), `TESLA_MQTT_PORT`, `TESLA_MQTT_UTILISATEUR`, `TESLA_MQTT_MOT_DE_PASSE`, `TESLA_MQTT_ESPACE`, `TESLA_VOITURE`. Route `/tesla` ; état de la connexion dans `/health`.
+- Photos de la page Tesla : vos photos dans le dossier `/icones/tesla/` (`route`, `stationnee`, `branchee`, `charge`, en PNG, WebP ou JPG), sinon des images provisoires incluses (dessin générique, `gateway/tools/photos_tesla.py`).
 
 ### Essai abandonné
-- Pile réseau lwIP « Higher Bandwidth » essayée puis retirée : plus d'images incomplètes (103 sur 1 049) avec un signal plus faible, sans gain mesurable sur les photos ; cause non établie (backlog n° 8). L'afficheur reste en « Lower Memory », comme la 2.14.0.
+- Pile réseau lwIP « Higher Bandwidth », essayée sur la branche `beta` puis retirée : plus d'images incomplètes (103 sur 1 049) avec un signal plus faible, sans gain mesurable sur les photos ; cause non établie (backlog n° 8). L'afficheur reste en « Lower Memory », comme la 2.14.0.
+
+### Mise à jour
+- Passerelle d'abord, puis afficheur. La configuration de l'afficheur est conservée (même structure) ; la page Tesla est cochée une fois, puis reste comme vous la réglez. Sans module `tesla` sur la passerelle, elle n'apparaît pas.
+
+### Documentation
+- `README.md` (mise en place avec TeslaMate), `docs/PASSERELLE.md` (module `tesla`), `docker-compose.yml` (bloc Tesla, réseau Docker de TeslaMate en commentaire), `docs/CONTEXTE.md` (backlog n° 3 fait, n° 8 suspendu).
 
 ---
 

@@ -1320,3 +1320,54 @@ void drawPhotos(uint8_t dotIndex, uint8_t dotCount) {
     drawText(badge, 10 + w / 2, 10 + h / 2 + 1, F_13, TXT, VIOLET, MC_DATUM);
   }
 }
+
+// ------------------------------------------------------------------ Tesla
+// Bandeau de 72 px : batterie et pourcentage en vert (éclair en charge), état
+// en haut à droite (hors charge), ligne d'information dessous ; photo de l'état
+// en 240 x 168 (70 % de l'écran), recadrée au centre par la passerelle.
+// Pas de points de pagination : la photo occupe le bas de l'écran.
+
+static const int TESLA_BANDEAU = 72;
+static constexpr uint16_t TESLA_GRIS = RGB(0xA0, 0xA0, 0xA0);      // textes du bandeau
+static constexpr uint16_t TESLA_FOND_PILE = RGB(0x2C, 0x2C, 0x2C);
+static constexpr uint16_t TESLA_CADRE = RGB(0x1A, 0x1A, 0x1A);     // sans photo
+
+static void teslaPile(int x, int y, int w, int h, int pct) {
+  tft.fillSmoothRoundRect(x, y, w, h, h / 3, TESLA_FOND_PILE, BG);
+  tft.fillRect(x + w + 1, y + h / 3, 3, h / 3, TESLA_FOND_PILE);
+  const int iw = (w - 6) * pct / 100;
+  if (iw > 0) tft.fillSmoothRoundRect(x + 3, y + 3, max(iw, 2), h - 6, (h - 6) / 3, VERT, TESLA_FOND_PILE);
+}
+
+static void teslaEclair(int x, int y, int h, uint16_t c) {
+  const int w = h * 6 / 10;
+  tft.fillTriangle(x + w * 6 / 10, y, x, y + h * 6 / 10, x + w / 2, y + h * 6 / 10, c);
+  tft.fillTriangle(x + w / 2, y + h * 4 / 10, x + w, y + h * 4 / 10, x + w * 4 / 10, y + h, c);
+}
+
+void teslaBandeau() {
+  tft.fillRect(0, 0, 240, TESLA_BANDEAU, BG);
+  const bool charge = gTesla.etat == TESLA_CHARGE;
+  teslaPile(14, 15, 36, 18, gTesla.pct);
+  const int w = drawText(String(gTesla.pct) + "%", 60, 24, F_32, VERT, BG, ML_DATUM);
+  if (charge) {
+    teslaEclair(60 + w + 8, 12, 24, VERT);           // en charge : l'éclair suffit
+  } else {
+    static const char* const LIBELLES[] = { "En route", "Stationnée", "Branchée" };
+    drawText(LIBELLES[gTesla.etat], 226, 24, F_13, TESLA_GRIS, BG, MR_DATUM);
+  }
+  drawText(fitText(gTesla.ligne, F_16, 212), 14, 50, F_16, TESLA_GRIS, BG, TL_DATUM);
+  staleMark(gTesla.stale);
+}
+
+void drawTesla() {
+  if (!gTesla.ok) {               // rien reçu de TeslaMate (page demandée depuis l'interface)
+    tft.fillScreen(BG);
+    errorPage("Tesla", gTesla.err[0] ? String(gTesla.err) : String("En attente de TeslaMate"));
+    return;
+  }
+  teslaBandeau();
+  if (!gwImage(gTesla.photo, 0, TESLA_BANDEAU, 240, 240 - TESLA_BANDEAU, BG, 0, false)) {
+    tft.fillRect(0, TESLA_BANDEAU, 240, 240 - TESLA_BANDEAU, TESLA_CADRE);
+  }
+}

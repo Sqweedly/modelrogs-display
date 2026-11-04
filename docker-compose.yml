@@ -32,7 +32,9 @@ services:
       # celles de la passerelle. Rangement : devises/EUR.png, actions/AAPL.png,
       # commodities/GC=F.png, crypto/bitcoin.png (nom = valeur saisie sur
       # l'afficheur, majuscules indifférentes). PNG carré, 64 px ou plus, fond
-      # transparent. Pris en compte sans redémarrer. Voir docs/PASSERELLE.md.
+      # transparent. Photos de la page Tesla : tesla/route.jpg, stationnee, branchee,
+      # charge (paysage, 480 x 336 ou plus). Pris en compte sans redémarrer.
+      # Voir docs/PASSERELLE.md.
       # - ./icones:/icones:ro
 
     environment:
@@ -50,7 +52,7 @@ services:
       # ---------------------------------------------------------------
       # MODULES ACTIFS — retirer un nom désactive le module.
       # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities, custom, immich,
-      # supervision, discord, plex   (« btc », l'ancien nom de crypto, reste accepté)
+      # supervision, discord, plex, tesla   (« btc », l'ancien nom de crypto, reste accepté)
       # ---------------------------------------------------------------
       MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,immich,supervision,discord,plex
 
@@ -84,6 +86,17 @@ services:
       # l'interface de l'afficheur.
       IMMICH_URL: http://192.168.1.10:2283
       IMMICH_KEY: "colle-ici-la-cle-immich"
+
+      # --- Module « tesla » (page Tesla, données de TeslaMate) ---------
+      # Ajouter « tesla » à MODULES. Serveur MQTT de TeslaMate : nom du conteneur
+      # s'il est sur le même réseau Docker (voir « networks » plus bas), sinon son
+      # adresse IP (port 1883 ouvert dans le compose de TeslaMate).
+      # TESLA_MQTT_HOTE: teslamate-mqtt
+      # TESLA_MQTT_PORT: "1883"
+      # TESLA_MQTT_UTILISATEUR: ""       # vides : serveur sans identifiants (défaut de TeslaMate)
+      # TESLA_MQTT_MOT_DE_PASSE: ""
+      # TESLA_MQTT_ESPACE: ""            # MQTT_NAMESPACE de TeslaMate, s'il est réglé
+      # TESLA_VOITURE: "1"               # n° après « cars/ » dans les sujets de TeslaMate
 
       # --- Pages de cours : crypto, actions, indices, devises, commodities, custom
       # Tous les prix sont en dollars, sauf les indices (en points). 3 valeurs au plus par page, séparées par
@@ -127,3 +140,12 @@ services:
       options:
         max-size: "5m"
         max-file: "3"
+    # Page Tesla, TeslaMate sur la même machine : joindre aussi son réseau Docker
+    # (nom donné par « docker network ls », souvent teslamate_default). TeslaMate
+    # doit être démarré avant la passerelle. Décommenter aussi le bloc en fin de fichier.
+    # networks: [default, teslamate]
+
+# networks:
+#   teslamate:
+#     external: true
+#     name: teslamate_default

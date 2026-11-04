@@ -72,6 +72,24 @@ struct PlexState {
   } l[MAX_PLEX];
 };
 
+// Tesla (TeslaMate) : un écran, quatre états ; prioritaire au début d'une charge
+enum TeslaEtat : uint8_t { TESLA_ROUTE = 0, TESLA_STATIONNEE = 1, TESLA_BRANCHEE = 2, TESLA_CHARGE = 3 };
+
+struct TeslaState {
+  bool     ok = false;       // données reçues de la passerelle
+  bool     stale = false;    // passerelle déconnectée du serveur MQTT : dernières valeurs
+  bool     evKnown = false;
+  uint32_t ev = 0;           // compteur de débuts de charge (passerelle)
+  uint32_t version = 0;      // change avec l'état, la photo ou le point ambre : page redessinée
+  uint32_t infos = 0;        // change avec le pourcentage ou la ligne : bandeau seul redessiné
+  uint32_t lastPoll = 0;
+  uint8_t  etat = TESLA_STATIONNEE;
+  uint8_t  pct = 0;
+  char     ligne[48] = "";   // « Autonomie 222 km », « 80 % dans 1 h 05 min »…
+  char     photo[IMG_TOKEN] = "";
+  char     err[48] = "";
+};
+
 enum SupEtat : uint8_t { SUP_OK = 0, SUP_INSTABLE = 1, SUP_PANNE = 2, SUP_MAINT = 3 };
 
 struct SupState {
@@ -107,6 +125,7 @@ extern TimeState    gTime;
 extern DiscordState gDisc;
 extern SupState     gSup;
 extern PlexState    gPlex;
+extern TeslaState   gTesla;
 extern ModulesState gMods;
 
 void   fetchModules();
@@ -118,6 +137,7 @@ void syncTime();
 bool pollDiscord();          // true si quelqu'un vient d'arriver
 void pollSup();
 bool pollPlex();             // true si une lecture vient de commencer
+bool pollTesla();            // true si une charge vient de commencer
 
 bool     timeValid();
 uint32_t localEpoch();       // secondes locales depuis 1970

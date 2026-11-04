@@ -8,6 +8,7 @@ TimeState    gTime;
 DiscordState gDisc;
 SupState     gSup;
 PlexState    gPlex;
+TeslaState   gTesla;
 ModulesState gMods;
 
 static void copyStr(char* dst, size_t size, const char* src) {
@@ -278,5 +279,49 @@ bool pollPlex() {
   bool debut = gPlex.evKnown && ev > gPlex.ev && gPlex.n > 0;
   gPlex.ev = ev;
   gPlex.evKnown = true;
+  return debut;
+}
+
+// ----------------------------------------------------------------- Tesla
+
+bool pollTesla() {
+  gTesla.lastPoll = millis();
+  const bool wasOk = gTesla.ok, wasStale = gTesla.stale;
+  const uint8_t avantEtat = gTesla.etat;
+  JsonDocument doc;
+  const int code = gwGet(modulePath(PG_TESLA), doc);
+  if (code != 200) {
+    if (code == -5) {             // la passerelle répond, sans données de TeslaMate
+      gTesla.ok = false;
+      copyStr(gTesla.err, sizeof(gTesla.err), doc["err"] | "TeslaMate indisponible");
+    } else if (gTesla.ok) {
+      gTesla.stale = true;        // passerelle injoignable : on garde le dernier état
+    } else {
+      copyStr(gTesla.err, sizeof(gTesla.err), gwErrorText(code));
+    }
+    if (gTesla.ok != wasOk || gTesla.stale != wasStale) gTesla.version++;
+    return false;
+  }
+
+  char photo[IMG_TOKEN];
+  copyStr(photo, sizeof(photo), doc["i"] | "");
+  const uint8_t etat = min<int>(TESLA_CHARGE, doc["e"] | (int)TESLA_STATIONNEE);
+  const bool stale = (doc["p"] | 0) != 0;
+  if (!wasOk || etat != avantEtat || stale != wasStale || strcmp(photo, gTesla.photo) != 0) gTesla.version++;
+  const uint8_t pct = min<int>(100, doc["b"] | 0);
+  const char* ligne = doc["l"] | "";
+  if (pct != gTesla.pct || strcmp(ligne, gTesla.ligne) != 0) gTesla.infos++;
+
+  gTesla.ok = true;
+  gTesla.stale = stale;
+  gTesla.etat = etat;
+  gTesla.pct = pct;
+  copyStr(gTesla.ligne, sizeof(gTesla.ligne), ligne);
+  copyStr(gTesla.photo, sizeof(gTesla.photo), photo);
+
+  const uint32_t ev = doc["ev"] | 0UL;
+  const bool debut = gTesla.evKnown && ev > gTesla.ev && etat == TESLA_CHARGE;
+  gTesla.ev = ev;
+  gTesla.evKnown = true;
   return debut;
 }

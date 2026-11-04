@@ -22,6 +22,9 @@ void drawPlex(uint8_t dotIndex, uint8_t dotCount);
 // Photos Immich : photo en plein écran (+ pastille « Il y a N ans » pour un souvenir)
 void drawPhotos(uint8_t dotIndex, uint8_t dotCount);
 void plexProgress();          // Plex affichée : ne redessine que la progression
+// Tesla : bandeau (batterie, état, ligne) + photo de l'état ; teslaBandeau() : bandeau seul
+void drawTesla();
+void teslaBandeau();
 void drawAlert();
 
 // Page Heure affichée : redessine seulement les chiffres si la minute a changé.

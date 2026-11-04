@@ -37,6 +37,7 @@ enum PageId : uint8_t {
   PG_INDICES,   // 2.10 : indices boursiers (même rendu)
   PG_CUSTOM,    // 2.11 : 3 valeurs de toutes catégories (même rendu)
   PG_PHOTOS,    // 2.12 : photos Immich (module « immich »)
+  PG_TESLA,     // 2.15 : batterie d'une Tesla (module « tesla », TeslaMate) ; sans réglage
   PG_COUNT
 };
 
@@ -83,6 +84,8 @@ struct Config {
   char pIndices[56];    // 2.10 : pris sur `reserve` (structure 6, même taille que la 5)
 
   uint8_t reserve[8];   // place libre pour de futurs réglages (initialisée à 0)
+                        // reserve[0] : pages apparues sans changement de structure, déjà
+                        // activées une fois (bit RES_PAGE_TESLA, 2.15)
 
   // 2.11 (structure 7) : ajouté à la fin, les structures 5 et 6 en sont le début
   char pCustom[96];     // valeurs préfixées par catégorie : « s1=c%3Abitcoin&s2=a%3ATSLA… »

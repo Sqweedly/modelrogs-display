@@ -54,7 +54,7 @@ services:
       # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities, custom, immich,
       # supervision, discord, plex, tesla   (« btc », l'ancien nom de crypto, reste accepté)
       # ---------------------------------------------------------------
-      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,immich,supervision,discord,plex
+      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,immich,supervision,discord,plex,tesla
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
       # Page de statut Kuma : toutes ses sondes sont suivies par l'afficheur
@@ -88,7 +88,7 @@ services:
       IMMICH_KEY: "colle-ici-la-cle-immich"
 
       # --- Module « tesla » (page Tesla, données de TeslaMate) ---------
-      # Ajouter « tesla » à MODULES. Serveur MQTT de TeslaMate : nom du conteneur
+      # Serveur MQTT de TeslaMate : nom du conteneur
       # s'il est sur le même réseau Docker (voir « networks » plus bas), sinon son
       # adresse IP (port 1883 ouvert dans le compose de TeslaMate).
       # TESLA_MQTT_HOTE: teslamate-mqtt

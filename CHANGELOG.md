@@ -12,6 +12,15 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [Non publié] — branche `beta`
+
+À renommer en numéro de version au moment de la publication.
+
+### Modifié
+- `docker-compose.yml` : `tesla` ajouté à la liste `MODULES` par défaut. Sans `TESLA_MQTT_HOTE`, le module est signalé « non configuré » dans le log et l'interface, et la page Tesla n'apparaît pas.
+
+---
+
 ## [2.15.0] — 2026-11-04
 
 Page Tesla : niveau de batterie de la voiture, lu dans TeslaMate.

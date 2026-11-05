@@ -76,7 +76,7 @@ L'afficheur ne connaît ni Yahoo ni Kuma : il affiche les champs décrits par la
 
 **Où vont les réglages :**
 - **les secrets et les accès** (jeton Discord, adresse de Kuma) sont dans le `docker-compose.yml`, côté serveur ;
-- **les préférences** (ville, salon, valeurs des pages de cours) sont dans l'afficheur ; pour les pages de cours, les valeurs du `docker-compose.yml` servent quand l'afficheur n'en envoie aucune.
+- **les préférences** (salon, valeurs des pages de cours) sont dans l'afficheur ; pour les pages de cours, les valeurs du `docker-compose.yml` servent quand l'afficheur n'en envoie aucune. La **ville** (heure, météo) est réglée sur la passerelle depuis la 3.0.0 : `VILLE` (`VILLE_DEFAUT`, l'ancien nom, reste accepté ; Paris par défaut). Une ville envoyée par un afficheur 2.x (`?ville=`) est toujours respectée.
 
 L'afficheur, dont le point d'accès est ouvert, ne voit donc jamais un secret.
 
@@ -136,14 +136,16 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
 ### Heure (`/time`), toujours active
 
 - Elle n'est pas soumise à `MODULES` : l'afficheur en a besoin pour la **plage nocturne**, même si la page Heure est désactivée.
-- La ville est géocodée par Open-Meteo pour obtenir son **fuseau horaire** (par exemple `Europe/Paris`).
+- La ville (`VILLE`, ou `?ville=` d'un afficheur 2.x) est géocodée par Open-Meteo pour obtenir son **fuseau horaire** (par exemple `Europe/Paris`).
 - La passerelle renvoie :
   - l'heure UTC (`e`) et le décalage en secondes (`o`), changement d'heure compris ;
   - le jour et la date en français ;
   - le lever et le coucher du soleil.
 - L'afficheur garde ensuite l'heure tout seul avec son horloge interne et se resynchronise toutes les 10 minutes. Il n'a pas besoin de NTP.
 
-### Météo (`/meteo?ville=`)
+### Météo (`/meteo`)
+
+- Ville : `VILLE` du `docker-compose.yml` (ou `?ville=` d'un afficheur 2.x). Le manifeste `/modules` donne cette ville au module météo (`"v"`), que l'interface de l'afficheur affiche sous la page Météo.
 
 - Elle fait **un seul appel Open-Meteo**, gratuit et sans clé : conditions actuelles, la journée en cours et 5 jours de prévisions. La page Heure en affiche la météo du jour, la page Météo les 5 jours.
 - Le code météo international (WMO, de 0 à 99) est converti en :

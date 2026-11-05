@@ -42,7 +42,7 @@ Afficheur d'informations sur **GeekMagic SmallTV** (ESP8266 + écran ST7789 240�
 **Répartition des réglages**
 
 - **`docker-compose.yml`** (serveur) : modules actifs, **secrets et accès**, c'est-à-dire les jetons Discord et Plex et les adresses de Kuma et Plex.
-- **Interface de l'afficheur** : **préférences** (ville, valeurs des pages de cours, salon vocal, pages, nuit, luminosité).
+- **Interface de l'afficheur** : **préférences** (valeurs des pages de cours, salon vocal, pages, nuit, luminosité, adresse de la passerelle). La ville se règle dans `docker-compose.yml` (`VILLE`).
 
 Aucun secret ne transite par l'afficheur, dont le point d'accès est ouvert.
 
@@ -84,7 +84,7 @@ Sur la page du dépôt : **Releases** (colonne de droite) → la dernière versi
 | `docker-compose.yml` | Modèle de déploiement de la passerelle |
 | `SHA256SUMS.txt` | Empreintes pour vérifier les fichiers |
 
-L'image de la passerelle est publiée en même temps : `ghcr.io/sqweedly/modelrogs-gateway`, avec les étiquettes `X.Y.Z`, `X.Y`, `X` et `latest`. Le `docker-compose.yml` utilise l'étiquette majeure (par exemple `:2`) : `docker compose pull` suit automatiquement les versions 2.x.
+L'image de la passerelle est publiée en même temps : `ghcr.io/sqweedly/modelrogs-gateway`, avec les étiquettes `X.Y.Z`, `X.Y`, `X` et `latest`. Le `docker-compose.yml` utilise l'étiquette majeure (par exemple `:3`) : `docker compose pull` suit automatiquement les versions 3.x.
 
 **Publier une nouvelle version** :
 1. ajoute une section `## [2.7.1] — date` en tête de `CHANGELOG.md` (ajouts, modifications, corrections, consignes de mise à jour) ;
@@ -242,7 +242,7 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
 
 **Conservation de la configuration entre deux versions**
 
-- Une **nouvelle version de MODELROGS Display**, par OTA, conserve tout : Wi-Fi, passerelle, ville, pages, réglages des modules, nuit, luminosités et validation.
+- Une **nouvelle version de MODELROGS Display**, par OTA, conserve tout : Wi-Fi, passerelle, pages, réglages des modules, nuit, luminosités et validation. Depuis la 3.0.0, la ville se règle sur la passerelle (`VILLE` dans `docker-compose.yml`).
 - La configuration est stockée dans une zone de la flash que l'OTA n'efface pas. Une signature y identifie le firmware.
 - Si une version change le format de la configuration, elle reprend l'ancien format automatiquement.
 - Tout est perdu dans trois cas :
@@ -250,27 +250,19 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
   - l'installation entre-temps d'un autre firmware qui écrit dans cette zone ;
   - un retour à une version plus ancienne que celle qui a écrit la configuration.
 
-**Modifier la configuration plus tard** : connecte-toi au point d'accès de l'afficheur, toujours actif, puis ouvre `192.168.4.1`, ajuste et enregistre. Les changements s'appliquent sans redémarrage. Les mises à jour du firmware passent par le même point d'accès (`/update`).
+**Modifier la configuration plus tard** : connecte-toi au point d'accès de l'afficheur, toujours actif, puis ouvre `192.168.4.1` (ou l'adresse de l'afficheur sur le Wi-Fi maison), ajuste et enregistre. Les onglets Pages et Écran s'appliquent sans redémarrage ; l'onglet Réseau redémarre l'afficheur. Les mises à jour du firmware passent par le même point d'accès (`/update`, onglet Système).
 
-**Réglages de la page**
+**L'interface (3.0.0)** : 5 onglets, barre en bas de l'écran du téléphone, chacun à sa propre adresse.
 
-- **Général** : adresse de la passerelle (`http://IP_SERVEUR:8080`) et ville.
-- **Pages et modules** : la liste suit les modules de la passerelle.
-  - Coche les pages à afficher.
-  - Renseigne les réglages demandés : pour Crypto, Actions, Devises et Commodities, 3 listes (les 10 valeurs principales) et une saisie libre, 3 valeurs retenues dans l'ordre des champs (rien de choisi : valeurs du `docker-compose.yml`) ; salon vocal pour Discord ; rien à choisir pour la supervision : **tous les services de la page de statut Kuma** sont suivis, y compris ceux ajoutés ou retirés ensuite.
-  - Un module retiré de `MODULES` apparaît grisé. Un module mal configuré affiche la variable manquante.
-- **Nuit et luminosité** : plage horaire, luminosité de jour et de nuit (0 = écran éteint).
-- **État** :
-  - Wi-Fi, version de la passerelle (avec le délai avant le prochain essai si elle ne répond pas) ;
-  - mémoire libre et plus grand bloc libre, avec leur minimum depuis le démarrage, et fragmentation ;
-  - cause du dernier démarrage (mise sous tension, redémarrage planifié, urgence, mise à jour, plantage) ;
-  - nombre de redémarrages préventifs depuis la mise sous tension ;
-  - flash et place libre pour l'OTA ;
-  - boutons « Afficher maintenant » ;
-  - lien vers la page **Diagnostic** : compteurs des requêtes et de leurs échecs par cause, Wi-Fi, mémoire, et en mode diagnostic (activé à la demande) le journal des 32 dernières requêtes et une sonde réseau. Voir `docs/PASSERELLE.md`, § 11.
+- **Pages** (`/`) : la rotation dans l'ordre réel, un interrupteur par page, une ligne d'état sous chaque nom (valeurs choisies, ville de la météo, « module absent de la passerelle », « non configuré : … »). Touche une page pour déplier ses réglages : pour Crypto, Actions, Indices, Devises, Commodities et Custom, 3 listes fournies par la passerelle et une saisie libre (rien de choisi : valeurs du `docker-compose.yml`) ; salon vocal pour Discord ; source et durée pour Photos ; rien pour la supervision (**tous les services de la page de statut Kuma** sont suivis). Chaque page dépliée a un bouton « Afficher maintenant ». La page Heure est toujours active. En bas : durée d'affichage de chaque page.
+- **Écran** (`/ecran`) : plage nocturne (interrupteur, début, fin) et luminosité de jour et de nuit (0 = écran éteint).
+- **Réseau** (`/reseau`) : Wi-Fi maison, adresse de la passerelle (`http://IP_SERVEUR:8080`) avec son état, nom du point d'accès. « Enregistrer et redémarrer ».
+- **Système** (`/systeme`) : mémoire libre, durée de marche, état de la passerelle, cause du dernier démarrage ; mise à jour du firmware (`/update`) ; redémarrage.
+- **Diagnostic** (`/debug`) : mode diagnostic (journal des 32 dernières requêtes et sonde réseau, activé à la demande), Wi-Fi et mémoire, compteurs des requêtes et de leurs échecs par cause, nouveaux essais, temporisations. Voir `docs/PASSERELLE.md`, § 11.
 
 **Comportement**
 - Rotation des pages cochées, d'une durée chacune (10 s par défaut).
+- **Écran de nuit** (3.0.0) : pendant la plage nocturne, l'écran n'affiche que l'heure, en ambre sombre, à la luminosité de nuit ; aucune autre page (ni rotation, ni début de lecture Plex, ni début de charge Tesla). Une **panne de supervision** s'affiche à la place, à la **luminosité de jour**, et reste affichée jusqu'au retour à la normale ; l'écran de nuit revient ensuite. La nuit, l'afficheur ne demande plus que l'heure et la supervision.
 - Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête à chaque arrivée. En haut, l'icône du serveur dans le coin gauche et le nom du salon centré sur l'espace restant ; dessous, les photos de profil avec le pseudo (8 caractères au plus) et l'état (micro ou casque coupé, LIVE), en pastille proportionnelle à la photo. Les photos sont aussi grandes que possible : une seule en grand, 2 côte à côte, 2 × 2 pour 3 ou 4 personnes, 3 colonnes sur 2 lignes pour 5 ou 6 ; au-delà de 6, 5 photos et une pastille « +N ».
 - Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture commence. Une lecture : grande affiche, qui regarde, bibliothèque, épisode, mode (direct, flux direct, transcodage, en pause), titre et progression. Plusieurs : une ligne par lecture avec son affiche (3 au plus, puis « + N autres lectures »).
 - Crypto, Actions, Indices, Devises, Commodities, Custom (tous les prix en dollars, sauf les indices en points) : 1 valeur choisie = page sur 30 jours : logo de 44 px et prix centré sur sa hauteur, variations 7 j et 30 j dans deux bulles, puis la courbe sur toute la largeur, avec deux repères de prix en filigrane (valeurs rondes sans unité, ex. « 150 » et « 200 », sur des pointillés, libellés entre les deux lignes) et trois dates dessous (il y a 30 jours, 15 jours, aujourd'hui : « 28 sept. », « 13 oct. », « 28 oct. »). 2 ou 3 = « prix en vedette », identique pour les quatre pages : un bloc par valeur, sur toute la largeur de l'écran, sans fond, avec le logo collé à gauche (61 px à 2 valeurs, 39 px à 3), le prix centré sur sa hauteur, et dessous les bulles « 24 h » et « 7 j » (intitulé gris, valeur en vert ou en rouge) ; suivi d'une **page dédiée sur 30 jours pour chaque valeur qui varie de 5 % ou plus en 7 jours** (hausse ou baisse). Prix avec au moins 4 chiffres (2,184 $) ; très petits prix abrégés : « 0,0₅4540 $ » pour 0,000004540 $. Les tailles ne dépendent pas des valeurs : si un prix ou des variations sont trop longs, la police plus petite s'applique à toutes les cartes de l'écran, qui restent identiques. Une valeur saisie inconnue s'affiche avec « ? », son code et « Introuvable ». Logos (marge retirée et agrandis pour remplir leur pastille) : CoinGecko pour les cryptos, Logo.dev pour les actions (clé `LOGO_DEV_TOKEN`, facultative), pastilles (symbole de la monnaie) et icônes incluses dans la passerelle pour les devises et matières premières ; à défaut, une pastille avec le code ; les logos des actions et matières premières sont posés directement sur le fond, sans disque. Chaque icône peut être remplacée par la vôtre (voir « Icônes personnelles »).
@@ -288,7 +280,9 @@ Le plafond mémoire (`mem_limit`) est commenté par défaut : il fait échouer l
   - un seul redémarrage par nuit ;
   - si l'heure est inconnue (passerelle injoignable), redémarrage après 25 h de fonctionnement.
 - **Redémarrage d'urgence** si la mémoire reste trop morcelée pendant une minute (plus grand bloc libre sous 4 Ko). C'est un filet de sécurité qui ne devrait jamais servir.
-- **Passerelle injoignable** : les appels sont espacés (5 s, 15 s, 30 s, puis 60 s) pour que l'afficheur et son interface restent réactifs. Le rythme normal reprend dès qu'elle répond.
+- **Raté réseau isolé** (3.0.0) : une requête qui échoue (connexion impossible, connexion perdue, délai dépassé) est refaite une fois tout de suite.
+- **Passerelle injoignable** (deux essais ratés) : les appels sont espacés (5 s, 15 s, 30 s, puis 60 s) pour que l'afficheur et son interface restent réactifs. Le rythme normal reprend dès qu'elle répond.
+- Discord et Plex sont interrogés toutes les 5 s pendant une présence ou une lecture, toutes les 15 s sinon.
 - Un redémarrage logiciel ne coupe pas l'alimentation. Pour une vraie coupure électrique, il faut une prise connectée programmée.
 
 ---
@@ -325,8 +319,8 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 | Route | Rôle |
 |---|---|
 | `/modules` | Manifeste : modules actifs, état de configuration, réglages à proposer |
-| `/time?ville=` | Heure locale, lever et coucher du soleil. Toujours disponible : sert aussi à la plage nocturne |
-| `/meteo?ville=` | Météo du jour (page Heure) + 5 jours (page Météo) |
+| `/time` | Heure locale, lever et coucher du soleil (ville : `VILLE`). Toujours disponible : sert aussi à la plage nocturne |
+| `/meteo` | Météo du jour (page Heure) + 5 jours (page Météo) (ville : `VILLE`) |
 | `/btc?s1=bitcoin&s2=&s3=&m=pepe` | Cryptos choisies (3 au plus ; rien : `CRYPTOS` du compose) ; courbe 30 jours si une seule |
 | `/btc/30j?id=ripple` | Une crypto sur 30 jours (page dédiée) |
 | `/btc/liste` | Les 10 premières cryptos (listes de l'interface) |

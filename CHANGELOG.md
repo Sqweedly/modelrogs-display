@@ -12,12 +12,36 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [Non publié] — branche `beta`
+## [3.0.0] — 2026-11-05
 
-À renommer en numéro de version au moment de la publication.
+Version majeure : nouvelle interface web, écran de nuit, réseau plus robuste, ville réglée sur la passerelle. **L'image passe à l'étiquette `:3`.**
+
+### Ajouté
+- Afficheur : **écran de nuit**. Pendant la plage nocturne, l'heure seule, en ambre sombre (`#A04C00`, chiffres de la page Heure), centrée, redessinée chaque minute, à la luminosité de nuit. Aucune autre page la nuit (ni rotation, ni début de lecture Plex, ni début de charge Tesla, ni page demandée depuis l'interface). Une **panne de supervision** s'affiche à la place, à la **luminosité de jour**, et reste affichée jusqu'au retour à la normale ; l'écran de nuit revient ensuite (le jour, l'alerte alterne toujours avec les pages). La nuit, l'afficheur ne demande plus que l'heure et la supervision. Pas de nouveau réglage : l'écran de nuit suit la plage nocturne.
+- Afficheur : **nouvelle interface web**, conforme à la maquette validée (`docs/maquettes/interface-web-3.0.0.png`). Cinq onglets, une adresse chacun, barre en bas : **Pages** (`/`), **Écran** (`/ecran`), **Réseau** (`/reseau`), **Système** (`/systeme`), **Diagnostic** (`/debug`). Pages : rotation dans l'ordre réel, un interrupteur par page, ligne d'état (valeurs choisies, ville de la météo, module absent ou non configuré), réglages dépliés sous la page (les 3 listes déroulantes des pages de cours restent, fournies par la passerelle), « Afficher maintenant », durée au curseur. Chaque onglet n'enregistre que ses propres champs ; l'onglet Réseau redémarre l'afficheur. Le diagnostic prend le même style ; `/debug.json` ne change pas (deux clés en plus, voir ci-dessous).
+- Afficheur : **un nouvel essai immédiat après un raté réseau** (connexion impossible, connexion perdue, délai dépassé), pour les données et les images. La temporisation (5 s, 15 s, 30 s, 60 s) ne démarre plus qu'après deux essais ratés. Cause traitée (diagnostic du 2026-11-01) : un paquet d'ouverture de connexion perdu n'est renvoyé par la pile réseau qu'au bout de 3 s, alors que l'afficheur abandonne à 2,5 s. Compteurs `relances` et `relances_ok` dans `/debug.json` et l'onglet Diagnostic.
+- Passerelle : `VILLE` (ville de l'heure, de la météo, du lever et du coucher du soleil). `VILLE_DEFAUT`, l'ancien nom, reste accepté ; Paris par défaut. Le manifeste `/modules` donne cette ville au module météo (`"v"`).
+- Outils : banc d'essai de l'interface web (`firmware/tools/simulateur/test_web.cpp`) qui exécute le vrai `web.cpp` sur PC ; lancé par `apercu.sh` et par GitHub Actions après la compilation du firmware. Données d'essai produites par la vraie passerelle (`gateway/tools/fixtures_interface.py`).
 
 ### Modifié
-- `docker-compose.yml` : `tesla` ajouté à la liste `MODULES` par défaut. Sans `TESLA_MQTT_HOTE`, le module est signalé « non configuré » dans le log et l'interface, et la page Tesla n'apparaît pas.
+- Afficheur : **rétroéclairage par le générateur sigma-delta matériel** de l'ESP8266 au lieu de la modulation logicielle d'`analogWrite` (code de l'essai 2.12.1-sd1). Plus d'interruption du processeur 1 000 fois par seconde ; 892 octets de moins en IRAM (27 735 au lieu de 28 627). Le mode secours garde sa simple écriture de broche.
+- Afficheur : Discord et Plex sont interrogés toutes les 15 s quand il n'y a rien à afficher (personne en salon, aucune lecture), toutes les 5 s sinon. Une arrivée ou un début de lecture est vu au plus 15 s plus tard.
+- Afficheur : la **ville** n'est plus réglée sur l'afficheur ni envoyée à la passerelle (`/time` et `/meteo` sans `?ville=`). Le champ reste dans la configuration, inutilisé (structure inchangée). Une ville envoyée par un afficheur 2.x reste respectée par la passerelle.
+- Afficheur : la page **Heure est toujours active** (plus de case pour la décocher).
+- `docker-compose.yml` : image `:3` ; `VILLE` au lieu de `VILLE_DEFAUT` ; `tesla` ajouté à la liste `MODULES` par défaut (sans `TESLA_MQTT_HOTE`, le module est signalé « non configuré » et la page Tesla n'apparaît pas).
+
+### Inchangé
+- Mise à jour par OTA (`/update`, `ESP8266HTTPUpdateServer`) : code non modifié, seuls les liens qui y mènent ont changé de style.
+- Mode secours (3 plantages en moins de 60 s : Wi-Fi, interface et OTA seulement).
+- Structure de la configuration de l'afficheur (version 8, 908 octets) : tous les réglages sont conservés.
+
+### Mise à jour
+1. **Passerelle d'abord.** Dans votre `docker-compose.yml` : `image: ghcr.io/sqweedly/modelrogs-gateway:3`, et ajouter `VILLE: <votre ville>` dans `environment` (sinon Paris). Puis `docker compose pull && docker compose up -d`.
+2. **Afficheur ensuite**, par `/update` (onglet Système une fois à jour). La configuration est conservée.
+3. Retour possible à la 2.15.0 : image `:2` et firmware 2.15.0 par OTA.
+
+### Documentation
+- `README.md` (interface à onglets, écran de nuit, nouvel essai, `VILLE`), `docs/PASSERELLE.md` (`VILLE`), `docs/DEVELOPPEMENT.md` (banc d'essai de l'interface), `docs/CONTEXTE.md` (état, backlog n° 5, 9, 11, 13, 14, 15 faits), maquette `docs/maquettes/interface-web-3.0.0`.
 
 ---
 

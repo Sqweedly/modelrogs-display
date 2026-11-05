@@ -12,13 +12,15 @@ Il rassemble ce que le code ne dit pas : l'état à la clôture, la façon de tr
 
 ---
 
-## 1. État à la clôture (2026-11-04)
+## 1. État à la clôture (2026-11-05)
 
-- **Dernière version : 2.15.0**, tag `v2.15.0` sur `main` (page Tesla, données de TeslaMate en MQTT ; voir `CHANGELOG.md`). Précédente : 2.14.0 (diagnostic de bout en bout). Le diagnostic a été validé sur le matériel réel par le propriétaire (mesure du 2026-11-01, voir backlog n° 13 et 14). Le numéro ne vient que du tag : GitHub Actions l'injecte dans le firmware et dans l'image. Aucun numéro n'est écrit dans le code.
+- **Dernière version : 3.0.0**, tag `v3.0.0` sur `main` (interface web à 5 onglets, écran de nuit, nouvel essai réseau, rétroéclairage sigma-delta, ville sur la passerelle ; voir `CHANGELOG.md`). Publiée directement sur `main`, sans beta, à la demande du propriétaire (exception à la règle n° 9) ; un commit par point du backlog pour pouvoir en retirer un. Précédente : 2.15.0 (page Tesla). Le diagnostic a été validé sur le matériel réel par le propriétaire (mesure du 2026-11-01, voir backlog n° 13 et 14). Le numéro ne vient que du tag : GitHub Actions l'injecte dans le firmware et dans l'image. Aucun numéro n'est écrit dans le code.
 - **Vérifié avant la clôture**, sur une copie vierge du dépôt :
   - tests de la passerelle (`python -m tests.test_passerelle`), tous passés ;
   - test de conservation de la configuration du firmware (structure `Config` v8, 908 octets sur 1024 ; `reserve[0]` bit 0 = page Tesla déjà activée une fois, 2.15.0) ;
-  - page Tesla : tests avec un vrai serveur mosquitto en local (sauté sur GitHub, où mosquitto n'est pas installé) ; compilation PlatformIO 6.1.16 locale : IRAM inchangée (28 627 octets), RAM statique 37 732 octets ;
+  - page Tesla : tests avec un vrai serveur mosquitto en local (sauté sur GitHub, où mosquitto n'est pas installé) ;
+  - 3.0.0 : compilation PlatformIO 6.1.16 locale : code en IRAM 27 735 octets (−892 avec le sigma-delta), RAM statique 37 780 octets, flash 608 135 octets ; banc d'essai de l'interface web (`test_web.cpp`) passé ; écran de nuit rendu au simulateur. **Non vérifié sur le matériel** : écran de nuit, alerte de nuit, nouvel essai réseau, mémoire libre pendant l'envoi de chaque onglet ;
+  - `/modules` de la passerelle : 4 077 octets dans les tests pour un plafond de 4 096 (mémoire de l'afficheur) ; ne plus rien y ajouter sans réduire ailleurs ;
   - simulateur (44 écrans, 420 cas de placement de textes, 0 différence) ;
   - compilation complète du firmware ESP8266 avec PlatformIO 6.1.16 (version de la CI) : RAM 45,4 %, code en IRAM 28 627 octets sur 32 768. Seule la compilation de GitHub Actions fait foi pour les binaires livrés.
 - **Non vérifié avant la clôture** :
@@ -31,7 +33,7 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 | Élément | Valeur |
 |---|---|
 | Dépôt | `github.com/Sqweedly/modelrogs-display`, privé. Le propriétaire pousse lui-même : pas d'application Claude installée sur GitHub. |
-| Image de la passerelle | `ghcr.io/sqweedly/modelrogs-gateway:2` (`pull_policy: always`) |
+| Image de la passerelle | `ghcr.io/sqweedly/modelrogs-gateway:3` depuis la 3.0.0 (`pull_policy: always`) ; ville : `VILLE: Sernhac` à mettre dans son `docker-compose.yml` |
 | « Docker passerelle » | la machine qui fait tourner le conteneur `modelrogs-gateway`, à l'adresse `192.168.1.X:8680` (port publié 8680) |
 | Immich | `http://192.168.1.X:2283`. Version annoncée « 3.10 », à confirmer dans Administration >  |
 | Afficheur | GeekMagic SmallTV (ESP8266, écran ST7789 240 × 240). Mise à jour par `http://<afficheur>/update`, à conserver. |
@@ -42,7 +44,7 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 2. **Numérotation** :
    - correctif (x.y.**Z**) : retouche légère ;
    - mineure (x.**Y**.0) : modification plus importante, nouvelle page ou nouvelle fonction ;
-   - majeure (**X**.0.0) : grand changement. L'étiquette `:2` de l'image change alors dans `docker-compose.yml`.
+   - majeure (**X**.0.0) : grand changement. L'étiquette majeure de l'image (`:3` depuis la 3.0.0) change alors dans `docker-compose.yml`.
 3. **`CHANGELOG.md` complet**, mis à jour à chaque version, y compris quand une version est remplacée.
 4. **Avant de corriger, dire ce qu'on va faire** : cause trouvée, correction proposée, puis attendre l'accord. Pour un changement d'écran, montrer un design (maquette PNG produite avec le simulateur) et attendre sa validation. Le propriétaire demande souvent « résume et propose » : un résumé précis et complet, puis une proposition.
 5. **Pour faire tester une fonction ou une page de la passerelle**, parler du « docker passerelle » et donner des commandes qui visent son adresse et son port, par exemple `curl -s "http://192.168.1.X:8680/immich?s=souvenirs" ; echo`. Ne pas donner de commandes visant le port d'Immich ou de Plex, sauf pour un diagnostic explicite, en le disant.
@@ -64,79 +66,20 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 
 À traiter. Pour chacun, résumer et proposer avant de coder.
 
-**Version cible : 3.0.0** (majeure), qui regroupera un maximum de corrections du backlog. Rappel de la règle n° 2 : une version majeure change l'étiquette de l'image dans `docker-compose.yml` (`:2` → `:3`).
+**3.0.0 publiée le 2026-11-05** avec les n° 5, 9, 11, 13, 14 et 15. Pas de version cible pour la suite.
 
 1. **Discord** : afficher les amis connectés au serveur Discord qui ne sont dans aucun salon vocal.
 2. **Plex, nouveautés** : un écran des derniers ajouts du serveur Plex, avec une page Films et une page Séries (affiche et date d'ajout).
 3. **Tesla, écran de batterie** : fait en 2.15.0 (voir § 5). Reste à vérifier sur une vraie charge : `time_to_full_charge` compte-t-il jusqu'à la limite (comparer avec l'application Tesla). Photos du propriétaire à déposer dans `/icones/tesla/` (images provisoires en attendant).
 4. **Piste d'amélioration (non demandée)** : préparer à l'avance la photo suivante de la page Photos. Aujourd'hui, l'image est téléchargée et convertie quand l'afficheur la demande ; sur une machine lente, le délai de 2,5 s de l'afficheur peut être dépassé. Voir « Limites connues » dans `docs/PASSERELLE.md`.
-5. **Interface web, plage nocturne** (cible 3.0.0, traité avec le n° 11, maquette validée le 2026-11-05) : passer en blanc les 2 icônes « horloge » des champs Début et Fin (`<input type='time'>`, champs `nd` et `nf` de `firmware/src/web.cpp`). Solution retenue : `color-scheme: dark` (MDN, « color-scheme »), vérifiée dans Chromium seulement ; à tester sur le navigateur du téléphone du propriétaire (ouvrir `docs/maquettes/interface-web-3.0.0.html`).
+5. **Interface web, plage nocturne** : fait en 3.0.0 (`color-scheme: dark`). À vérifier sur le navigateur du téléphone du propriétaire.
 6. **Passerelle, Yahoo** : erreur intermittente `curl: (16) Error in the HTTP2 framing layer` sur l'indice `^GSPC` (journal du 2026-10-31). La donnée précédente reste affichée ; à examiner.
 7. **Photos en JPEG** : envoyer la photo compressée en JPEG au lieu de RGB565 brut, et la décoder sur l'afficheur. Constat mesuré le 2026-10-31 : une photo fait 115 200 octets et sa réception prend 1 à 2,2 s (50 à 115 Ko/s), contre environ 50 ms pour l'écran et 200 ms au plus pour la passerelle ; la limite est le débit réseau de l'ESP8266 (fenêtre TCP de 2 144 octets en lwIP « Lower Memory »). Piste : bibliothèque TJpg_Decoder de Bodmer (basée sur tjpgd), dont l'auteur annonce 167 ms de décodage à 160 MHz pour son image de test (forum Arduino, « New Jpeg decoder library - based on tjpgd »). À établir avant de coder : taille réelle des JPEG 240 × 240, mémoire nécessaire pendant le décodage (le plus grand bloc libre descend à environ 20 Ko), lecture du flux réseau au fil de l'eau (sans garder l'image entière), comportement sur une image corrompue. La route `/img` en RGB565 reste en place pour les autres images et en secours. Essai sur la branche `beta`, avec mesure avant et après.
 8. **Pile réseau « Higher Bandwidth »** (essai sur `beta` le 2026-11-03, **non concluant, suspendu**, piste laissée ouverte) : résultat de l'essai (1 h 54) : 103 images incomplètes sur 1 049 et 22 délais dépassés (contre 0 et 1 avec la 2.14.0 le 2026-11-01), blocages de plus de 2,4 s même sur des icônes de 2 888 octets, aucun gain mesurable sur les photos ; mais signal à −78/−82 dBm au lieu de −71/−75 : les deux causes ne peuvent pas être séparées (le propriétaire a depuis déplacé l'afficheur, retour à −72 dBm, et pense que la pile n'est pas en cause). Retour beta → 2.14.0 par OTA réussi. À refaire, si on reprend la piste, au même emplacement et dans la même heure que la 2.14.0. Description d'origine : `-D PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH` dans `build_flags` (bibliothèque `lwip2-1460-feat`). MSS 536 → 1 460 octets, fenêtre de réception 2 144 → 5 840 octets, tampon d'envoi 1 072 → 2 920 octets. Compilé le 2026-10-31 : IRAM et RAM statique inchangées, flash +12 octets ; le coût est dans le tas pendant les transferts (tampons lwIP alloués dynamiquement). Gain attendu sur la réception des photos : jusqu'à environ 2,7 fois, non garanti. Touche indirectement l'OTA (même pile réseau, code de l'OTA inchangé) : une OTA échouée laisse l'ancien firmware en place, et l'Updater réduit son tampon de 4 Ko à 256 octets si le tas libre passe sous 8 Ko. Méthode prévue : beta 1 = mesure seule (ligne « Dernière photo », réception en `readBytes` conservée) ; beta 2 = beta 1 + Higher Bandwidth ; relever temps de réception, minimums de mémoire et de plus grand bloc libre, images manquantes, et faire une OTA depuis la beta 2. Critères de succès fixés avant l'essai (mesures du diagnostic, 1 à 2 h, mêmes conditions que le 2026-11-01) : temps total médian des `/img` de photos nettement sous 2,1 s ; plus grand bloc libre jamais sous 10 Ko environ ; pas plus d'échecs réseau qu'avant (11 pour 6 633 requêtes) ; 3 OTA consécutives réussies depuis la beta, dont un retour à la 2.14.0. Sinon, ne pas intégrer à la 3.0.0.
-9. **Rétroéclairage par sigma-delta matériel** au lieu d'`analogWrite` (`sigma_delta.h` : `sigmaDeltaSetup(0, 1220)`, `sigmaDeltaWrite`, `sigmaDeltaAttachPin`/`DetachPin` ; 0 % et 100 % par `digitalWrite`, actif à l'état bas). Libère 892 octets d'IRAM (plus d'interruption NMI du timer1 à 1 kHz). Essayé en 2.12.1-sd1 : fonctionne, sans échauffement. Fréquence d'impulsions jusqu'à environ 157 kHz à mi-luminosité ; circuit du rétroéclairage du SmallTV non documenté. Utile seulement si l'IRAM devient une contrainte ; le code de l'essai est dans `2.12.1-sd1-retroeclairage.patch`.
+9. **Rétroéclairage par sigma-delta matériel** : fait en 3.0.0 (code de l'essai 2.12.1-sd1 ; IRAM −892 octets).
 10. **Réception des images en mode bloc** : dans `gwImage` (`firmware/src/net.cpp`), remplacer `readBytes` (lecture octet par octet héritée de `Stream`, avec un `tcp_recved` par octet) par une lecture en bloc (`available()` puis `WiFiClient::read(buf, n)`, arrêt si `connected()` est faux ou après 2,5 s sans données). Essayé en 2.12.1-sd2 : aucun gain de vitesse mesuré, et des « réceptions interrompues » (photos indisponibles, icônes remplacées par une pastille), absentes de la 2.12.1. Mécanisme non identifié par la lecture du code du cœur. Ne pas reprendre sans avoir trouvé la cause (relever d'abord les octets reçus au moment de l'échec, avec le diagnostic de la 2.12.1-sd3) ; d'ici là, la règle du § 6 s'applique (garder `readBytes`). Code de l'essai : `2.12.1-sd2.patch` et `2.12.1-sd3.patch` (diagnostic).
-11. **Interface web de l'afficheur, plus visuelle** (cible 3.0.0, **maquette validée telle quelle le 2026-11-05** : `docs/maquettes/interface-web-3.0.0.png` et `.html`, à reproduire exactement). Contenu arrêté :
-    - **5 onglets**, une adresse chacun, sans JavaScript, barre d'onglets en bas : **Pages** (`/`), **Écran** (`/ecran`), **Réseau** (`/reseau`), **Système** (`/systeme`, icône engrenage), **Diagnostic** (`/debug`). En-tête : « MODELROGS Display », version (sans la ville), pastilles Wi-Fi, passerelle, heure.
-    - **Pages** : rotation dans l'ordre réel, un interrupteur par page (Heure toujours active, page grisée si son module manque sur la passerelle), une ligne d'état sous chaque page, réglages dépliés sous la page. Les réglages restent décrits par la passerelle (`/modules`) : les pages de cours gardent leurs 3 listes déroulantes et le champ « Autre valeur ». Durée d'affichage au curseur.
-    - **Écran** : plage nocturne (interrupteur, Début, Fin, icônes horloge blanches : n° 5), luminosité de jour et de nuit, enregistrées par le bouton « Enregistrer » comme aujourd'hui.
-    - **Réseau** : Wi-Fi maison (nom saisi, mot de passe), adresse de la passerelle **gardée sur l'afficheur** avec son état (connectée, version, nombre de modules), « Point d'accès » (nom, ouvert, actif si le Wi-Fi maison est absent). Bouton « Enregistrer et redémarrer ».
-    - **Système** : mémoire libre, durée de marche, état de la passerelle ; mise à jour du firmware (page `/update` et code OTA **inchangés**) ; redémarrage.
-    - **Diagnostic** : la page `/debug` actuelle dans le même style (interrupteur du mode, Wi-Fi et mémoire, compteurs, dernières requêtes) ; `/debug.json` inchangé.
-    - **Ville** : retirée de l'interface, réglée dans `docker-compose.yml` (`VILLE`, `VILLE_DEFAUT` toujours accepté ; Paris par défaut). L'afficheur n'envoie plus `?ville=` à `/time` et `/meteo` ; un afficheur 2.15 qui l'envoie encore est respecté. Seule la ligne Météo de l'onglet Pages montre la ville, fournie par la passerelle. Champ `ville` gardé dans `Config`, inutilisé (structure inchangée). Note de mise à jour : ajouter `VILLE: Sernhac` au `docker-compose.yml`.
-    - **Exclus par le propriétaire** : réglage de la luminosité en direct, liste des réseaux Wi-Fi détectés.
-    - Pas de police ni de bibliothèque externe, icônes en emojis ; style commun estimé à environ 3 Ko de flash. À mesurer pendant le développement : mémoire libre pendant l'envoi de chaque onglet, taille ajoutée en flash.
+11. **Interface web de l'afficheur, plus visuelle** : fait en 3.0.0, conforme à la maquette validée (`docs/maquettes/interface-web-3.0.0`). Écarts assumés, faute de place sur la maquette : bouton « Afficher maintenant » dans chaque page dépliée, ligne « Dernier démarrage » dans Système, sous-titre de l'interrupteur de nuit « écran de nuit, luminosité réduite ». Ville sur la passerelle (`VILLE`).
 12. **Plex à 2 lectures, titre trop long** : corrigé en 2.14.0 (titre toujours sur une ligne : 16 px, sinon 14 px, sinon 12 px, puis « … »).
-13. **Nouvel essai immédiat après un échec réseau** (correction, cible 3.0.0) : dans `gwGet()` et `gwImage()` (`firmware/src/net.cpp`), refaire la requête une fois tout de suite après une connexion impossible (-1), un délai dépassé (-11) ou une connexion perdue (-5), et ne déclencher la temporisation qu'après 2 échecs de suite. Constat du diagnostic du 2026-11-01 (2 h 41, 6 633 requêtes) : 11 échecs, tous isolés (la requête suivante passait toujours) : 10 « connexion impossible » (jamais reçues par la passerelle) et 1 « délai dépassé » (`/meteo` traitée en 0,3 ms par la passerelle, réponse perdue au retour) ; 9 temporisations, 24 appels et 2 images sautés (messages « Passerelle injoignable », pastilles à la place des icônes). Cause : un SYN perdu (signal Wi-Fi de −71 à −75 dBm, aucune déconnexion) n'est renvoyé par lwIP 2.1.3 qu'au bout de 3 000 ms (`tcp.c`, `pcb->rto = 3000 / TCP_SLOW_INTERVAL`), alors que l'afficheur abandonne à 2,5 s. Un nouvel essai ouvre une nouvelle connexion, donc envoie un nouveau SYN aussitôt. Requêtes en GET : sans risque à répéter. Vérifier ensuite avec le diagnostic : plus aucune temporisation sur un raté isolé.
-14. **Interroger Plex et Discord moins souvent quand il n'y a rien à afficher** (cible 3.0.0) : aujourd'hui toutes les 5 s chacun (`PLEX_POLL_MS`, `DISCORD_POLL_MS` dans `firmware/src/main.cpp`), même sans lecture ni personne en salon : 1 984 + 1 979 requêtes en 167 min, soit 58 % du trafic de l'afficheur, donc 58 % des occasions de raté réseau. Piste : un intervalle plus long au repos (par exemple 15 s), le rythme de 5 s étant gardé pendant une lecture ou une présence. Effet sur la réactivité à vérifier : une arrivée dans le salon ou le début d'une lecture serait vu jusqu'à 15 s plus tard.
-15. **Écran de nuit** (maquette du simulateur du 2026-11-01) : pendant la plage nocturne, à la place de la rotation et à la luminosité de nuit, l'heure en très grand (police `F_68`, chiffres de la page Heure) et la date en dessous en `F_16`, plus sombre, sans autre information. Deux variantes : A, ambre sombre (heure `#A04C00`, date `#552A00`), préférée par l'assistant car moins éblouissante dans le noir ; B, gris neutre (heure `#707070`, date `#404040`). Aucune nouvelle donnée : heure et date viennent déjà de `/time`, aucune police à ajouter. Sur un écran LCD, le noir laisse passer un peu de rétroéclairage : la discrétion vient surtout de la luminosité de nuit. Questions ouvertes : variante A ou B, date conservée ou non.
-
-## 5. Choix de design retenus
-
-Ces choix ont été validés par le propriétaire sur maquette. Ne pas les changer sans demande.
-
-- **Général** :
-  - fond noir pur, flat design en couleurs (pas d'icônes monochromes) ;
-  - textes secondaires en gris **neutres**, sans teinte bleue : `GRIS_CLAIR` C8C8C8, `GRIS_REPERE` A0A0A0, `GRIS_GRILLE` 3C3C3C ;
-  - le code de dessin est dans `firmware/src/pages.cpp` et `ui.cpp` ; les couleurs d'accent par page sont dans `ui.h`.
-- **Heure** : en-tête « mercredi 28 octobre » (jour et mois en toutes lettres, en minuscules, sans l'année), en blanc et centré sur la largeur (design A, 2.9.1).
-- **Pages de cours** (Crypto, Actions, Indices, Devises, Commodities, Custom) :
-  - tous les prix sont en dollars, sauf les indices, en points ;
-  - vrais logos sans nom à l'écran : logo à pleine taille (44 px), sans disque ni contour (2.11.0) ;
-  - devises et indices : pastilles avec le symbole (`gateway/tools/icones_devises.py`) ;
-  - icônes personnelles possibles dans le volume `/icones` de la passerelle.
-- **Écran à une seule valeur** (30 jours) :
-  - en haut, l'icône et le prix, centré sur la hauteur de l'icône ;
-  - bulles « 7 j » et « 30 j » sur une ligne (pas de 24 h) ;
-  - courbe remplie d'une couleur unie à 15 %, sans dégradé ;
-  - 2 repères de prix sans unité : le repère bas a sa valeur au-dessus de la ligne, le repère haut en dessous ;
-  - dates sur l'axe horizontal, aucun filigrane ;
-  - intitulés 24 h / 7 j / 30 j en blanc.
-- **Écrans à 2 ou 3 valeurs** :
-  - 2 lignes par valeur : icône tout à gauche et prix centré sur sa hauteur, puis les variations 24 h / 7 j en bulles ;
-  - pas de carte grise de fond (2.11.0) ;
-  - tailles de police uniformes sur un même écran, identiques pour toutes les catégories.
-- **Plex** : nom de l'utilisateur centré à droite de l'affiche. À 2 lecteurs, le nom est centré et abaissé de 6 px, et le titre tient toujours sur une ligne (16 px, sinon 14 px, sinon 12 px, puis « … ») (2.14.0).
-- **Discord** : icône en haut à gauche, nom du salon centré sur l'espace à droite de l'icône. La page n'apparaît que si quelqu'un est connecté.
-- **Photos** (design D, 2.12.0) :
-  - photo seule en plein écran, sans texte ni points de pagination ;
-  - pastille violette « Il y a N ans » en haut à gauche pour un souvenir ;
-  - photo en hauteur : entière, sur un fond flou fait d'elle-même ;
-  - durée d'affichage propre à la page (30 s par défaut, de 10 s à 5 min).
-- **Tesla** (2.15.0, maquette validée le 2026-11-04) : bandeau de 72 px (batterie et pourcentage en vert ; état « En route », « Stationnée », « Branchée » en haut à droite, éclair en charge ; ligne « Autonomie 222 km », « Limite de charge : 80 % » ou « 80 % dans 1 h 05 min ») et photo de l'état en 240 × 168. Pas de points de pagination. Données : TeslaMate en MQTT ; chez le propriétaire, conteneur `teslamate-mqtt`, réseau Docker `docker_default`, voiture n° 1, sans espace de noms ni identifiants ; `state` vaut aussi `suspended` (voiture qui s'endort, affichée « Stationnée »).
-- **Ordre de rotation** : Heure, Météo, Discord, Supervision, Crypto, Actions, Indices, Devises, Commodities, Custom, Photos, Tesla, Plex. Plex passe en priorité au début d'une lecture, Tesla au début d'une charge ; Discord et Plex sont masqués quand ils n'ont rien à montrer, Tesla tant que rien n'est reçu de TeslaMate.
-
-## 6. Règles techniques à ne pas casser
-
-- **Réponses lues par l'afficheur** : moins de 2 048 octets, 4 096 pour `/modules`. Les tests le vérifient pour chaque route. `/debug` (passerelle et afficheur) est destiné à un humain et n'a pas cette limite.
-- **Diagnostic** (`gateway/app/diagnostic.py`, `firmware/src/diag.cpp`) : tout appel de l'afficheur à la passerelle porte l'en-tête `X-Req` et passe par `diagRequete()` ; le diagnostic ne doit jamais modifier un code de retour ni la temporisation. Une nouvelle source appelée avec la session aiohttp est mesurée automatiquement ; un nouveau cache passe par `cache.obtenir()` pour l'être aussi.
-- **Configuration de l'afficheur en EEPROM** (`Config`, `firmware/src/config.h`) :
-  - toute modification ajoute ses champs **à la fin** de la structure, augmente `CONFIG_VERSION` et ajoute une migration dans `config.cpp` ;
-  - la migration est couverte par `tools/simulateur/test_config.cpp` ;
-  - les réglages de l'utilisateur ne doivent jamais être perdus lors d'une mise à jour.
-- **`PageId`** : ajouter les nouvelles pages à la fin ; l'ordre d'affichage est donné par `ROTATION`.
-- **Taille du firmware et de l'IRAM** : ne rien ajouter en `IRAM_ATTR` sans nécessité (voir ci-dessous).
-- **Images** : la passerelle fait tout le travail (Pillow) et envoie du RGB565 ligne par ligne, 240 × 240 au plus. L'afficheur ne garde jamais une image entière en mémoire.
-- **Réception des images** (`gwImage`, `firmware/src/net.cpp`) : garder `readBytes`. Un essai de lecture en bloc (`WiFiClient::read` avec `available()`/`connected()`) a provoqué des « réceptions interrompues » (photos indisponibles, icônes remplacées par une pastille) sans gain de vitesse (essai du 2026-10-31). La réception d'une photo (115 200 octets) prend 1 à 2,2 s : la limite est le débit réseau de l'ESP8266, pas le processeur.
-- **IRAM** : 93 % affiché, mais ce chiffre compte les 32 Ko réservés au cache. Le code en IRAM fait 28,6 Ko sur 32 Ko, dont environ 30 octets pour le projet lui-même : aucune optimisation n'est nécessaire tant qu'on n'ajoute rien en IRAM.
-- **Textes affichés** : tout passe par `ecran()` (`gateway/app/text.py`). Le jeu de caractères doit rester identique à celui des polices.
+13. **Nouvel essai immédiat après un échec réseau** : fait en 3.0.0. À vérifier avec le diagnostic : plus aucune temporisation sur un raté isolé (compteurs `relances` et `relances_ok`).
+14. **Interroger Plex et Discord moins souvent quand il n'y a rien à afficher** : fait en 3.0.0 (15 s au repos, 5 s sinon).
+15. **Écran de nuit** : fait en 3.0.0 (variante A ambre, heure seule ; panne de supervision à la luminosité de jour, gardée jusqu'au retour à la normale ; aucune autre page la nuit).

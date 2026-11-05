@@ -18,7 +18,7 @@ struct EspShim {
   uint32_t getFreeHeap() { return 30216; }
   uint32_t getMaxFreeBlockSize() { return 28896; }
   uint8_t getHeapFragmentation() { return 4; }
-  uint32_t getFreeSketchSpace() { return 413696; }
+  uint32_t getFreeSketchSpace() { return 2531328; }   // 3 Mo (avant le système de fichiers) - 600 Ko
 };
 inline EspShim ESP;
 inline void yield() {}

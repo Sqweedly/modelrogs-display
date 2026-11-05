@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>Maquette interface web — MODELROGS Display</title>
+<style>
+/* ===== Feuille de style proposée pour l'afficheur (servie depuis la flash, ~3 Ko) ===== */
+:root{--bg:#0B0E13;--card:#151A23;--line:#232A36;--txt:#EEF1F6;--mut:#8E97A8;--acc:#8B7CFF;--ok:#3DD68C;--warn:#FFB547;--ko:#FF6B70;
+  color-scheme:dark}                                   /* point 5 : contrôles natifs dessinés pour fond sombre */
+*{box-sizing:border-box}
+.app{font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);
+  width:390px;height:844px;position:relative;overflow:hidden;border-radius:38px;border:10px solid #000;box-shadow:0 0 0 2px #333}
+.top{padding:22px 18px 10px}
+.titre{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8B7CFF,#5B4BDB);display:grid;place-items:center;font-weight:700;font-size:15px}
+.titre h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.2px}
+.titre small{display:block;color:var(--mut);font-size:12px;font-weight:400}
+.puces{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.puce{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--mut)}
+.puce i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.puce.w i{background:var(--warn)}
+.corps{padding:4px 14px 90px;height:640px;overflow:hidden}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);margin:16px 6px 8px;font-weight:600}
+.carte{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.ligne{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line);min-height:52px}
+.ligne:first-child{border-top:0}
+.ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:none}
+.lib{flex:1;min-width:0}.lib b{display:block;font-weight:550}.lib span{display:block;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{color:#4A5366;font-size:18px}
+/* interrupteur */
+.sw{position:relative;width:46px;height:28px;flex:none}
+.sw input{opacity:0;position:absolute}
+.sw b{position:absolute;inset:0;background:#2A3140;border-radius:999px;transition:.2s}
+.sw b:after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s}
+.sw input:checked+b{background:var(--acc)}.sw input:checked+b:after{left:21px}
+.sw input:disabled+b{opacity:.35}
+/* champs */
+.champ{padding:12px 14px;border-top:1px solid var(--line)}
+.champ:first-child{border-top:0}
+.champ label{display:block;font-size:12px;color:var(--mut);margin-bottom:6px}
+input[type=text],input[type=password],input[type=time],select{width:100%;padding:11px 12px;background:#0F131A;color:var(--txt);
+  border:1px solid var(--line);border-radius:10px;font:inherit}
+input[type=time]{color-scheme:dark}                   /* point 5 : icône horloge blanche */
+.deux{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.val{float:right;color:var(--txt);font-variant-numeric:tabular-nums}
+.ext{background:#121722;border-top:1px solid var(--line);padding:4px 14px 12px}
+.ext .champ{padding:10px 0;border:0}
+.note{font-size:12px;color:var(--mut);margin:8px 6px 0;line-height:1.45}
+.lien{display:block;font-size:12px;color:var(--mut);background:#121722;border:1px dashed #2E3646;border-radius:12px;padding:10px 12px;margin-top:10px}
+.lien code{color:#C9C2FF;font-size:11.5px}
+.ro{color:var(--txt);font-variant-numeric:tabular-nums}
+.btn{display:block;width:100%;padding:13px;border:0;border-radius:12px;background:var(--acc);color:#fff;font:inherit;font-weight:600;text-align:center}
+.btn.g{background:#232A36;color:var(--txt)}.btn.r{background:#3A1E24;color:#FF8A8F}
+/* barre d'onglets */
+.onglets{position:absolute;left:0;right:0;bottom:0;height:78px;background:rgba(14,18,25,.96);border-top:1px solid var(--line);display:flex;padding:8px 6px 18px}
+.onglets a{flex:1;text-align:center;color:#6C7588;font-size:10.5px;text-decoration:none}
+.onglets a svg{display:block;margin:0 auto 3px;width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.onglets a.on{color:var(--acc)}
+.enreg{position:absolute;left:14px;right:14px;bottom:88px}
+.mini{display:flex;gap:4px;align-items:center}
+.lib span .pt,.pt{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:4px}
+.pt.off{background:#4A5366}.pt.w{background:var(--warn)}
+/* planche */
+body{margin:0;background:#1C1F26;font-family:system-ui,sans-serif;color:#ddd}
+.planche{display:flex;gap:34px;padding:30px 34px 34px}
+.col h3{margin:0 0 4px;font-size:17px;color:#fff}.col p{margin:0 0 14px;font-size:13px;color:#9aa;max-width:390px;height:36px}
+.entete{padding:26px 34px 0}.entete h1{margin:0;font-size:24px;color:#fff}.entete p{margin:6px 0 0;color:#aab;font-size:14px}
+</style></head><body>
+<div class="entete"><h1>Interface web de l'afficheur — proposition (backlog n° 5 et 11)</h1>
+<p>5 onglets au lieu d'une longue page. Rendu Chromium, largeur d'un téléphone (390 px). Valeurs d'exemple.</p></div>
+<div class="planche">
+
+<!-- ================= 1. PAGES ================= -->
+<div class="col"><h3>1. Pages</h3><p>Rotation dans l'ordre réel, un interrupteur par page ; réglages dépliés : les 3 listes déroulantes de valeurs restent.</p>
+<div class="app">
+ <div class="top"><div class="titre"><div class="logo">M</div><h1>MODELROGS Display<small>2.15.0</small></h1></div>
+  <div class="puces"><span class="puce"><i></i>Wi-Fi −72 dBm</span><span class="puce"><i></i>Passerelle</span><span class="puce"><i></i>14:32</span></div></div>
+ <div class="corps">
+  <h2>Rotation · 9 pages actives</h2>
+  <div class="carte">
+   <div class="ligne"><div class="ico" style="background:#2B2550">🕒</div><div class="lib"><b>Heure</b><span>toujours active</span></div><label class="sw"><input type="checkbox" checked disabled><b></b></label></div>
+   <div class="ligne"><div class="ico" style="background:#16324A">⛅</div><div class="lib"><b>Météo</b><span>Sernhac · 5 jours</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+   <div class="ligne"><div class="ico" style="background:#24284A">🎧</div><div class="lib"><b>Discord</b><span><i class="pt"></i>si quelqu'un est en salon</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+   <div class="ligne"><div class="ico" style="background:#3A2A12">₿</div><div class="lib"><b>Crypto</b><span>Bitcoin, Ethereum, Solana</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+   <div class="ext">
+    <div class="champ"><label>Valeurs 1 à 3 (listes fournies par la passerelle)</label>
+     <div style="display:grid;gap:8px"><select><option>1. Bitcoin (BTC)</option></select><select><option>2. Ethereum (ETH)</option></select><select><option>3. Solana (SOL)</option></select></div></div>
+    <div class="champ"><label>Autre valeur (code, si absente des listes)</label><input type="text" placeholder="ex. dogecoin"></div>
+   </div>
+   <div class="ligne"><div class="ico" style="background:#13372A">📈</div><div class="lib"><b>Actions</b><span>AAPL, NVDA, TSLA</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+   <div class="ligne"><div class="ico" style="background:#3A2F12">🛢</div><div class="lib"><b>Commodities</b><span>Or, Cacao, Pétrole</span></div><label class="sw"><input type="checkbox"><b></b></label></div>
+   <div class="ligne"><div class="ico" style="background:#3A1D33">🖼</div><div class="lib"><b>Photos</b><span>Favoris · 30 s</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+   <div class="ligne"><div class="ico" style="background:#3A1A1E">🚗</div><div class="lib"><b>Tesla</b><span><i class="pt"></i>prioritaire en charge</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+   <div class="ligne"><div class="ico" style="background:#3A3212">▶</div><div class="lib"><b>Plex</b><span><i class="pt off"></i>module absent de la passerelle</span></div><label class="sw"><input type="checkbox" disabled><b></b></label></div>
+  </div>
+  <div class="carte" style="margin-top:12px"><div class="champ"><label>Durée de chaque page <span class="val">15 s</span></label><input type="range" min="5" max="60" value="15"></div></div>
+ </div>
+ <div class="onglets"><a class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Pages</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Écran</a><a><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg>Réseau</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Système</a><a><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>Diagnostic</a></div>
+</div></div>
+
+<!-- ================= 2. ÉCRAN ================= -->
+<div class="col"><h3>2. Écran (point 5)</h3><p>Plage nocturne : <code>color-scheme: dark</code>, les icônes horloge des champs Début et Fin passent en blanc.</p>
+<div class="app">
+ <div class="top"><div class="titre"><div class="logo">M</div><h1>Écran<small>Nuit et luminosité</small></h1></div></div>
+ <div class="corps">
+  <h2>Plage nocturne</h2>
+  <div class="carte">
+   <div class="ligne"><div class="ico" style="background:#24284A">🌙</div><div class="lib"><b>Luminosité de nuit</b><span>baisse l'écran pendant la plage</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+   <div class="champ"><div class="deux"><div><label>Début</label><input type="time" value="22:30"></div><div><label>Fin</label><input type="time" value="07:00"></div></div></div>
+  </div>
+  <h2>Luminosité</h2>
+  <div class="carte">
+   <div class="champ"><label>Jour <span class="val">80 %</span></label><input type="range" value="80"></div>
+   <div class="champ"><label>Nuit <span class="val">8 %</span></label><input type="range" value="8"></div>
+  </div>
+  
+ </div>
+ <div class="enreg"><a class="btn">Enregistrer</a></div>
+ <div class="onglets"><a><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Pages</a><a class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Écran</a><a><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg>Réseau</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Système</a><a><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>Diagnostic</a></div>
+</div></div>
+
+<!-- ================= 3. RÉSEAU ================= -->
+<div class="col"><h3>3. Réseau (point 11)</h3><p>Adresse de la passerelle gardée sur l'afficheur. La ville passe dans le docker-compose et disparaît de l'interface.</p>
+<div class="app">
+ <div class="top"><div class="titre"><div class="logo">M</div><h1>Réseau<small>Wi-Fi et passerelle</small></h1></div></div>
+ <div class="corps">
+  <h2>Wi-Fi maison</h2>
+  <div class="carte">
+   <div class="champ"><label>Nom du réseau (SSID)</label><input type="text" value="Livebox-A1F2"></div>
+   <div class="champ"><label>Mot de passe</label><input type="password" value="••••••••••"></div>
+  </div>
+  <h2>Passerelle</h2>
+  <div class="carte">
+   <div class="champ"><label>Adresse de la passerelle</label><input type="text" value="192.168.1.20:8680"></div>
+   <div class="ligne"><div class="ico" style="background:#13372A">⇄</div><div class="lib"><b>Connectée</b><span class="ro">passerelle 2.15.0 · 12 modules</span></div><i class="pt"></i></div>
+  </div>
+  <h2>Point d'accès</h2>
+  <div class="carte"><div class="champ"><label>Nom (ouvert, actif si le Wi-Fi maison est absent)</label><input type="text" value="ModelrogsTV"></div></div>
+ </div>
+ <div class="enreg"><a class="btn">Enregistrer et redémarrer</a></div>
+ <div class="onglets"><a><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Pages</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Écran</a><a class="on"><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg>Réseau</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Système</a><a><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>Diagnostic</a></div>
+</div></div>
+
+<!-- ================= 4. SYSTÈME ================= -->
+<div class="col"><h3>4. Système</h3><p>État, mise à jour du firmware (page /update inchangée) et redémarrage.</p>
+<div class="app">
+ <div class="top"><div class="titre"><div class="logo">M</div><h1>Système<small>firmware 2.15.0</small></h1></div></div>
+ <div class="corps">
+  <h2>État</h2>
+  <div class="carte">
+   <div class="ligne"><div class="lib"><b>Mémoire libre</b><span>plus grand bloc 28 Ko · fragmentation 4 %</span></div><span class="ro">30 Ko</span></div>
+   <div class="ligne"><div class="lib"><b>En marche depuis</b><span>redémarrage nocturne à 2:15</span></div><span class="ro">11 h 42</span></div>
+   <div class="ligne"><div class="lib"><b>Passerelle</b><span>dernière réponse il y a 3 s</span></div><span class="ok" style="color:var(--ok)">OK</span></div>
+  </div>
+  <h2>Outils</h2>
+  <div class="carte">
+      <div class="ligne"><div class="ico" style="background:#13372A">⬆</div><div class="lib"><b>Mise à jour du firmware</b><span>fichier firmware.bin.gz</span></div><span class="chev">›</span></div>
+  </div>
+  <div style="margin-top:16px"><a class="btn g">Redémarrer l'afficheur</a></div>
+ </div>
+ <div class="onglets"><a><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Pages</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Écran</a><a><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg>Réseau</a><a class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Système</a><a><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>Diagnostic</a></div>
+</div></div>
+
+
+<!-- ================= 5. DIAGNOSTIC ================= -->
+<div class="col"><h3>5. Diagnostic</h3><p>L'actuelle page /debug, dans le même style et avec son onglet. /debug.json reste inchangé.</p>
+<div class="app">
+ <div class="top"><div class="titre"><div class="logo">M</div><h1>Diagnostic<small>depuis 1 h 54 · X-Req 4591</small></h1></div></div>
+ <div class="corps">
+  <div class="carte" style="margin-top:6px">
+   <div class="ligne"><div class="ico" style="background:#2B2550">🩺</div><div class="lib"><b>Mode diagnostic</b><span>journal des 32 dernières requêtes, sonde /ping</span></div><label class="sw"><input type="checkbox" checked><b></b></label></div>
+  </div>
+  <h2>Wi-Fi et mémoire</h2>
+  <div class="carte"><div class="champ" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+   <div><b style="font-size:18px">−72</b><div class="note" style="margin:0">dBm · canal 8</div></div>
+   <div><b style="font-size:18px">28 Ko</b><div class="note" style="margin:0">plus grand bloc</div></div>
+   <div><b style="font-size:18px">0</b><div class="note" style="margin:0">déconnexions</div></div></div></div>
+  <h2>Requêtes</h2>
+  <div class="carte">
+   <div class="ligne"><div class="lib"><b>Réussies</b><span>JSON 3 320 · images 1 049 · sondes 222</span></div><span class="ro" style="color:var(--ok)">4 464</span></div>
+   <div class="ligne"><div class="lib"><b>Échecs réseau</b><span>connexion 1 · délai 22 · incomplètes 103</span></div><span class="ro" style="color:var(--warn)">126</span></div>
+   <div class="ligne"><div class="lib"><b>Temporisations</b><span>dernière : /plex, il y a 12 min</span></div><span class="ro">4</span></div>
+  </div>
+  <h2>Dernières requêtes</h2>
+  <div class="carte" style="font-size:12.5px;font-variant-numeric:tabular-nums">
+   <div class="ligne" style="min-height:0;padding:8px 14px"><span style="flex:1">/plex</span><span class="ro" style="width:70px;text-align:right">11 ms</span><span style="width:40px;text-align:right;color:var(--ok)">OK</span></div>
+   <div class="ligne" style="min-height:0;padding:8px 14px"><span style="flex:1">/img · photo 240 × 240</span><span class="ro" style="width:70px;text-align:right">1 704 ms</span><span style="width:40px;text-align:right;color:var(--ok)">OK</span></div>
+   <div class="ligne" style="min-height:0;padding:8px 14px"><span style="flex:1">/supervision</span><span class="ro" style="width:70px;text-align:right">67 ms</span><span style="width:40px;text-align:right;color:var(--ok)">OK</span></div>
+   <div class="ligne" style="min-height:0;padding:8px 14px"><span style="flex:1">/img · icône</span><span class="ro" style="width:70px;text-align:right">2 512 ms</span><span style="width:40px;text-align:right;color:var(--ko)">−203</span></div>
+  </div>
+ </div>
+ <div class="onglets"><a><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Pages</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Écran</a><a><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg>Réseau</a><a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Système</a><a class="on"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg>Diagnostic</a></div>
+</div></div>
+</div></body></html>

@@ -23,6 +23,7 @@ Il rassemble ce que le code ne dit pas : l'état à la clôture, la façon de tr
   - `/modules` de la passerelle : 4 077 octets dans les tests pour un plafond de 4 096 (mémoire de l'afficheur) ; ne plus rien y ajouter sans réduire ailleurs ;
   - simulateur (44 écrans, 420 cas de placement de textes, 0 différence) ;
   - compilation complète du firmware ESP8266 avec PlatformIO 6.1.16 (version de la CI) : RAM 45,4 %, code en IRAM 28 627 octets sur 32 768. Seule la compilation de GitHub Actions fait foi pour les binaires livrés.
+- **Leçon de la 3.0.0** (publication du 2026-11-05 arrêtée dans les tests) : lancer les tests de la passerelle avec **Python 3.12**, la version de GitHub (`/usr/bin/python3.12` dans un environnement neuf, `pip install -r requirements.txt`), et aussi avec une horloge `time.monotonic()` petite (machine démarrée depuis quelques secondes, comme une machine de GitHub) ; dans un test, ne jamais mettre un repère de `time.monotonic()` à 0 (utiliser `-RELECTURE_PERSO` ou `images.inventaire_perso()`). Les journaux de GitHub Actions se lisent avec `gh run view <id> --log-failed` quand le dépôt est attaché à la session.
 - **Non vérifié avant la clôture** :
   - la construction de l'image Docker (pas de Docker disponible pour la vérification ; GitHub Actions la construit à chaque tag) ;
 

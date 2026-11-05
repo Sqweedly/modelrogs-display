@@ -12,7 +12,9 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [3.0.0] — 2026-11-05
+## [3.0.0] — 2026-11-05 (remplacée le 2026-11-06)
+
+**Remplacement** : la première publication s'est arrêtée dans les tests de la passerelle, avant toute Release et toute image. Le test « Tesla : photo personnelle prioritaire » forçait la relecture du dossier des icônes personnelles avec un repère de temps à 0, alors que `time.monotonic()` compte depuis le démarrage de la machine : sur une machine de GitHub démarrée depuis moins de 30 s, le dossier n'était pas relu. Test corrigé (`-RELECTURE_PERSO`, comme les autres tests). Firmware et passerelle inchangés.
 
 Version majeure : nouvelle interface web, écran de nuit, réseau plus robuste, ville réglée sur la passerelle. **L'image passe à l'étiquette `:3`.**
 

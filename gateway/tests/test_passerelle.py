@@ -853,7 +853,7 @@ async def tests_tesla() -> int:
         perso = Path(os.environ["ICONES_PERSO"]) / "tesla"
         perso.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (600, 400), (0, 80, 160)).save(perso / "charge.jpg")
-        T.images._perso_lu = 0      # relecture immédiate du dossier personnel
+        T.images._perso_lu = -T.images.RELECTURE_PERSO   # relecture immédiate (pas 0 : time.monotonic() compte depuis le démarrage de la machine)
         d2 = await (await c.get("/tesla")).json()
         verifier("photo personnelle prioritaire", d2["i"] != d["i"])
 

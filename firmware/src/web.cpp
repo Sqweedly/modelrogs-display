@@ -92,34 +92,167 @@ static String fieldName(uint8_t page, const char* key) {
   return String("p") + page + "_" + key;
 }
 
+// Interface 3.0.0 : 5 onglets (Pages, Écran, Réseau, Système, Diagnostic), une
+// adresse chacun, conforme à la maquette validée (docs/maquettes/interface-web-3.0.0).
+// color-scheme: dark : les contrôles natifs (icônes horloge des champs d'heure)
+// sont dessinés pour un fond sombre (backlog n° 5).
 static const char STYLE[] PROGMEM =
   "<style>"
-  ":root{--bg:#0E1116;--card:#1A1F29;--txt:#F2F4F8;--mut:#9AA3B5;--acc:#8B7CFF;--ok:#3DD68C;--warn:#FFB547;--ko:#FF6B70}"
-  "*{box-sizing:border-box}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;"
-  "background:var(--bg);color:var(--txt);margin:0 auto;padding:16px;max-width:640px}"
-  "h1{font-size:22px;margin:4px 0 12px}h2{font-size:16px;margin:0 0 10px;color:var(--acc)}"
-  "section{background:var(--card);padding:16px;margin:12px 0;border-radius:14px}"
-  ".mod{border-top:1px solid #2A3140;padding:10px 0 4px}.mod:first-of-type{border-top:0}"
-  "label{display:block;margin-top:10px;color:var(--mut);font-size:14px}"
-  "input[type=text],input[type=password],input[type=number],input[type=time],select{width:100%;padding:11px;"
-  "margin-top:5px;background:#11151C;color:var(--txt);border:1px solid #2A3140;border-radius:8px;font-size:15px}"
-  "input[type=range]{width:100%}"
-  ".chk{display:flex;align-items:center;gap:10px;margin:8px 0;color:var(--txt);font-size:15px}"
-  ".chk input{width:20px;height:20px;flex:none}.mod>.chk{font-weight:600}"
-  ".grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}"
+  ":root{--bg:#0B0E13;--card:#151A23;--line:#232A36;--txt:#EEF1F6;--mut:#8E97A8;--acc:#8B7CFF;"
+  "--ok:#3DD68C;--warn:#FFB547;--ko:#FF6B70;color-scheme:dark}"
+  "*{box-sizing:border-box}"
+  "body{font:15px/1.4 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--txt);"
+  "margin:0 auto;max-width:520px;padding:0 0 160px}"
+  ".top{padding:22px 18px 10px}.titre{display:flex;align-items:center;gap:10px}"
+  ".logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8B7CFF,#5B4BDB);"
+  "display:grid;place-items:center;font-weight:700;font-size:15px;flex:none}"
+  ".titre h1{font-size:19px;margin:0;font-weight:650}"
+  ".titre small{display:block;color:var(--mut);font-size:12px;font-weight:400}"
+  ".puces{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}"
+  ".puce{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);"
+  "border-radius:999px;padding:4px 10px;font-size:12px;color:var(--mut)}"
+  ".puce i,.pt{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block}"
+  ".pt{width:6px;height:6px;margin-right:4px}.puce.w i,.pt.w{background:var(--warn)}.pt.off{background:#4A5366}"
+  ".corps{padding:4px 14px}"
+  "h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);margin:16px 6px 8px;font-weight:600}"
+  ".carte{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}"
+  ".carte>*+*{border-top:1px solid var(--line)}"
+  ".ligne{display:flex;align-items:center;gap:12px;padding:12px 14px;min-height:52px}"
+  "summary.ligne{list-style:none;cursor:pointer}summary::-webkit-details-marker{display:none}"
+  ".ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:none}"
+  ".lib{flex:1;min-width:0}.lib b{display:block;font-weight:550}"
+  ".lib span{display:block;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+  ".chev{color:#4A5366;font-size:18px}.ro{color:var(--txt);font-variant-numeric:tabular-nums}"
+  ".sw{position:relative;width:46px;height:28px;flex:none;display:block}"
+  ".sw input{opacity:0;position:absolute;width:0;height:0}"
+  ".sw b{position:absolute;inset:0;background:#2A3140;border-radius:999px;transition:.2s}"
+  ".sw b:after{content:'';position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;"
+  "background:#fff;transition:.2s}"
+  ".sw input:checked+b{background:var(--acc)}.sw input:checked+b:after{left:21px}.sw input:disabled+b{opacity:.35}"
+  ".champ{padding:12px 14px}"
+  ".champ label,.ext label{display:block;font-size:12px;color:var(--mut);margin:0 0 6px}"
+  ".ext label{margin:10px 0 6px}"
+  "input[type=text],input[type=password],input[type=time],select{width:100%;padding:11px 12px;background:#0F131A;"
+  "color:var(--txt);border:1px solid var(--line);border-radius:10px;font:inherit}"
+  ".deux{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pile{display:grid;gap:8px}"
+  "input[type=range]{width:100%;accent-color:var(--acc)}"
+  ".val{float:right;color:var(--txt);font-variant-numeric:tabular-nums}"
+  ".ext{background:#121722;padding:4px 14px 12px}"
+  ".note{font-size:12px;color:var(--mut);margin:8px 6px 0;line-height:1.45}.ext .note{margin:8px 0 0}"
+  ".lab{font-size:12px;color:var(--mut);margin:10px 0 0}"
+  ".btn{display:block;width:100%;padding:13px;border:0;border-radius:12px;background:var(--acc);color:#fff;"
+  "font:inherit;font-weight:600;text-align:center;text-decoration:none}.btn.g{background:#232A36;color:var(--txt)}"
+  ".sm{display:inline-block;padding:7px 11px;margin:10px 6px 0 0;font-size:13px;background:#232A36;"
+  "color:var(--txt);border-radius:9px;text-decoration:none;border:0}"
+  ".chk{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:14px}.chk input{width:18px;height:18px}"
+  ".grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}"
   "fieldset{border:0;padding:0;margin:0;min-width:0}fieldset[disabled]{opacity:.4;pointer-events:none}"
-  ".row{display:flex;gap:12px}.row>*{flex:1}"
-  "button{width:100%;padding:14px;margin-top:8px;border:0;border-radius:10px;background:var(--acc);"
-  "color:#0E1116;font-size:16px;font-weight:700}"
-  ".sm{display:inline-block;width:auto;padding:8px 12px;margin:4px 6px 0 0;font-size:14px;"
-  "background:#2A3140;color:var(--txt);border-radius:8px;text-decoration:none;border:0}"
-  ".kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}.kv b{color:var(--mut);font-weight:500}"
-  ".g2{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}.g2 select,.g2 input{margin-top:0}"
-  ".lab{color:var(--mut);font-size:13px;margin:8px 0 6px}"
-  ".badge{display:inline-block;background:#2A3140;color:var(--mut);border-radius:6px;padding:2px 7px;font-size:12px}"
-  ".ok{color:var(--ok)}.warn{color:var(--warn)}.ko{color:var(--ko)}.note{color:var(--mut);font-size:13px;margin:6px 0 0}"
-  "a{color:var(--acc)}"
+  ".kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;padding:12px 14px}"
+  ".kv b{color:var(--mut);font-weight:500}"
+  ".tuiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;padding:12px 14px}"
+  ".tuiles b{font-size:18px}.tuiles span{display:block;font-size:12px;color:var(--mut)}"
+  "table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}"
+  "td{padding:8px 14px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}"
+  "tr:first-child td{border-top:0}td.g{text-align:left;white-space:normal}"
+  ".ok{color:var(--ok)}.warn{color:var(--warn)}.ko{color:var(--ko)}a{color:var(--acc)}"
+  ".alerte{border-color:var(--ko)}.alerte.w{border-color:var(--warn)}.alerte p{margin:0;padding:12px 14px}"
+  ".enreg{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);width:min(492px,calc(100% - 28px))}"
+  ".onglets{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:520px;height:78px;"
+  "background:rgba(14,18,25,.96);border-top:1px solid var(--line);display:flex;padding:8px 6px 18px}"
+  ".onglets a{flex:1;text-align:center;color:#6C7588;font-size:10.5px;text-decoration:none}"
+  ".onglets svg{display:block;margin:0 auto 3px;width:24px;height:24px;stroke:currentColor;fill:none;"
+  "stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.onglets a.on{color:var(--acc)}"
   "</style>";
+
+// n-ième élément d'une liste « a|b|c » rangée en flash
+static String element(PGM_P liste, uint8_t n) {
+  String tout = FPSTR(liste);
+  int debut = 0;
+  for (uint8_t i = 0; i < n && debut >= 0; i++) {
+    debut = tout.indexOf('|', debut);
+    if (debut >= 0) debut++;
+  }
+  if (debut < 0) return "";
+  int fin = tout.indexOf('|', debut);
+  return tout.substring(debut, fin < 0 ? tout.length() : fin);
+}
+
+// --------------------------------------------------------- cadre des pages
+
+enum Onglet : uint8_t { OG_PAGES, OG_ECRAN, OG_RESEAU, OG_SYSTEME, OG_DIAG, OG_NB };
+
+static const char OG_ICONES[] PROGMEM =   // 5 icônes séparées par '|'
+  "<rect x='3' y='3' width='7' height='7' rx='2'/><rect x='14' y='3' width='7' height='7' rx='2'/>"
+  "<rect x='3' y='14' width='7' height='7' rx='2'/><rect x='14' y='14' width='7' height='7' rx='2'/>|"
+  "<circle cx='12' cy='12' r='4'/><path d='M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"
+  "M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/>|"
+  "<path d='M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0'/><circle cx='12' cy='19.5' r='1'/>|"
+  "<circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0"
+  "-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1"
+  "-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0"
+  "-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0"
+  " 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0"
+  " 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'/>|"
+  "<path d='M3 12h4l2-6 4 12 2-6h6'/>";
+static const char OG_NOMS[] PROGMEM = "Pages|Écran|Réseau|Système|Diagnostic";
+static const char OG_LIENS[] PROGMEM = "/|/ecran|/reseau|/systeme|/debug";
+
+// Début de page : en-tête (logo, titre, sous-titre). Envoi par morceaux.
+static void debutPage(Chunks& c, const char* titre, const String& sousTitre) {
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, F("text/html; charset=utf-8"), "");
+  c << F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
+         "<meta name='viewport' content='width=device-width,initial-scale=1'><title>")
+    << titre << F(" — MODELROGS</title>") << FPSTR(STYLE)
+    << F("</head><body><div class='top'><div class='titre'><div class='logo'>M</div><h1>") << titre
+    << F("<small>") << esc(sousTitre) << F("</small></h1></div>");
+}
+
+// Fin de page : barre d'onglets en bas, onglet courant en couleur.
+static void finPage(Chunks& c, Onglet actif) {
+  String icones = FPSTR(OG_ICONES);
+  int debut = 0;
+  c << F("<nav class='onglets'>");
+  for (uint8_t i = 0; i < OG_NB; i++) {
+    int fin = icones.indexOf('|', debut);
+    if (fin < 0) fin = icones.length();
+    c << F("<a href='") << element(OG_LIENS, i) << (i == actif ? F("' class='on'>") : F("'>"))
+      << F("<svg viewBox='0 0 24 24'>") << icones.substring(debut, fin) << F("</svg>") << element(OG_NOMS, i)
+      << F("</a>");
+    debut = fin + 1;
+  }
+  c << F("</nav></body></html>");
+  c.flush();
+  server.sendContent("");   // fin de la réponse
+}
+
+// Interrupteur ; nom vide = sans champ de formulaire
+static void interrupteur(Chunks& c, const String& nom, bool on, bool actif = true) {
+  c << F("<label class='sw'><input type='checkbox'");
+  if (nom.length()) c << F(" name='") << nom << F("'");
+  c << (on ? F(" checked") : F("")) << (actif ? F("") : F(" disabled")) << F("><b></b></label>");
+}
+
+// Interrupteur dessiné seulement (dans un lien : c'est le lien qui agit)
+static void interrupteurVisuel(Chunks& c, bool on) {
+  c << F("<span class='sw' style='pointer-events:none'><input type='checkbox' tabindex='-1'")
+    << (on ? F(" checked") : F("")) << F("><b></b></span>");
+}
+
+// Curseur avec sa valeur affichée à droite du libellé
+static void curseur(Chunks& c, const char* nom, const char* libelle, int mini, int maxi, int pas, int valeur,
+                    const char* unite) {
+  c << F("<div class='champ'><label>") << libelle << F(" <span class='val'><output id='o") << nom << F("'>")
+    << (long)valeur << F("</output> ") << unite << F("</span></label><input type='range' name='") << nom
+    << F("' min='") << (long)mini << F("' max='") << (long)maxi << F("' step='") << (long)pas << F("' value='")
+    << (long)valeur << F("' oninput='o") << nom << F(".value=this.value'></div>");
+}
+
+static String duree(uint32_t secondes) {
+  uint32_t m = secondes / 60;
+  if (m < 60) return String(m) + F(" min");
+  return String(m / 60) + F(" h ") + (m % 60 < 10 ? F("0") : F("")) + String(m % 60);
+}
 
 // --------------------------------------------- champs décrits par la passerelle
 
@@ -238,189 +371,294 @@ static bool renderField(Chunks& c, uint8_t page, JsonObject param, JsonArray opt
   return false;
 }
 
-static void renderModules(Chunks& c) {
-  c << F("<section><h2>Pages et modules</h2>");
-  c.flush();
+// ------------------------------------------------------------ diagnostic
+// Page /debug (lecture humaine) et /debug.json : compteurs toujours tenus,
+// journal des dernières requêtes en mode diagnostic (voir diag.h).
+// /debug?on=1 active le mode, /debug?off=1 l'arrête (mémoire vive seulement).
 
-  JsonDocument man;
-  int code = gwGet("/modules", man, nullptr, true);
-  if (code != 200) {
-    c << F("<p class='warn'>Modules de la passerelle inconnus : ") << gwErrorText(code)
-      << F(".</p><p class='note'>Les réglages des modules sont conservés. L'afficheur doit être "
-           "connecté au Wi-Fi maison et l'adresse de la passerelle renseignée.</p>");
-  }
-
-  for (uint8_t i = 0; i < PG_COUNT; i++) {
-    const uint8_t p = ROTATION[i];
-    JsonObject mod;
-    if (code == 200) {
-      for (JsonObject m : man["m"].as<JsonArray>()) {
-        if (strcmp(m["id"] | "", PAGE_IDS[p]) == 0) mod = m;
-      }
-    }
-    c << F("<div class='mod'>");
-
-    if (code == 200 && mod.isNull()) {
-      // Module non activé sur la passerelle : réglage de page laissé tel quel.
-      c << F("<label class='chk'><input type='checkbox' disabled>") << PAGE_NAMES[p]
-        << F("</label><p class='note'>Module non activé sur la passerelle (variable MODULES).</p></div>");
-      continue;
-    }
-
-    c << F("<input type='hidden' name='pk") << (long)p << F("' value='1'>"
-           "<label class='chk'><input type='checkbox' name='pg") << (long)p << F("'")
-      << (pageEnabled(p) ? F(" checked") : F("")) << F(">") << PAGE_NAMES[p] << F("</label>");
-
-    if (!mod.isNull()) {
-      if (!(mod["ok"] | 0)) {
-        c << F("<p class='warn'>Non configuré sur la passerelle : ") << esc(mod["err"] | "")
-          << F("</p>");
-      } else {
-        // Liste commune aux listes déroulantes du module (pages de cours)
-        JsonDocument listeModule;
-        JsonArray optionsModule = mod["o"].as<JsonArray>();
-        bool all = true;
-        if (optionsModule.isNull() && mod["src"].is<const char*>()) {
-          int code = fetchList(mod["src"] | "", listeModule);
-          if (code == 200) optionsModule = listeModule["s"].as<JsonArray>();
-          else { erreurListe(c, code, listeModule); all = false; }
-        }
-        if (all) {
-          const char* nt = mod["nt"] | "";
-          if (nt[0]) c << F("<p class='lab'>") << esc(nt) << F("</p>");
-          bool grille = false;
-          for (JsonObject param : mod["p"].as<JsonArray>()) {
-            bool g = param["g"] | 0;
-            if (g != grille) { c << (g ? F("<div class='g2'>") : F("</div>")); grille = g; }
-            all &= renderField(c, p, param, optionsModule);
-          }
-          if (grille) c << F("</div>");
-          const char* df = mod["df"] | "";
-          if (df[0]) c << F("<p class='note'>Vide : valeurs du docker-compose <span class='badge'>") << esc(df)
-                       << F("</span></p>");
-        }
-        if (all) c << F("<input type='hidden' name='pm") << (long)p << F("' value='1'>");
-        if (p == PG_SUP)
-          c << F("<p class='note'>Tous les services de la page de statut Uptime Kuma sont suivis, "
-                 "y compris ceux ajoutés ou retirés ensuite.</p>");
-      }
-    }
-    c << F("</div>");
-    c.flush();
-  }
-
-  c << F("<label>Durée d'affichage de chaque page (secondes)</label>"
-         "<input type='number' name='duree' min='5' max='120' value='") << (long)cfg.pageSec
-    << F("'><p class='note'>Discord n'apparaît que si quelqu'un est dans le salon, et passe en tête "
-         "à chaque arrivée. Plex n'apparaît que pendant une lecture, et passe en tête dès qu'une lecture "
-         "commence. Une panne affiche l'écran PANNE puis le récapitulatif des services en défaut, "
-         "aussitôt puis après chaque page, jusqu'au retour à la normale. Sans panne, Supervision "
-         "n'apparaît que si un service est instable ou si Kuma ne répond pas. Crypto, Actions, Indices, "
-         "Devises, Commodities, Custom : prix en dollars (indices en points) ; une valeur = courbe sur 30 jours ; deux ou trois = prix en "
-         "vedette, puis une page sur 30 jours pour chaque valeur qui a varié de 5 % ou plus en 7 jours. "
-         "Photos : une photo Immich en plein écran à chaque passage, avec sa propre durée.</p></section>");
+static String ilYa(uint32_t quandMs) {
+  if (!quandMs) return F("jamais");
+  uint32_t s = (millis() - quandMs) / 1000;
+  if (s < 120) return String(F("il y a ")) + s + F(" s");
+  if (s < 7200) return String(F("il y a ")) + (s / 60) + F(" min");
+  return String(F("il y a ")) + (s / 3600) + F(" h");
 }
 
-// --------------------------------------------------------------- page « / »
+static bool basculerDiag() {
+  if (server.arg("on") == "1") return diagActiver(true);
+  if (server.arg("off") == "1") diagActiver(false);
+  return true;
+}
 
-static void handleRoot() {
-  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server.send(200, F("text/html; charset=utf-8"), "");
-  Chunks c;
+// ----------------------------------------------------------- onglet Pages
 
-  c << F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
-         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-         "<title>MODELROGS Display</title>")
-    << FPSTR(STYLE) << F("</head><body><h1>MODELROGS Display</h1>");
+// Icône et couleur de fond de chaque page (ordre des PageId)
+// Heure, Météo, Discord, Supervision, Crypto, Plex, Actions, Devises, Commodities,
+// Indices, Custom, Photos, Tesla
+// Une chaîne par page, séparée par '|' (en flash)
+static const char PG_ICONES[] PROGMEM = "🕒|⛅|🎧|📡|₿|▶|📈|💱|🛢|📊|⭐|🖼|🚗";
+static const char PG_FONDS[] PROGMEM = "#2B2550|#16324A|#24284A|#13372A|#3A2A12|#3A3212|#13372A|#24284A|#3A2F12|#16324A|#2B2550|#3A1D33|#3A1A1E";
+static_assert(PG_COUNT == 13, "PG_ICONES et PG_FONDS : une entrée par page");
 
-  // L'OTA est proposée en premier : c'est la fonction qui doit toujours rester accessible.
-  if (gSafeMode) {
-    c << F("<section style='border:2px solid #FF6B70'><h2 class='ko'>Mode secours</h2>"
-           "<p>L'afficheur a planté plusieurs fois de suite au démarrage. Seuls le Wi-Fi, "
-           "cette interface et la mise à jour tournent.</p>"
-           "<a class='sm' href='/update'>Mettre à jour le firmware</a>"
-           "<a class='sm' href='/restart'>Redémarrer normalement</a></section>");
-  } else {
-    if (!cfg.validated) {
-      c << F("<section style='border:2px solid #FFB547'><h2 class='warn'>Configuration à valider</h2>"
-             "<p>Nouveau firmware installé : vérifiez les réglages ci-dessous, puis cliquez sur "
-             "<b>Enregistrer</b> pour démarrer l'affichage des pages. Les démarrages suivants "
-             "seront automatiques.</p></section>");
-    }
-    c << F("<p><a class='sm' href='/update'>Mettre à jour le firmware</a></p>");
+
+// Ligne sous le nom des pages sans valeurs à choisir (pastille verte devant)
+static String phraseFixe(uint8_t p) {
+  switch (p) {
+    case PG_DISCORD: return F("si quelqu'un est en salon");
+    case PG_PLEX:    return F("pendant une lecture");
+    case PG_TESLA:   return F("prioritaire en charge");
+    case PG_SUP:     return F("en cas de panne ou d'instabilité");
+    default:         return "";
   }
+}
 
-  // --- État
-  bool sta = staConnected();
-  c << F("<section><h2>État</h2><div class='kv'>")
-    << F("<b>Point d'accès</b><span>") << esc(cfg.apSsid) << F(" — ") << WiFi.softAPIP().toString() << F("</span>")
-    << F("<b>Wi-Fi maison</b><span class='") << (sta ? "ok'>Connecté — " : "warn'>Non connecté")
-    << (sta ? WiFi.localIP().toString() + " (" + String(WiFi.RSSI()) + " dBm)" : String("")) << F("</span>")
-    << F("<b>Passerelle</b><span class='") << (gwLastCode == 200 ? "ok" : "warn") << F("'>")
-    << gwErrorText(gwLastCode);
-  if (gMods.known) c << F(" — version ") << esc(gMods.version);
-  if (gwLastOkMs) c << F(" (dernière réponse il y a ") << (long)((millis() - gwLastOkMs) / 1000) << F(" s)");
-  if (gwRetryInSeconds()) c << F(" — nouvel essai dans ") << (long)gwRetryInSeconds() << F(" s");
-  c << F("</span>");
-  if (timeValid()) c << F("<b>Heure</b><span>") << hhmm(localMinuteOfDay()) << F("</span>");
-  c << F("<b>Mémoire libre</b><span>") << (long)ESP.getFreeHeap() << F(" o — minimum depuis le démarrage ")
-    << (long)santeMinTasLibre() << F(" o</span>")
-    << F("<b>Plus grand bloc libre</b><span>") << (long)ESP.getMaxFreeBlockSize() << F(" o — minimum ")
-    << (long)santeMinBlocLibre() << F(" o (fragmentation ") << (long)ESP.getHeapFragmentation() << F(" %)</span>")
-    << F("<b>Dernier démarrage</b><span>") << santeCauseDemarrage() << F("</span>")
-    << F("<b>Redémarrage préventif</b><span>chaque nuit à 2 h 15 — ") << (long)santeRedemarragesPlanifies()
-    << F(" depuis la mise sous tension</span>")
-    << F("<b>Flash</b><span>") << (long)(ESP.getFlashChipRealSize() / 1048576) << F(" Mo — firmware ")
-    << (long)(ESP.getSketchSize() / 1024) << F(" Ko — place libre pour l'OTA ")
-    << (long)(ESP.getFreeSketchSpace() / 1024) << F(" Ko</span>")
-    << F("<b>Fonctionne depuis</b><span>") << (long)(millis() / 60000) << F(" min</span>")
-    << F("<b>Version</b><span>") << FW_VERSION << F("</span></div>");
+// Libellé d'une valeur choisie, d'après les options connues sans requête
+static String libelleOption(JsonArray options, const String& id) {
+  for (JsonObject o : options) {
+    if (id == (const char*)(o["id"] | "")) {
+      String n = (const char*)(o["n"] | id.c_str());
+      int i = n.indexOf(" (");                  // « Bitcoin (BTC) » -> « Bitcoin »
+      return i > 0 ? n.substring(0, i) : n;
+    }
+  }
+  return "";
+}
 
-  c << F("<p><a class='sm' href='/debug'>Diagnostic</a></p>");
-  c << F("<p class='note'>Afficher maintenant :</p>");
+// Résumé des réglages d'une page (« Bitcoin, Ethereum, Solana », « Au hasard · 30 s »)
+static String resumeReglages(uint8_t p, JsonObject mod, JsonArray optionsModule) {
+  String r;
+  for (JsonObject param : mod["p"].as<JsonArray>()) {
+    const char* key = param["k"] | "";
+    String v = modParam(p, key);
+    if (!v.length()) v = (const char*)(param["d"] | "");
+    String l;
+    if (strcmp(param["t"] | "", "select") == 0) {
+      JsonArray o = param["o"].as<JsonArray>();
+      if (o.isNull() && !param["src"].is<const char*>()) o = optionsModule;
+      if (v.length()) l = o.isNull() ? String("") : libelleOption(o, v);
+      else if (param["src"].is<const char*>()) l = (const char*)(param["ph"] | "");
+    } else if (strcmp(param["t"] | "", "text") == 0) {
+      l = v;
+    }
+    if (!l.length()) continue;
+    if (r.length()) r += param["g"] | 0 ? ", " : " · ";
+    r += l;
+  }
+  if (!r.length() && mod["df"].is<const char*>()) r = (const char*)(mod["df"] | "");
+  return r;
+}
+
+static void renderModules(Chunks& c) {
+  JsonDocument man;
+  int code = gwGet("/modules", man, nullptr, true);
+  auto trouver = [&](uint8_t p) {
+    JsonObject mod;
+    if (code == 200)
+      for (JsonObject m : man["m"].as<JsonArray>())
+        if (strcmp(m["id"] | "", PAGE_IDS[p]) == 0) mod = m;
+    return mod;
+  };
+  uint8_t actives = 0;
+  for (uint8_t p = 0; p < PG_COUNT; p++)
+    if (pageEnabled(p) && (code != 200 || !trouver(p).isNull())) actives++;
+
+  if (code != 200) {
+    c << F("<div class='carte alerte w' style='margin-top:12px'><p class='warn'>Modules de la passerelle inconnus : ")
+      << gwErrorText(code) << F(". Les réglages des pages sont conservés.</p></div>");
+  }
+  c << F("<h2>Rotation · ") << (long)actives << (actives > 1 ? F(" pages actives") : F(" page active"))
+    << F("</h2><div class='carte'>");
+  c.flush();
+
   for (uint8_t i = 0; i < PG_COUNT; i++) {
     const uint8_t p = ROTATION[i];
-    if (!moduleUsable(p)) continue;
-    c << F("<a class='sm' href='/show?p=") << (long)p << F("'>") << PAGE_NAMES[p] << F("</a>");
+    JsonObject mod = trouver(p);
+    const bool absent = code == 200 && mod.isNull();
+    const bool configure = !mod.isNull() && (mod["ok"] | 0);
+
+    // Liste commune aux listes déroulantes du module (pages de cours)
+    JsonDocument listeModule;
+    JsonArray optionsModule = configure ? mod["o"].as<JsonArray>() : JsonArray();
+    int codeListe = 200;
+    if (configure && optionsModule.isNull() && mod["src"].is<const char*>()) {
+      codeListe = fetchList(mod["src"] | "", listeModule);
+      if (codeListe == 200) optionsModule = listeModule["s"].as<JsonArray>();
+    }
+
+    // Ligne d'état sous le nom
+    String ligne, pastille;
+    if (absent) { ligne = F("module absent de la passerelle"); pastille = F("off"); }
+    else if (!mod.isNull() && !configure) { ligne = String(F("non configuré : ")) + (const char*)(mod["err"] | ""); pastille = F("w"); }
+    else if (p == PG_HEURE) ligne = F("toujours active");
+    else if (p == PG_METEO) { if (mod["v"].is<const char*>()) ligne = String((const char*)(mod["v"] | "")) + F(" · 5 jours"); }
+    else if (phraseFixe(p).length()) { ligne = phraseFixe(p); pastille = F("on"); }
+    else if (configure) ligne = resumeReglages(p, mod, optionsModule);
+
+    c << (absent ? F("<div class='ligne'>") : F("<details><summary class='ligne'>"))
+      << F("<div class='ico' style='background:") << element(PG_FONDS, p) << F("'>") << element(PG_ICONES, p)
+      << F("</div><div class='lib'><b>") << PAGE_NAMES[p] << F("</b><span>");
+    if (pastille == "on") c << F("<i class='pt'></i>");
+    else if (pastille.length()) c << F("<i class='pt ") << pastille << F("'></i>");
+    c << esc(ligne) << F("</span></div>");
+    if (absent) {                       // réglage de page laissé tel quel
+      interrupteur(c, "", false, false);
+      c << F("</div>");
+      continue;
+    }
+    if (p == PG_HEURE) {                // toujours active (config.cpp)
+      interrupteur(c, "", true, false);
+    } else {
+      c << F("<input type='hidden' name='pk") << (long)p << F("' value='1'>");
+      interrupteur(c, String("pg") + p, pageEnabled(p));
+    }
+    c << F("</summary><div class='ext'>");
+
+    if (configure) {
+      bool all = true;
+      if (codeListe != 200) { erreurListe(c, codeListe, listeModule); all = false; }
+      if (all) {
+        bool grille = false;
+        for (JsonObject param : mod["p"].as<JsonArray>()) {
+          bool g = param["g"] | 0;
+          if (g && !grille) c << F("<label>Valeurs 1 à 3 (listes fournies par la passerelle)</label><div class='pile'>");
+          if (!g && grille) c << F("</div>");
+          grille = g;
+          if (g && strcmp(param["t"] | "", "text") == 0)
+            c << F("</div><label>Autre valeur (code, si absente des listes)</label><div class='pile'>");
+          all &= renderField(c, p, param, optionsModule);
+        }
+        if (grille) c << F("</div>");
+        const char* df = mod["df"] | "";
+        if (df[0]) c << F("<p class='note'>Rien de choisi : valeurs du docker-compose (") << esc(df) << F(").</p>");
+        const char* nt = mod["nt"] | "";
+        if (nt[0]) c << F("<p class='note'>") << esc(nt) << F("</p>");
+      }
+      if (all) c << F("<input type='hidden' name='pm") << (long)p << F("' value='1'>");
+      if (p == PG_SUP)
+        c << F("<p class='note'>Tous les services de la page de statut Uptime Kuma sont suivis, "
+               "y compris ceux ajoutés ou retirés ensuite.</p>");
+    } else if (!mod.isNull()) {
+      c << F("<p class='note'>À régler dans le docker-compose de la passerelle.</p>");
+    }
+    if (moduleUsable(p)) c << F("<a class='sm' href='/show?p=") << (long)p << F("'>Afficher maintenant</a>");
+    c << F("</div></details>");
+    c.flush();
   }
-  c << F("</section>");
+  c << F("</div><div class='carte' style='margin-top:12px'>");
+  curseur(c, "duree", "Durée de chaque page", 5, 120, 5, cfg.pageSec, "s");
+  c << F("</div><p class='note'>Discord, Plex et Tesla passent en tête quand quelqu'un arrive dans le salon, "
+         "quand une lecture ou une charge commence. Une panne de supervision s'affiche aussitôt, puis après "
+         "chaque page. La nuit, seul l'écran de nuit est affiché (onglet Écran).</p>");
+}
 
-  // --- Formulaire
-  c << F("<form action='/save' method='POST'>");
+static void handleRoot() {
+  Chunks c;
+  debutPage(c, "MODELROGS Display", FW_VERSION);
+  const bool sta = staConnected();
+  c << F("<div class='puces'><span class='puce") << (sta ? F("'><i></i>Wi-Fi ") : F(" w'><i></i>Wi-Fi absent"));
+  if (sta) c << (long)WiFi.RSSI() << F(" dBm");
+  c << F("</span><span class='puce") << (gwLastCode == 200 ? F("'") : F(" w'")) << F("><i></i>Passerelle</span>");
+  if (timeValid()) c << F("<span class='puce'><i></i>") << hhmm(localMinuteOfDay()) << F("</span>");
+  c << F("</div></div><div class='corps'>");
 
-  c << F("<section><h2>Wi-Fi maison</h2><label>Nom du réseau (SSID)</label>"
-         "<input type='text' name='wifi_ssid' maxlength='32' value='") << esc(cfg.wifiSsid)
-    << F("'><label>Mot de passe</label><input type='password' name='wifi_pass' maxlength='64' "
-         "placeholder='inchangé si vide' autocomplete='new-password'>"
-         "<p class='note'>Laisser vide pour conserver le mot de passe actuel. "
-         "Si vous changez de réseau, un champ vide signifie « réseau ouvert ».</p></section>");
-
-  c << F("<section><h2>Point d'accès de l'afficheur</h2><label>Nom du point d'accès (ouvert, sans mot de passe)</label>"
-         "<input type='text' name='ap_ssid' maxlength='32' value='") << esc(cfg.apSsid) << F("'></section>");
-
-  c << F("<section><h2>Général</h2><label>Adresse de la passerelle</label>"
-         "<input type='text' name='gw' maxlength='95' placeholder='http://192.168.1.44:8080' value='")
-    << esc(cfg.gateway) << F("'><label>Ville (heure, météo, lever et coucher du soleil)</label>"
-         "<input type='text' name='ville' maxlength='47' placeholder='Paris' value='") << esc(cfg.ville) << F("'></section>");
-
+  if (gSafeMode) {
+    // L'OTA reste accessible en premier : c'est la fonction qui doit toujours marcher.
+    c << F("<div class='carte alerte'><p class='ko'><b>Mode secours</b> : l'afficheur a planté plusieurs fois "
+           "de suite au démarrage. Seuls le Wi-Fi, cette interface et la mise à jour tournent.</p></div>"
+           "<div style='margin-top:12px'><a class='btn' href='/update'>Mettre à jour le firmware</a></div>"
+           "<div style='margin-top:10px'><a class='btn g' href='/restart'>Redémarrer normalement</a></div></div>");
+    finPage(c, OG_PAGES);
+    return;
+  }
+  if (!cfg.validated) {
+    c << F("<div class='carte alerte w' style='margin-top:12px'><p class='warn'><b>Configuration à valider</b> : "
+           "nouveau firmware installé. Vérifiez les réglages, puis <b>Enregistrer</b> pour démarrer l'affichage.</p></div>");
+  }
+  c << F("<form action='/save' method='POST'><input type='hidden' name='o' value='pages'>");
   renderModules(c);
+  c << F("<div class='enreg'><button class='btn' type='submit'>Enregistrer</button></div></form></div>");
+  finPage(c, OG_PAGES);
+}
 
-  c << F("<section><h2>Nuit et luminosité</h2>"
-         "<label class='chk'><input type='checkbox' name='nuit'") << (cfg.nightOn ? F(" checked") : F(""))
-    << F(">Activer la plage nocturne</label><div class='row'><div><label>Début</label>"
-         "<input type='time' name='nd' value='") << hhmm(cfg.nightStart)
-    << F("'></div><div><label>Fin</label><input type='time' name='nf' value='") << hhmm(cfg.nightEnd)
-    << F("'></div></div><label>Luminosité de jour : <output id='oj'>") << (long)cfg.brightDay
-    << F("</output> %</label><input type='range' name='lj' min='5' max='100' value='") << (long)cfg.brightDay
-    << F("' oninput='oj.value=this.value'><label>Luminosité de nuit : <output id='on'>") << (long)cfg.brightNight
-    << F("</output> % (0 = écran éteint)</label><input type='range' name='ln' min='0' max='100' value='")
-    << (long)cfg.brightNight << F("' oninput='on.value=this.value'></section>");
+// ----------------------------------------------------------- onglet Écran
 
-  c << F("<button type='submit'>Enregistrer</button></form>"
-         "<section><h2>Mise à jour du firmware</h2><p>OTA : <a href='/update'>/update</a> "
-         "(fichier .bin ou .bin.gz)</p></section></body></html>");
-  c.flush();
-  server.sendContent("");   // fin de la réponse
+static void handleEcran() {
+  Chunks c;
+  debutPage(c, "Écran", F("Nuit et luminosité"));
+  c << F("</div><div class='corps'><form action='/save' method='POST'><input type='hidden' name='o' value='ecran'>"
+         "<h2>Plage nocturne</h2><div class='carte'><div class='ligne'><div class='ico' style='background:#24284A'>"
+         "🌙</div><div class='lib'><b>Luminosité de nuit</b><span>écran de nuit, luminosité réduite</span></div>");
+  interrupteur(c, "nuit", cfg.nightOn);
+  c << F("</div><div class='champ'><div class='deux'><div><label>Début</label><input type='time' name='nd' value='")
+    << hhmm(cfg.nightStart) << F("'></div><div><label>Fin</label><input type='time' name='nf' value='")
+    << hhmm(cfg.nightEnd) << F("'></div></div></div></div><h2>Luminosité</h2><div class='carte'>");
+  curseur(c, "lj", "Jour", 5, 100, 1, cfg.brightDay, "%");
+  curseur(c, "ln", "Nuit", 0, 100, 1, cfg.brightNight, "%");
+  c << F("</div><p class='note'>Nuit à 0 % : écran éteint. Pendant la plage, l'écran n'affiche que l'heure ; "
+         "une panne de supervision s'affiche à la luminosité de jour jusqu'au retour à la normale.</p>"
+         "<div class='enreg'><button class='btn' type='submit'>Enregistrer</button></div></form></div>");
+  finPage(c, OG_ECRAN);
+}
+
+// ---------------------------------------------------------- onglet Réseau
+
+static uint8_t nbModules() {   // pages servies par la passerelle
+  uint8_t n = 0;
+  for (uint8_t p = 0; p < PG_COUNT; p++) n += (gMods.present >> p) & 1;
+  return n;
+}
+
+static void handleReseau() {
+  Chunks c;
+  debutPage(c, "Réseau", F("Wi-Fi et passerelle"));
+  const bool ok = gwLastCode == 200;
+  c << F("</div><div class='corps'><form action='/save' method='POST'><input type='hidden' name='o' value='reseau'>"
+         "<h2>Wi-Fi maison</h2><div class='carte'><div class='champ'><label>Nom du réseau (SSID)</label>"
+         "<input type='text' name='wifi_ssid' maxlength='32' value='") << esc(cfg.wifiSsid)
+    << F("'></div><div class='champ'><label>Mot de passe</label><input type='password' name='wifi_pass' "
+         "maxlength='64' placeholder='inchangé si vide' autocomplete='new-password'></div></div>"
+         "<p class='note'>Mot de passe vide : celui d'aujourd'hui est gardé ; avec un autre réseau, vide = réseau ouvert.</p>"
+         "<h2>Passerelle</h2><div class='carte'><div class='champ'><label>Adresse de la passerelle</label>"
+         "<input type='text' name='gw' maxlength='95' placeholder='http://192.168.1.44:8080' value='")
+    << esc(cfg.gateway) << F("'></div><div class='ligne'><div class='ico' style='background:")
+    << (ok ? F("#13372A") : F("#3A2F12")) << F("'>⇄</div><div class='lib'><b>")
+    << (ok ? String(F("Connectée")) : String(gwErrorText(gwLastCode))) << F("</b><span class='ro'>");
+  if (gMods.known) c << F("passerelle ") << esc(gMods.version) << F(" · ") << (long)nbModules()
+                     << F(" modules");
+  else c << F("modules inconnus");
+  c << F("</span></div><i class='pt") << (ok ? F("") : F(" w")) << F("'></i></div></div>"
+         "<h2>Point d'accès</h2><div class='carte'><div class='champ'><label>Nom (ouvert, actif si le Wi-Fi maison "
+         "est absent)</label><input type='text' name='ap_ssid' maxlength='32' value='") << esc(cfg.apSsid)
+    << F("'></div></div><div class='enreg'><button class='btn' type='submit'>Enregistrer et redémarrer</button>"
+         "</div></form></div>");
+  finPage(c, OG_RESEAU);
+}
+
+// --------------------------------------------------------- onglet Système
+
+static void handleSysteme() {
+  Chunks c;
+  debutPage(c, "Système", String(F("firmware ")) + FW_VERSION);
+  const bool ok = gwLastCode == 200;
+  c << F("</div><div class='corps'><h2>État</h2><div class='carte'>"
+         "<div class='ligne'><div class='lib'><b>Mémoire libre</b><span>plus grand bloc ")
+    << (long)(ESP.getMaxFreeBlockSize() / 1024) << F(" Ko · fragmentation ") << (long)ESP.getHeapFragmentation()
+    << F(" %</span></div><span class='ro'>") << (long)(ESP.getFreeHeap() / 1024) << F(" Ko</span></div>"
+         "<div class='ligne'><div class='lib'><b>En marche depuis</b><span>redémarrage nocturne à 2:15</span></div>"
+         "<span class='ro'>") << duree(millis() / 1000) << F("</span></div>"
+         "<div class='ligne'><div class='lib'><b>Passerelle</b><span>");
+  if (gwLastOkMs) c << F("dernière réponse ") << ilYa(gwLastOkMs);
+  else c << F("pas encore de réponse");
+  if (gwRetryInSeconds()) c << F(" · nouvel essai dans ") << (long)gwRetryInSeconds() << F(" s");
+  c << F("</span></div><span class='") << (ok ? F("ok'>OK") : F("warn'>KO")) << F("</span></div>"
+         "<div class='ligne'><div class='lib'><b>Dernier démarrage</b><span>") << santeCauseDemarrage()
+    << F("</span></div></div></div><h2>Outils</h2><div class='carte'>"
+         "<a class='ligne' href='/update' style='color:inherit;text-decoration:none'><div class='ico' "
+         "style='background:#13372A'>⬆</div><div class='lib'><b>Mise à jour du firmware</b><span>fichier "
+         "firmware.bin.gz · place libre ") << (long)(ESP.getFreeSketchSpace() / 1024)
+    << F(" Ko</span></div><span class='chev'>›</span></a></div>"
+         "<div style='margin-top:16px'><a class='btn g' href='/restart'>Redémarrer l'afficheur</a></div></div>");
+  finPage(c, OG_SYSTEME);
 }
 
 // ------------------------------------------------------------ enregistrer
@@ -467,83 +705,80 @@ static void saveModuleParams(uint8_t page) {
   modParams(page)[size - 1] = '\0';
 }
 
+// Page de confirmation, puis retour à l'onglet (ou redémarrage)
+static void confirmation(const char* titre, const String& message, const char* retour, uint8_t secondes) {
+  server.send(200, F("text/html; charset=utf-8"),
+    String(F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
+             "<meta name='viewport' content='width=device-width,initial-scale=1'><meta http-equiv='refresh' content='"))
+    + String((int)secondes) + F(";url=") + retour + F("'><title>MODELROGS</title>") + FPSTR(STYLE)
+    + F("</head><body><div class='top'><div class='titre'><div class='logo'>M</div><h1>") + titre
+    + F("<small>MODELROGS Display</small></h1></div></div><div class='corps'><div class='carte'><p style='margin:0;"
+        "padding:14px'>") + message + F("</p></div></div></body></html>"));
+}
+
+// Chaque onglet envoie ses propres champs (« o » = onglet) : seuls ceux-là changent.
 static void handleSave() {
-  bool wifiChanged = false, apChanged = false, villeChanged = false;
+  const String o = server.arg("o");
+  bool redemarrer = false, apChanged = false;
 
-  String ssid = server.arg("wifi_ssid");
-  ssid.trim();
-  String pass = server.arg("wifi_pass");
-  if (ssid != cfg.wifiSsid) {
-    copyArg("wifi_ssid", cfg.wifiSsid, sizeof(cfg.wifiSsid));
-    copyArg("wifi_pass", cfg.wifiPass, sizeof(cfg.wifiPass));   // vide = réseau ouvert
-    wifiChanged = true;
-  } else if (pass.length()) {
-    copyArg("wifi_pass", cfg.wifiPass, sizeof(cfg.wifiPass));
-    wifiChanged = true;
-  }
-
-  String ap = server.arg("ap_ssid");
-  ap.trim();
-  if (ap.length() && ap != cfg.apSsid) {
-    copyArg("ap_ssid", cfg.apSsid, sizeof(cfg.apSsid));
-    apChanged = true;
-  }
-
-  String gw = server.arg("gw");
-  gw.trim();
-  while (gw.endsWith("/")) gw.remove(gw.length() - 1);
-  if (gw.length() && !gw.startsWith("http://")) gw = "http://" + gw;
-  strncpy(cfg.gateway, gw.c_str(), sizeof(cfg.gateway) - 1);
-  cfg.gateway[sizeof(cfg.gateway) - 1] = '\0';
-
-  String ville = server.arg("ville");
-  ville.trim();
-  if (ville != cfg.ville) villeChanged = true;
-  copyArg("ville", cfg.ville, sizeof(cfg.ville));
-
-  for (uint8_t p = 0; p < PG_COUNT; p++) {
-    // Seules les pages affichées dans le formulaire sont modifiées.
-    if (server.hasArg(String("pk") + p)) {
-      if (server.hasArg(String("pg") + p)) cfg.pages |= 1u << p;
-      else cfg.pages &= ~(1u << p);
+  if (o == "reseau") {
+    String ssid = server.arg("wifi_ssid");
+    ssid.trim();
+    String pass = server.arg("wifi_pass");
+    if (ssid != cfg.wifiSsid) {
+      copyArg("wifi_ssid", cfg.wifiSsid, sizeof(cfg.wifiSsid));
+      copyArg("wifi_pass", cfg.wifiPass, sizeof(cfg.wifiPass));   // vide = réseau ouvert
+    } else if (pass.length()) {
+      copyArg("wifi_pass", cfg.wifiPass, sizeof(cfg.wifiPass));
     }
-    if (server.hasArg(String("pm") + p)) saveModuleParams(p);
+    String ap = server.arg("ap_ssid");
+    ap.trim();
+    if (ap.length() && ap != cfg.apSsid) {
+      copyArg("ap_ssid", cfg.apSsid, sizeof(cfg.apSsid));
+      apChanged = true;
+    }
+    String gw = server.arg("gw");
+    gw.trim();
+    while (gw.endsWith("/")) gw.remove(gw.length() - 1);
+    if (gw.length() && !gw.startsWith("http://")) gw = "http://" + gw;
+    strncpy(cfg.gateway, gw.c_str(), sizeof(cfg.gateway) - 1);
+    cfg.gateway[sizeof(cfg.gateway) - 1] = '\0';
+    redemarrer = true;
+  } else if (o == "ecran") {
+    cfg.nightOn = server.hasArg("nuit");
+    cfg.nightStart = parseHhmm(server.arg("nd"), cfg.nightStart);
+    cfg.nightEnd = parseHhmm(server.arg("nf"), cfg.nightEnd);
+    if (server.hasArg("lj")) cfg.brightDay = constrain(server.arg("lj").toInt(), 5, 100);
+    if (server.hasArg("ln")) cfg.brightNight = constrain(server.arg("ln").toInt(), 0, 100);
+  } else {   // « pages »
+    for (uint8_t p = 0; p < PG_COUNT; p++) {
+      // Seules les pages affichées dans le formulaire sont modifiées.
+      if (server.hasArg(String("pk") + p)) {
+        if (server.hasArg(String("pg") + p)) cfg.pages |= 1u << p;
+        else cfg.pages &= ~(1u << p);
+      }
+      if (server.hasArg(String("pm") + p)) saveModuleParams(p);
+    }
+    if (server.hasArg("duree")) cfg.pageSec = constrain(server.arg("duree").toInt(), 5, 120);
   }
-  if (server.hasArg("duree")) cfg.pageSec = constrain(server.arg("duree").toInt(), 5, 120);
-
-  cfg.nightOn = server.hasArg("nuit");
-  cfg.nightStart = parseHhmm(server.arg("nd"), cfg.nightStart);
-  cfg.nightEnd = parseHhmm(server.arg("nf"), cfg.nightEnd);
-  if (server.hasArg("lj")) cfg.brightDay = constrain(server.arg("lj").toInt(), 5, 100);
-  if (server.hasArg("ln")) cfg.brightNight = constrain(server.arg("ln").toInt(), 0, 100);
 
   cfg.validated = 1;   // le premier Enregistrer valide la configuration
   saveConfig();
 
-  String msg = apChanged
-    ? F("Le point d'accès a changé de nom : reconnectez-vous au nouveau Wi-Fi, puis rouvrez 192.168.4.1.")
-    : F("Retour à la configuration dans quelques secondes...");
-  server.send(200, F("text/html; charset=utf-8"),
-    String(F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
-             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-             "<meta http-equiv='refresh' content='4;url=/'><title>MODELROGS</title>"))
-    + FPSTR(STYLE) + F("</head><body><section><h2>Configuration enregistrée</h2><p>") + msg
-    + F("</p></section></body></html>"));
-
-  // Appliqué APRÈS la réponse : l'AP n'est redémarré que si son nom change,
-  // et les routes du serveur ne sont jamais réenregistrées.
-  delay(50);
-  netApplyConfig(wifiChanged, apChanged);
-  schedulerConfigChanged(villeChanged);
+  if (redemarrer) {
+    confirmation("Réseau", apChanged
+      ? String(F("Enregistré. Redémarrage : reconnectez-vous au Wi-Fi « ")) + esc(cfg.apSsid) + F(" », puis rouvrez 192.168.4.1.")
+      : String(F("Enregistré. L'afficheur redémarre ; retour à l'interface dans 15 secondes.")), "/reseau", 15);
+    delay(200);
+    santeRedemarrer(CAUSE_INTERFACE);
+    return;
+  }
+  confirmation("Enregistré", F("Réglages enregistrés."), o == "ecran" ? "/ecran" : "/", 2);
+  schedulerConfigChanged(false);
 }
 
 static void handleRestart() {
-  server.send(200, F("text/html; charset=utf-8"),
-    String(F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
-             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-             "<meta http-equiv='refresh' content='15;url=/'><title>MODELROGS</title>"))
-    + FPSTR(STYLE) + F("</head><body><section><h2>Redémarrage...</h2>"
-    "<p>Reconnectez-vous au Wi-Fi de l'afficheur si nécessaire.</p></section></body></html>"));
+  confirmation("Redémarrage", F("L'afficheur redémarre. Reconnectez-vous à son Wi-Fi si nécessaire."), "/systeme", 15);
   delay(200);
   santeRedemarrer(CAUSE_INTERFACE);
 }
@@ -555,109 +790,81 @@ static void handleShow() {
   server.send(303, F("text/plain"), "");
 }
 
-// ------------------------------------------------------------ diagnostic
-// Page /debug (lecture humaine) et /debug.json : compteurs toujours tenus,
-// journal des dernières requêtes en mode diagnostic (voir diag.h).
-// /debug?on=1 active le mode, /debug?off=1 l'arrête (mémoire vive seulement).
-
-static String ilYa(uint32_t quandMs) {
-  if (!quandMs) return F("jamais");
-  uint32_t s = (millis() - quandMs) / 1000;
-  if (s < 120) return String(F("il y a ")) + s + F(" s");
-  if (s < 7200) return String(F("il y a ")) + (s / 60) + F(" min");
-  return String(F("il y a ")) + (s / 3600) + F(" h");
-}
-
-static bool basculerDiag() {
-  if (server.arg("on") == "1") return diagActiver(true);
-  if (server.arg("off") == "1") diagActiver(false);
-  return true;
-}
-
 static void handleDebug() {
-  bool memoireOk = basculerDiag();
+  const bool memoireOk = basculerDiag();
   const DiagCompteurs& k = diagCompteurs();
-  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server.send(200, F("text/html; charset=utf-8"), "");
   Chunks c;
-  c << F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
-         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-         "<title>MODELROGS — Diagnostic</title>")
-    << FPSTR(STYLE)
-    << F("<style>table{width:100%;border-collapse:collapse;font-size:12px}"
-         "td,th{padding:3px 4px;border-bottom:1px solid #2A3140;text-align:right;white-space:nowrap}"
-         "th{color:var(--mut);font-weight:500}td.g,th.g{text-align:left}"
-         ".tab{overflow-x:auto}</style></head><body><h1>Diagnostic</h1>");
+  debutPage(c, "Diagnostic", String(F("depuis ")) + duree(millis() / 1000) + F(" · X-Req ") + String(diagDernierId()));
+  const bool actif = diagActif();
 
-  // --- Mode
-  c << F("<section><h2>Mode diagnostic</h2><p class='") << (diagActif() ? "ok'>Actif" : "warn'>Arrêté")
-    << F("</p><p class='note'>Actif : journal des 32 dernières requêtes et sonde réseau toutes les 30 s. "
-         "Il s'arrête au redémarrage. Les compteurs ci-dessous sont toujours tenus.</p>");
-  if (!memoireOk) c << F("<p class='ko'>Mémoire insuffisante pour le journal.</p>");
-  c << (diagActif() ? F("<a class='sm' href='/debug?off=1'>Arrêter</a>") : F("<a class='sm' href='/debug?on=1'>Activer</a>"))
-    << F("<a class='sm' href='/debug'>Actualiser</a><a class='sm' href='/debug.json'>JSON</a>"
-         "<a class='sm' href='/'>Retour</a></section>");
+  // --- Mode : l'interrupteur est un lien (/debug?on=1 ou ?off=1)
+  c << F("</div><div class='corps'><div class='carte' style='margin-top:6px'><a class='ligne' href='/debug?")
+    << (actif ? F("off=1") : F("on=1")) << F("' style='color:inherit;text-decoration:none'><div class='ico' "
+         "style='background:#2B2550'>🩺</div><div class='lib'><b>Mode diagnostic</b><span>journal des 32 dernières "
+         "requêtes, sonde /ping ; arrêté au redémarrage</span></div>");
+  interrupteurVisuel(c, actif);
+  c << F("</a></div>");
+  if (!memoireOk) c << F("<p class='note ko'>Mémoire insuffisante pour le journal.</p>");
 
   // --- Wi-Fi et mémoire
-  c << F("<section><h2>Wi-Fi et mémoire</h2><div class='kv'>")
-    << F("<b>Signal</b><span>") << (long)WiFi.RSSI() << F(" dBm — canal ") << (long)WiFi.channel() << F("</span>")
-    << F("<b>Adresse</b><span>") << WiFi.localIP().toString() << F(" — passerelle ") << esc(cfg.gateway) << F("</span>")
-    << F("<b>Déconnexions</b><span>") << (long)k.deconnexions;
-  if (k.deconnexionMs) c << F(" — dernière ") << ilYa(k.deconnexionMs) << F(", raison ") << (long)k.raison;
-  c << F("</span><b>Mémoire libre</b><span>") << (long)ESP.getFreeHeap() << F(" o — minimum ")
-    << (long)santeMinTasLibre() << F(" o</span><b>Plus grand bloc</b><span>") << (long)ESP.getMaxFreeBlockSize()
-    << F(" o — minimum ") << (long)santeMinBlocLibre() << F(" o — fragmentation ")
-    << (long)ESP.getHeapFragmentation() << F(" %</span><b>Fonctionne depuis</b><span>")
-    << (long)(millis() / 60000) << F(" min</span></div></section>");
+  c << F("<h2>Wi-Fi et mémoire</h2><div class='carte'><div class='tuiles'><div><b>") << (long)WiFi.RSSI()
+    << F("</b><span>dBm · canal ") << (long)WiFi.channel() << F("</span></div><div><b>")
+    << (long)(ESP.getMaxFreeBlockSize() / 1024) << F(" Ko</b><span>plus grand bloc</span></div><div><b>")
+    << (long)k.deconnexions << F("</b><span>déconnexions</span></div></div><div class='kv'>"
+         "<b>Mémoire libre</b><span>") << (long)ESP.getFreeHeap() << F(" o, minimum ") << (long)santeMinTasLibre()
+    << F(" o</span><b>Plus grand bloc</b><span>minimum ") << (long)santeMinBlocLibre() << F(" o, fragmentation ")
+    << (long)ESP.getHeapFragmentation() << F(" %</span><b>Adresse</b><span>") << WiFi.localIP().toString()
+    << F("</span>");
+  if (k.deconnexionMs)
+    c << F("<b>Dernière déconnexion</b><span>") << ilYa(k.deconnexionMs) << F(", raison ") << (long)k.raison << F("</span>");
+  c << F("</div></div>");
 
-  // --- Compteurs
-  c << F("<section><h2>Requêtes depuis le démarrage</h2><div class='kv'>")
-    << F("<b>Données (JSON)</b><span>") << (long)k.requetes[DG_JSON] << F(" — pire ") << (long)k.maxMs[DG_JSON] << F(" ms</span>")
-    << F("<b>Images</b><span>") << (long)k.requetes[DG_IMG] << F(" — pire ") << (long)k.maxMs[DG_IMG] << F(" ms</span>")
-    << F("<b>Réussies</b><span class='ok'>") << (long)k.reussies << F("</span>")
-    << F("<b>Connexion impossible</b><span>") << (long)k.connexion << F("</span>")
-    << F("<b>Délai dépassé</b><span>") << (long)k.delai << F("</span>")
-    << F("<b>Connexion perdue</b><span>") << (long)k.perdue << F("</span>")
-    << F("<b>Autres erreurs réseau</b><span>") << (long)k.autresReseau << F("</span>")
-    << F("<b>Code HTTP autre que 200</b><span>") << (long)k.http << F("</span>")
-    << F("<b>JSON illisible</b><span>") << (long)k.jsonKo << F("</span>")
-    << F("<b>Image incomplète</b><span>") << (long)k.imageKo << F("</span>")
-    << F("<b>Temporisations</b><span>") << (long)k.tempos << F(" — appels sautés ") << (long)k.sautesAppels
-    << F(", images sautées ") << (long)k.sautesImages << F("</span>")
-    << F("<b>Nouveaux essais</b><span>") << (long)k.relances << F(", dont réussis ") << (long)k.relancesOk << F("</span>")
-    << F("<b>Dernier échec</b><span>");
-  if (k.dernierEchecMs) c << diagTexteCode(k.dernierCode) << F(" — ") << esc(k.dernierChemin) << F(" — ") << ilYa(k.dernierEchecMs);
-  else c << F("aucun");
-  c << F("</span><b>Dernière temporisation</b><span>");
-  if (k.tempoMs) c << diagTexteCode(k.tempoCode) << F(" — ") << esc(k.tempoChemin) << F(" — ") << ilYa(k.tempoMs);
+  // --- Requêtes
+  const uint32_t echecs = k.connexion + k.delai + k.perdue + k.autresReseau + k.imageKo;
+  c << F("<h2>Requêtes</h2><div class='carte'><div class='ligne'><div class='lib'><b>Réussies</b><span>JSON ")
+    << (long)k.requetes[DG_JSON] << F(" · images ") << (long)k.requetes[DG_IMG] << F(" · sondes ") << (long)k.sondes
+    << F("</span></div><span class='ro ok'>") << (long)k.reussies << F("</span></div>"
+         "<div class='ligne'><div class='lib'><b>Échecs réseau</b><span>connexion ") << (long)k.connexion
+    << F(" · délai ") << (long)k.delai << F(" · perdue ") << (long)k.perdue << F(" · incomplètes ") << (long)k.imageKo
+    << F("</span></div><span class='ro") << (echecs ? F(" warn") : F("")) << F("'>") << (long)echecs << F("</span></div>"
+         "<div class='ligne'><div class='lib'><b>Nouveaux essais</b><span>dont réussis ") << (long)k.relancesOk
+    << F("</span></div><span class='ro'>") << (long)k.relances << F("</span></div>"
+         "<div class='ligne'><div class='lib'><b>Temporisations</b><span>");
+  if (k.tempoMs) c << F("dernière : ") << esc(k.tempoChemin) << F(", ") << ilYa(k.tempoMs);
   else c << F("aucune");
-  c << F("</span><b>Sonde /ping</b><span>") << (long)k.sondes << F(" — échecs ") << (long)k.sondesKo;
-  uint32_t okSondes = k.sondes - k.sondesKo;
-  if (okSondes) c << F(" — ") << (long)k.sondeMin << F(" / ") << (long)(k.sondeSomme / okSondes) << F(" / ")
-                  << (long)k.sondeMax << F(" ms (min / moy / max)");
-  c << F("</span></div></section>");
+  c << F("</span></div><span class='ro'>") << (long)k.tempos << F("</span></div><div class='kv'>"
+         "<b>Pire durée</b><span>JSON ") << (long)k.maxMs[DG_JSON] << F(" ms · image ") << (long)k.maxMs[DG_IMG]
+    << F(" ms</span><b>Autres erreurs</b><span>réseau ") << (long)k.autresReseau << F(" · HTTP ") << (long)k.http
+    << F(" · JSON ") << (long)k.jsonKo << F("</span><b>Sautés</b><span>appels ") << (long)k.sautesAppels
+    << F(" · images ") << (long)k.sautesImages << F("</span><b>Dernier échec</b><span>");
+  if (k.dernierEchecMs) c << diagTexteCode(k.dernierCode) << F(", ") << esc(k.dernierChemin) << F(", ") << ilYa(k.dernierEchecMs);
+  else c << F("aucun");
+  c << F("</span><b>Sonde /ping</b><span>") << (long)k.sondes << F(", échecs ") << (long)k.sondesKo;
+  const uint32_t okSondes = k.sondes - k.sondesKo;
+  if (okSondes) c << F(", ") << (long)k.sondeMin << F(" / ") << (long)(k.sondeSomme / okSondes) << F(" / ")
+                  << (long)k.sondeMax << F(" ms");
+  c << F("</span></div></div>");
 
   // --- Journal
-  c << F("<section><h2>Dernières requêtes</h2>");
-  if (!diagActif()) {
-    c << F("<p class='note'>Journal disponible en mode diagnostic.</p>");
+  c << F("<h2>Dernières requêtes</h2><div class='carte'>");
+  if (!actif) {
+    c << F("<p class='note' style='margin:0;padding:12px 14px'>Journal disponible en mode diagnostic.</p>");
   } else {
-    c << F("<div class='tab'><table><tr><th>X-Req</th><th>il y a</th><th class='g'>route</th><th class='g'>résultat</th>"
-           "<th>en-têtes</th><th>total</th><th>octets</th><th>dBm</th></tr>");
+    c << F("<table>");
     for (uint8_t i = 0; i < diagNbEntrees(); i++) {
       const DiagEntree* e = diagEntree(i);
-      c << F("<tr><td>") << (long)e->id << F("</td><td>") << (long)((millis() - e->quandMs) / 1000)
-        << F(" s</td><td class='g'>") << diagNomType(e->type) << F(" ") << esc(e->route)
-        << F("</td><td class='g ") << (e->code == 200 ? "ok" : (e->code == DG_SOURCE ? "warn" : "ko")) << F("'>")
-        << diagTexteCode(e->code) << F("</td><td>") << (long)e->enTetesMs << F(" ms</td><td>") << (long)e->totalMs
-        << F(" ms</td><td>") << (long)e->octets << F("</td><td>") << (long)e->rssi << F("</td></tr>");
+      c << F("<tr><td class='g'>") << diagNomType(e->type) << F(" ") << esc(e->route) << F(" <span style='color:"
+             "var(--mut)'>· ") << (long)e->id << F(" · il y a ") << (long)((millis() - e->quandMs) / 1000)
+        << F(" s</span></td><td>") << (long)e->totalMs << F(" ms</td><td class='")
+        << (e->code == 200 ? "ok" : (e->code == DG_SOURCE ? "warn" : "ko")) << F("'>")
+        << (e->code == 200 ? String("OK") : String(e->code)) << F("</td></tr>");
     }
-    c << F("</table></div><p class='note'>Le numéro X-Req se retrouve dans le journal de la passerelle "
-           "(DIAGNOSTIC=1 ou /debug?on=1 sur la passerelle).</p>");
+    c << F("</table>");
   }
-  c << F("</section></body></html>");
-  c.flush();
-  server.sendContent("");
+  c << F("</div><p class='note'>Le numéro X-Req se retrouve dans le journal de la passerelle (DIAGNOSTIC=1 ou "
+         "/debug?on=1 sur la passerelle).</p><p><a class='sm' href='/debug'>Actualiser</a><a class='sm' "
+         "href='/debug.json'>JSON</a></p></div>");
+  finPage(c, OG_DIAG);
 }
 
 static void handleDebugJson() {
@@ -723,6 +930,9 @@ void webBegin() {
   server.on("/save", HTTP_POST, handleSave);
   server.on("/show", HTTP_GET, handleShow);
   server.on("/restart", HTTP_GET, handleRestart);
+  server.on("/ecran", HTTP_GET, handleEcran);
+  server.on("/reseau", HTTP_GET, handleReseau);
+  server.on("/systeme", HTTP_GET, handleSysteme);
   server.on("/debug", HTTP_GET, handleDebug);
   server.on("/debug.json", HTTP_GET, handleDebugJson);
 

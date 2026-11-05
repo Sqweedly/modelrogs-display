@@ -64,6 +64,17 @@ jobs:
           pip install platformio==6.1.16
           pio run
 
+      # Interface web (3.0.0) : le vrai web.cpp exécuté sur PC (ArduinoJson pris
+      # dans les bibliothèques téléchargées par PlatformIO à l'étape précédente)
+      - name: Test de l'interface web du firmware
+        working-directory: firmware/tools/simulateur
+        run: |
+          mkdir -p out_web
+          g++ -std=gnu++17 -O0 -w -DSHIM_WEB -I shim_web -I shim -I ../../src \
+            -I ../../.pio/libdeps/smalltv/ArduinoJson/src \
+            test_web.cpp ../../src/config.cpp ../../src/diag.cpp ../../src/app.cpp -o test_web
+          ./test_web
+
       - uses: actions/upload-artifact@v4
         with:
           name: firmware-dev

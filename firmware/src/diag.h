@@ -70,6 +70,7 @@ struct DiagCompteurs {
 
 void diagBegin();                         // à appeler au démarrage (événements Wi-Fi)
 uint32_t diagNouvelId();                  // prochain numéro X-Req
+uint32_t diagDernierId();                 // dernier numéro X-Req donné
 void diagRequete(uint8_t type, uint32_t id, const char* chemin, int16_t code,
                  uint32_t enTetesMs, uint32_t totalMs, uint32_t octets);
 void diagTempo(const char* chemin, int16_t code);

@@ -1,0 +1,152 @@
+// Banc d'essai de l'interface web (3.0.0) : exécute le vrai web.cpp sur PC.
+// Chaque onglet est écrit dans out_web/<onglet>.html (à ouvrir dans un
+// navigateur), puis les enregistrements sont vérifiés (seuls les champs de
+// l'onglet changent). Données de la passerelle : fixtures_web/ (générées par la
+// vraie passerelle : gateway/tools/fixtures_interface.py).
+// Compilation : voir apercu.sh.
+#include <fstream>
+#include <sstream>
+
+#include "../../src/web.cpp"   // même unité de compilation : accès au serveur (static)
+#include "diag.h"
+
+uint32_t g_millis = 7123456;   // 1 h 58 de marche
+bool gSafeMode = false;
+
+// ------------------------------------------------------------ santé, ordonnanceur
+bool santeDemarrage() { return false; }
+void santeTick(bool, int, bool) {}
+static int redemarrages = 0;
+void santeRedemarrer(CauseRedemarrage, bool) { redemarrages++; }
+bool santeNuitAuDemarrage() { return false; }
+const char* santeCauseDemarrage() { return "redémarrage nocturne planifié"; }
+uint32_t santeMinTasLibre() { return 27120; }
+uint32_t santeMinBlocLibre() { return 20288; }
+uint32_t santeRedemarragesPlanifies() { return 3; }
+static int pageForcee = -1;
+void schedulerForce(int8_t p) { pageForcee = p; }
+void schedulerConfigChanged(bool) {}
+
+// ----------------------------------------------------------------- réseau
+int gwLastCode = 200;
+uint32_t gwLastOkMs = 7120456;
+static std::string dossier = "fixtures_web/";
+static std::string lire(const std::string& p) { std::ifstream f(p); std::stringstream s; s << f.rdbuf(); return s.str(); }
+bool staConnected() { return true; }
+void netApplyConfig(bool, bool) {}
+uint32_t gwRetryInSeconds() { return 0; }
+const char* gwErrorText(int code) { return code == -3 ? "Passerelle injoignable" : "Erreur"; }
+String urlEncode(const char* s) { return String(s); }
+int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
+  std::string p = path.s, nom;
+  if (p == "/modules") nom = "modules";
+  else if (p == "/btc/liste") nom = "btc_liste";
+  else if (p == "/custom/liste") nom = "custom_liste";
+  else if (p == "/immich/sources") nom = "immich_sources";
+  else if (p == "/time") nom = "time";
+  std::string json = nom.empty() ? "" : lire(dossier + nom + ".json");
+  if (json.empty()) return gwLastCode = -3;
+  if (deserializeJson(doc, json)) return gwLastCode = -4;
+  return gwLastCode = (doc["ok"] | 0) ? 200 : -5;
+}
+bool gwImage(const char*, int, int, int, int, uint16_t, int, bool) { return false; }
+
+// ----------------------------------------------------------------- outils
+static int echecs = 0;
+static void verifier(const char* libelle, bool ok) {
+  echecs += !ok;
+  printf("%s %s\n", ok ? "OK   " : "ÉCHEC", libelle);
+}
+static std::string appeler(const char* route, std::vector<std::pair<std::string, std::string>> args = {}) {
+  server.args_ = args;
+  server.corps.clear();
+  server.entetes.clear();
+  server.routes.at(route)();
+  return server.corps;
+}
+static void ecrire(const char* nom, const std::string& html) {
+  std::ofstream(std::string("out_web/") + nom + ".html") << html;
+}
+static bool contient(const std::string& h, const char* x) { return h.find(x) != std::string::npos; }
+
+int main() {
+  loadConfig();
+  strcpy(cfg.wifiSsid, "Livebox-A1F2");
+  strcpy(cfg.gateway, "http://192.168.1.20:8680");
+  strcpy(cfg.pCrypto, "s1=bitcoin&s2=ethereum&s3=solana");
+  strcpy(cfg.pPhotos, "duree=30");
+  cfg.pages &= ~(1u << PG_COMMO);
+  cfg.validated = 1;
+  cfg.nightOn = 1; cfg.nightStart = 22 * 60 + 30; cfg.nightEnd = 7 * 60; cfg.brightDay = 80; cfg.brightNight = 8;
+  dossier = "fixtures/";
+  syncTime();                       // heure : fixtures/time.json
+  dossier = "fixtures_web/";
+  fetchModules();
+  diagBegin();
+  diagActiver(true);
+  const struct { const char* r; int16_t code; uint16_t ms; uint32_t o; uint8_t t; } J[] = {
+    {"/img", DG_INCOMPL, 2512, 1460, DG_IMG}, {"/supervision", 200, 67, 85, DG_JSON},
+    {"/img", 200, 1704, 115200, DG_IMG}, {"/plex", 200, 11, 42, DG_JSON}};
+  for (auto& e : J) diagRequete(e.t, diagNouvelId(), e.r, e.code, e.ms / 2, e.ms, e.o);
+  webBegin();
+
+  // --- Rendu des 5 onglets
+  std::string h = appeler("/");
+  ecrire("pages", h);
+  verifier("Pages : 5 onglets, Pages en couleur", contient(h, "<a href='/' class='on'>") && contient(h, "Diagnostic</a>"));
+  verifier("Pages : 3 listes et « Autre valeur » pour Crypto", contient(h, "name='p4_s1'") && contient(h, "name='p4_s3'")
+           && contient(h, "Autre valeur (code, si absente des listes)"));
+  verifier("Pages : Crypto résumée « Bitcoin, Ethereum, Solana »", contient(h, "Bitcoin, Ethereum, Solana"));
+  verifier("Pages : ville de la passerelle sous Météo seulement", contient(h, "Sernhac · 5 jours") && !contient(h, "name='ville'"));
+  verifier("Pages : Indices absent de la passerelle, interrupteur grisé", contient(h, "module absent de la passerelle")
+           && !contient(h, "name='pk9'"));
+  verifier("Pages : Discord non configuré signalé", contient(h, "non configuré"));
+  verifier("Pages : Heure toujours active, sans champ", contient(h, "toujours active") && !contient(h, "name='pk0'"));
+  verifier("Pages : Commodities décochée", contient(h, "name='pg8'>") || contient(h, "name='pg8'><b>"));
+  h = appeler("/ecran");
+  ecrire("ecran", h);
+  verifier("Écran : color-scheme dark, champs d'heure 22:30 et 07:00", contient(h, "color-scheme:dark")
+           && contient(h, "name='nd' value='22:30'") && contient(h, "name='nf' value='07:00'"));
+  h = appeler("/reseau");
+  ecrire("reseau", h);
+  verifier("Réseau : adresse de la passerelle, point d'accès, pas de ville", contient(h, "value='http://192.168.1.20:8680'")
+           && contient(h, "<h2>Point d'accès</h2>") && !contient(h, "Ville"));
+  h = appeler("/systeme");
+  ecrire("systeme", h);
+  verifier("Système : lien /update et redémarrage", contient(h, "href='/update'") && contient(h, "href='/restart'"));
+  h = appeler("/debug");
+  ecrire("diagnostic", h);
+  verifier("Diagnostic : journal avec l'image incomplète (-203)", contient(h, ">-203<") && contient(h, "Nouveaux essais"));
+  h = appeler("/debug.json");
+  verifier("debug.json : inchangé (clés relances en plus)", contient(h, "\"diag\":1") && contient(h, "\"relances\":0")
+           && contient(h, "\"sautes_appels\":"));
+
+  // --- Enregistrements : seuls les champs de l'onglet changent
+  Config avant = cfg;
+  appeler("/save", {{"o", "ecran"}, {"nd", "23:00"}, {"nf", "06:30"}, {"lj", "70"}, {"ln", "0"}});
+  verifier("Écran enregistré, nuit décochée = plage arrêtée, Wi-Fi intact", !cfg.nightOn && cfg.nightStart == 23 * 60
+           && cfg.nightEnd == 6 * 60 + 30 && cfg.brightDay == 70 && cfg.brightNight == 0
+           && !strcmp(cfg.wifiSsid, avant.wifiSsid) && cfg.pages == avant.pages);
+  appeler("/save", {{"o", "pages"}, {"pk4", "1"}, {"pg4", "on"}, {"pm4", "1"}, {"p4_s1", "bitcoin"}, {"p4_s2", ""},
+                    {"p4_s3", ""}, {"p4_m", ""}, {"pk8", "1"}, {"pg8", "on"}, {"pk2", "1"}, {"duree", "20"}});
+  verifier("Pages enregistrées : Crypto = bitcoin, Commodities cochée, Discord décochée, durée 20",
+           !strcmp(cfg.pCrypto, "s1=bitcoin") && (cfg.pages & 1u << PG_COMMO) && !(cfg.pages & 1u << PG_DISCORD)
+           && cfg.pageSec == 20 && !cfg.nightOn);
+  verifier("Page Heure toujours active après enregistrement", cfg.pages & 1u << PG_HEURE);
+  appeler("/save", {{"o", "reseau"}, {"wifi_ssid", "Livebox-A1F2"}, {"wifi_pass", ""}, {"gw", "192.168.1.30:8680/"},
+                    {"ap_ssid", "ModelrogsTV"}});
+  verifier("Réseau enregistré : adresse normalisée, mot de passe gardé, redémarrage",
+           !strcmp(cfg.gateway, "http://192.168.1.30:8680") && !strcmp(cfg.wifiPass, avant.wifiPass) && redemarrages == 1
+           && cfg.pageSec == 20);
+  appeler("/show", {{"p", "12"}});
+  verifier("Afficher maintenant (Tesla)", pageForcee == PG_TESLA);
+
+  // --- Mode secours : OTA en tête, sans appel à la passerelle
+  gSafeMode = true;
+  h = appeler("/");
+  ecrire("secours", h);
+  verifier("Mode secours : lien /update, pas de liste de pages", contient(h, "Mode secours") && contient(h, "href='/update'")
+           && !contient(h, "Rotation"));
+  printf("%s\n", echecs ? "Des tests ont échoué." : "Tous les tests de l'interface sont passés.");
+  return echecs ? 1 : 0;
+}

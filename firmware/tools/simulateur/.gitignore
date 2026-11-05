@@ -4,3 +4,5 @@ test_config
 planche.png
 test_fit
 sim_lib.o
+out_web/
+test_web

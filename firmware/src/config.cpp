@@ -185,6 +185,7 @@ static void sanitize() {
     cfg.reserve[0] |= RES_PAGE_TESLA;
   }
   cfg.pages &= (1u << PG_COUNT) - 1;
+  cfg.pages |= 1u << PG_HEURE;   // 3.0.0 : la page Heure est toujours active (interface)
   cfg.pageSec = constrain(cfg.pageSec, 5, 120);
   cfg.nightStart %= 1440;
   cfg.nightEnd %= 1440;

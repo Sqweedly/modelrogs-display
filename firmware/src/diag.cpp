@@ -27,6 +27,7 @@ void diagBegin() {
 }
 
 uint32_t diagNouvelId() { return ++prochainId; }
+uint32_t diagDernierId() { return prochainId; }
 
 void diagRequete(uint8_t type, uint32_t id, const char* chemin, int16_t code,
                  uint32_t enTetesMs, uint32_t totalMs, uint32_t octets) {

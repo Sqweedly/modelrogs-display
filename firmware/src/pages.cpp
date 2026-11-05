@@ -95,15 +95,16 @@ static void dateCourte(char* out, size_t n, uint16_t joursAvant = 0) {
   snprintf(out, n, "%u %s", (unsigned)d, MOIS[m - 1]);
 }
 
-static void drawClockDigits() {
+// Chiffres de l'heure en F_68, haut de l'encre en yHaut (page Heure et écran
+// de nuit). Renvoie la minute du jour dessinée, -1 si l'heure est inconnue.
+static int chiffresHeure(int yHaut, uint16_t cChiffres, uint16_t cPoints) {
   GlyphBox g0;
   glyphBox(F_68, '0', g0);
-  const int Y_CHIFFRES = yChiffres - (fontAscent(F_68) - g0.dy);   // ligne de texte
-  tft.fillRect(0, yChiffres - 3, 240, g0.h + 6, BG);
+  const int Y_CHIFFRES = yHaut - (fontAscent(F_68) - g0.dy);   // ligne de texte
+  tft.fillRect(0, yHaut - 3, 240, g0.h + 6, BG);
   if (!timeValid()) {
-    drawText("--:--", 120, yChiffres + 10, F_32, MUTED, BG, TC_DATUM);
-    lastClockMinute = -1;
-    return;
+    drawText("--:--", 120, yHaut + 10, F_32, cChiffres == TXT ? MUTED : cChiffres, BG, TC_DATUM);
+    return -1;
   }
   uint32_t t = localEpoch();
   int minuteOfDay = (t % 86400UL) / 60;
@@ -128,12 +129,27 @@ static void drawClockDigits() {
   int xM = encre + (hhR - hhL) + ECART + g[2].w + ECART - mmL;
   // Centre vertical : (haut + bas) de l'encre, mesuré depuis la ligne de base
   int dyC = ((g[2].dy * 2 - g[2].h) - (g[0].dy * 2 - g[0].h)) / 2;
-  drawText(String(ch[0]), xH, Y_CHIFFRES, F_68, TXT, BG);
-  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_68, TXT, BG);
-  drawText(":", xC, Y_CHIFFRES + dyC, F_68, VIOLET, BG);
-  drawText(String(ch[3]), xM, Y_CHIFFRES, F_68, TXT, BG);
-  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_68, TXT, BG);
-  lastClockMinute = minuteOfDay;
+  drawText(String(ch[0]), xH, Y_CHIFFRES, F_68, cChiffres, BG);
+  drawText(String(ch[1]), xH + g[0].adv, Y_CHIFFRES, F_68, cChiffres, BG);
+  drawText(":", xC, Y_CHIFFRES + dyC, F_68, cPoints, BG);
+  drawText(String(ch[3]), xM, Y_CHIFFRES, F_68, cChiffres, BG);
+  drawText(String(ch[4]), xM + g[3].adv, Y_CHIFFRES, F_68, cChiffres, BG);
+  return minuteOfDay;
+}
+
+static void drawClockDigits() {
+  lastClockMinute = chiffresHeure(yChiffres, TXT, VIOLET);
+}
+
+// Écran de nuit (3.0.0) : l'heure seule, en ambre sombre (moins éblouissant
+// dans le noir), centrée sur l'écran. Redessiné à chaque minute (main.cpp).
+static constexpr uint16_t NUIT_AMBRE = RGB(0xA0, 0x4C, 0x00);
+
+void drawNuit() {
+  tft.fillScreen(BG);
+  GlyphBox g0;
+  glyphBox(F_68, '0', g0);
+  chiffresHeure((240 - g0.h) / 2, NUIT_AMBRE, NUIT_AMBRE);
 }
 
 // Météo du jour (sans carte ni libellé : l'icône suffit). Renvoie le haut de

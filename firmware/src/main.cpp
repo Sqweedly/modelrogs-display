@@ -64,6 +64,11 @@ static int8_t   forcedPage = -1;
 static bool     priorityDiscord = false;
 static bool     priorityPlex = false;
 static bool     priorityTesla = false;   // une charge vient de commencer
+// Écran de nuit (3.0.0) : affiché pendant la plage nocturne ; minute dessinée
+// (-1 : à redessiner) ; alerte de supervision affichée à la place.
+static bool     enNuit = false;
+static int      nuitMinute = -1;
+static bool     nuitAlerte = false;
 static bool     configChanged = false;
 static bool     screenOff = false;
 static uint8_t  lastBrightness = 255;
@@ -307,7 +312,10 @@ void loop() {
   //     redémarrage de nuit, la luminosité de nuit est gardée jusqu'à
   //     ce que l'heure soit connue.
   bool nuit = nightActive() || (!timeValid() && santeNuitAuDemarrage() && cfg.nightOn);
-  uint8_t brightness = nuit ? cfg.brightNight : cfg.brightDay;
+  // Panne de supervision la nuit : alerte affichée à la luminosité de jour
+  // (plus visible), jusqu'au retour à la normale (3.0.0).
+  const bool alerteNuit = nuit && pageEnabled(PG_SUP) && moduleUsable(PG_SUP) && gSup.alert;
+  uint8_t brightness = nuit && !alerteNuit ? cfg.brightNight : cfg.brightDay;
 
   // --- Redémarrage préventif (2 h 15), filet de sécurité mémoire, mesures
   santeTick(timeValid(), localMinuteOfDay(), nuit);
@@ -339,7 +347,8 @@ void loop() {
                    : now - gTime.atMs > TIME_SYNC_MS) {
     syncTime();
   }
-  if (pageEnabled(PG_DISCORD) && moduleUsable(PG_DISCORD) &&
+  // La nuit : seules l'heure et la supervision sont demandées (écran de nuit).
+  if (!nuit && pageEnabled(PG_DISCORD) && moduleUsable(PG_DISCORD) &&
       (gDisc.lastPoll == 0 ||
        now - gDisc.lastPoll > (gDisc.ok && gDisc.n > 0 ? DISCORD_POLL_MS : REPOS_POLL_MS))) {
     if (pollDiscord()) priorityDiscord = true;
@@ -348,12 +357,12 @@ void loop() {
       (gSup.lastPoll == 0 || now - gSup.lastPoll > SUP_POLL_MS)) {
     pollSup();
   }
-  if (pageEnabled(PG_PLEX) && moduleUsable(PG_PLEX) &&
+  if (!nuit && pageEnabled(PG_PLEX) && moduleUsable(PG_PLEX) &&
       (gPlex.lastPoll == 0 ||
        now - gPlex.lastPoll > (gPlex.ok && gPlex.n > 0 ? PLEX_POLL_MS : REPOS_POLL_MS))) {
     if (pollPlex()) priorityPlex = true;
   }
-  if (pageEnabled(PG_TESLA) && moduleUsable(PG_TESLA) &&
+  if (!nuit && pageEnabled(PG_TESLA) && moduleUsable(PG_TESLA) &&
       (gTesla.lastPoll == 0 || now - gTesla.lastPoll > TESLA_POLL_MS)) {
     if (pollTesla()) priorityTesla = true;
   }
@@ -366,6 +375,41 @@ void loop() {
     if (!off) configChanged = true;   // au réveil : redessiner
   }
   if (screenOff) return;              // écran éteint : on ne dessine rien
+
+  // --- Écran de nuit (3.0.0) : l'heure seule ; aucune autre page (rotation,
+  //     priorités Plex, Discord, Tesla, pages demandées depuis l'interface).
+  //     Une panne de supervision s'affiche à la place, à la luminosité de jour,
+  //     et reste affichée jusqu'au retour à la normale.
+  if (nuit) {
+    if (!enNuit) {
+      enNuit = true;
+      nuitMinute = -1;
+      nuitAlerte = false;
+    }
+    configChanged = false;
+    forcedPage = -1;
+    priorityDiscord = priorityPlex = priorityTesla = false;
+    alertShown = blocSup = alertActive = false;
+    if (supAlert) {
+      if (!nuitAlerte || drawnSupVersion != gSup.version) {
+        drawAlert();
+        drawnSupVersion = gSup.version;
+        nuitAlerte = true;
+      }
+      return;
+    }
+    const int m = localMinuteOfDay();
+    if (nuitAlerte || m != nuitMinute) {
+      drawNuit();
+      nuitMinute = m;
+      nuitAlerte = false;
+    }
+    return;
+  }
+  if (enNuit) {                       // fin de la plage nocturne : reprise de la rotation
+    enNuit = false;
+    configChanged = true;
+  }
 
   // --- Après une modification de configuration
   if (configChanged) {

@@ -330,6 +330,7 @@ int main(int argc, char** argv) {
     fixtures["/tesla"] = FX((std::string("tesla_") + e).c_str()); pollTesla();
     drawTesla(); save(std::string("32_tesla_") + e);
   }
+  drawNuit();                      save("33_nuit");   // écran de nuit (3.0.0)
   drawPlex(5, 6);                  save("14_plex_1");
   fixtures["/plex"] = FX("plex1s"); pollPlex();
   drawPlex(5, 6);                  save("14b_plex_serie");

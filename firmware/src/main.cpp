@@ -44,6 +44,10 @@ static const uint32_t PLEX_POLL_MS    = 5UL * 1000;
 // Tesla : la passerelle répond de sa mémoire (MQTT) ; 15 s suffisent pour
 // montrer la page au début d'une charge et suivre la durée restante.
 static const uint32_t TESLA_POLL_MS   = 15UL * 1000;
+// Discord et Plex sans rien à montrer (personne en salon, aucune lecture) :
+// interrogés 3 fois moins souvent (3.0.0). Une arrivée ou un début de lecture
+// est vu au plus 15 s plus tard ; ensuite, le rythme de 5 s reprend.
+static const uint32_t REPOS_POLL_MS   = 15UL * 1000;
 static const uint32_t MODULES_MS      = 10UL * 60 * 1000;
 
 enum ScreenState : uint8_t { S_BOOT, S_VALIDATE, S_SETUP, S_CONNECTING, S_NO_GATEWAY, S_PAGES };
@@ -323,7 +327,8 @@ void loop() {
     syncTime();
   }
   if (pageEnabled(PG_DISCORD) && moduleUsable(PG_DISCORD) &&
-      (gDisc.lastPoll == 0 || now - gDisc.lastPoll > DISCORD_POLL_MS)) {
+      (gDisc.lastPoll == 0 ||
+       now - gDisc.lastPoll > (gDisc.ok && gDisc.n > 0 ? DISCORD_POLL_MS : REPOS_POLL_MS))) {
     if (pollDiscord()) priorityDiscord = true;
   }
   if (pageEnabled(PG_SUP) && moduleUsable(PG_SUP) &&
@@ -331,7 +336,8 @@ void loop() {
     pollSup();
   }
   if (pageEnabled(PG_PLEX) && moduleUsable(PG_PLEX) &&
-      (gPlex.lastPoll == 0 || now - gPlex.lastPoll > PLEX_POLL_MS)) {
+      (gPlex.lastPoll == 0 ||
+       now - gPlex.lastPoll > (gPlex.ok && gPlex.n > 0 ? PLEX_POLL_MS : REPOS_POLL_MS))) {
     if (pollPlex()) priorityPlex = true;
   }
   if (pageEnabled(PG_TESLA) && moduleUsable(PG_TESLA) &&

@@ -23,6 +23,7 @@
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+#include <sigma_delta.h>
 
 #include "app.h"
 #include "config.h"
@@ -74,10 +75,21 @@ static uint32_t drawnTeslaVersion = 0, drawnTeslaInfos = 0;
 
 // ------------------------------------------------------------ rétroéclairage
 
+// Générateur sigma-delta matériel de l'ESP8266 (sigma_delta.h, 3.0.0) au lieu
+// de la PWM logicielle d'analogWrite : aucune interruption, aucun code en IRAM.
+// Essayé en 2.12.1-sd1. Actif à l'état BAS : 0 % = broche HAUTE en continu,
+// 100 % = BASSE en continu (générateur détaché, simple écriture de broche).
 static void applyBacklight(uint8_t percent) {
   if (percent == lastBrightness) return;
   lastBrightness = percent;
-  analogWrite(PIN_BACKLIGHT, 1023 - (int)percent * 1023 / 100);
+  if (percent == 0 || percent >= 100) {
+    sigmaDeltaDetachPin(PIN_BACKLIGHT);
+    digitalWrite(PIN_BACKLIGHT, percent == 0 ? HIGH : LOW);
+    return;
+  }
+  // Rapport cyclique = part du temps à l'état HAUT : 255 - percent * 255 / 100.
+  sigmaDeltaWrite(0, (uint8_t)(255 - (uint16_t)percent * 255 / 100));
+  if (!sigmaDeltaIsPinAttached(PIN_BACKLIGHT)) sigmaDeltaAttachPin(PIN_BACKLIGHT);
 }
 
 static bool nightActive() {
@@ -245,6 +257,8 @@ void setup() {
 
   // Écran éteint pendant l'initialisation (pas de flash la nuit) : simple
   // écriture de broche, rien d'autre avant la lecture du compteur de plantages.
+  // pinMode(OUTPUT) rend aussi la broche au GPIO si le sigma-delta y était
+  // encore relié avant un redémarrage logiciel.
   pinMode(PIN_BACKLIGHT, OUTPUT);
   digitalWrite(PIN_BACKLIGHT, HIGH);
 
@@ -263,13 +277,12 @@ void setup() {
     uiBegin();
     tft.fillScreen(Col::ALERTE2);   // écran rouge sombre uni = mode secours
     // Pleine luminosité par simple écriture de broche : le mode secours ne
-    // dépend pas de la PWM du rétroéclairage.
+    // dépend pas du code de luminosité (sigma-delta).
     digitalWrite(PIN_BACKLIGHT, LOW);
     return;
   }
 
-  analogWriteRange(1023);
-  analogWriteFreq(1000);
+  sigmaDeltaSetup(0, 1220);   // fréquence de base la plus basse du générateur
 
   uiBegin();
   // Après un redémarrage planifié de nuit, on reste à la luminosité de nuit.

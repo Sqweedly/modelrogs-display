@@ -205,7 +205,7 @@ void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   FontId fe = textW(entete, F_18) > 216 ? F_16 : F_18;
   drawText(entete, 120, Y_ENTETE, fe, TXT, BG, TC_DATUM);
   JsonDocument doc;
-  bool ok = gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc) == 200;   // sinon l'horloge reste seule
+  bool ok = gwGet("/meteo", doc) == 200;   // sinon l'horloge reste seule
   placerChiffres(carteMeteoDuJour(doc, ok));
   drawClockDigits();
   strncpy(lastDate, gTime.date, sizeof(lastDate) - 1);
@@ -273,7 +273,7 @@ static void minMaxCentre(JsonObject j, int cx, int y, FontId f, uint16_t bg) {
 
 void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
   JsonDocument doc;
-  int code = gwGet("/meteo?ville=" + urlEncode(cfg.ville), doc);
+  int code = gwGet("/meteo", doc);
   tft.fillScreen(BG);
   if (code != 200) {
     errorPage("Météo", code == -5 ? String(doc["err"] | "") : String(gwErrorText(code)));

@@ -16,7 +16,10 @@ GEOCODAGE = os.environ.get("OPEN_METEO_GEO_URL", "https://geocoding-api.open-met
 PREVISIONS = os.environ.get("OPEN_METEO_URL", "https://api.open-meteo.com/v1/forecast")
 
 TZ_DEFAUT = os.environ.get("TZ", "Europe/Paris")
-VILLE_DEFAUT = os.environ.get("VILLE_DEFAUT", "Paris")
+# Ville de l'heure, de la météo et du lever / coucher du soleil (3.0.0 : réglée
+# ici, plus sur l'afficheur). VILLE_DEFAUT, l'ancien nom, reste accepté. Une
+# ville envoyée par un afficheur 2.x (?ville=) est toujours respectée.
+VILLE_DEFAUT = (os.environ.get("VILLE") or os.environ.get("VILLE_DEFAUT") or "Paris").strip() or "Paris"
 
 # Codes d'icônes partagés avec le firmware (ui.cpp : weatherIcon)
 SOLEIL, ECLAIRCIES, NUAGEUX, BROUILLARD, PLUIE, NEIGE, ORAGE, LUNE, LUNE_NUAGE = range(9)
@@ -171,4 +174,5 @@ async def heure(session: aiohttp.ClientSession, q: dict) -> dict:
 
 # La page Heure n'a besoin d'aucune route propre : elle utilise /time.
 MODULE_HEURE = Module(id="heure", nom="Heure")
-MODULE_METEO = Module(id="meteo", nom="Météo", routes={"/meteo": meteo})
+MODULE_METEO = Module(id="meteo", nom="Météo", routes={"/meteo": meteo},
+                      extra={"v": VILLE_DEFAUT})   # 3.0.0 : ville, pour l'interface

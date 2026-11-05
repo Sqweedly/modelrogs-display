@@ -64,7 +64,7 @@ String modulePath(uint8_t page) {
 void syncTime() {
   gTime.lastTry = millis();
   JsonDocument doc;
-  if (gwGet("/time?ville=" + urlEncode(cfg.ville), doc) != 200) return;
+  if (gwGet("/time", doc) != 200) return;
 
   gTime.epoch = doc["e"] | 0UL;
   gTime.offset = doc["o"] | 0L;

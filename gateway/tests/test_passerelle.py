@@ -290,6 +290,7 @@ async def principal() -> int:
         "MODULES": "heure,meteo,crypto,supervision,discord,plex,actions,indices,devises,commodities,custom,photos,tesla,inconnu",
         # Tesla : serveur MQTT injoignable (port 1) ; données injectées plus bas
         "TESLA_MQTT_HOTE": "127.0.0.1", "TESLA_MQTT_PORT": "1",
+        "VILLE": "Lyon",                # 3.0.0 : ville réglée sur la passerelle
         "IMMICH_URL": base + "/immich", "IMMICH_KEY": "cle-immich",
     })
     os.environ.pop("DISCORD_TOKEN", None)
@@ -333,6 +334,10 @@ async def principal() -> int:
                 and next(m for m in d["m"] if m["id"] == "devises")["df"] == "EUR, JPY"
                 and next(m for m in d["m"] if m["id"] == "commodities")["o"][0] == {"id": "GC=F", "n": "Or"}),
             ("/time?ville=Lyon", lambda d: d["ok"] and d["lv"] == "08:13" and d["o"] in (3600, 7200)),
+            # 3.0.0 : sans ?ville= (afficheur 3.x), la ville du docker-compose (VILLE)
+            ("/time", lambda d: d["ok"] and d["lv"] == "08:13"),
+            ("/meteo", lambda d: d["ok"] and d["v"] == "Lyon"),
+            ("/modules", lambda d: next(m for m in d["m"] if m["id"] == "meteo")["v"] == "Lyon"),
             ("/meteo?ville=Lyon", lambda d: d["ok"] and d["i"] == 1 and len(d["j"]) == 5
                 and [j["d"] for j in d["j"]] == ["Sam.", "Dim.", "Lun.", "Mar.", "Mer."]),
             # Crypto en dollars. Une seule (CRYPTOS absent : Bitcoin) : courbe 30 jours

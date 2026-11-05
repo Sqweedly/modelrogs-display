@@ -57,7 +57,7 @@ struct Config {
   char apSsid[33];
 
   char gateway[96];     // ex. http://192.168.1.44:8080
-  char ville[48];       // utilisée par l'heure et la météo
+  char ville[48];       // inutilisée depuis la 3.0.0 (ville réglée sur la passerelle : VILLE) ; gardée, structure inchangée
 
   uint16_t pages;       // bit n = page n affichée
   uint8_t  pageSec;     // durée d'affichage d'une page (s)

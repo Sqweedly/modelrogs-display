@@ -70,6 +70,7 @@ static bool     priorityTesla = false;   // une charge vient de commencer
 static bool     enNuit = false;
 static int      nuitMinute = -2;
 static bool     nuitAlerte = false;
+static bool     nuitRecap = false;      // bloc de panne la nuit : récap Supervision affiché (sinon PANNE)
 static bool     configChanged = false;
 static bool     screenOff = false;
 static uint8_t  lastBrightness = 255;
@@ -379,8 +380,9 @@ void loop() {
 
   // --- Écran de nuit (3.0.0) : l'heure seule ; aucune autre page (rotation,
   //     priorités Plex, Discord, Tesla, pages demandées depuis l'interface).
-  //     Une panne de supervision s'affiche à la place, à la luminosité de jour,
-  //     et reste affichée jusqu'au retour à la normale.
+  //     Une panne de supervision affiche à la place le même bloc que le jour
+  //     (écran PANNE puis récap Supervision, une durée de page chacun, 3.0.1),
+  //     à la luminosité de jour, en boucle jusqu'au retour à la normale.
   if (nuit) {
     if (!enNuit || configChanged) {   // entrée dans la nuit, retour d'un écran d'état, réglages
       enNuit = true;
@@ -392,10 +394,21 @@ void loop() {
     priorityDiscord = priorityPlex = priorityTesla = false;
     alertShown = blocSup = alertActive = false;
     if (supAlert) {
-      if (!nuitAlerte || drawnSupVersion != gSup.version) {
-        drawAlert();
-        drawnSupVersion = gSup.version;
+      bool dessiner = false;
+      if (!nuitAlerte) {                       // début de la panne : écran PANNE
         nuitAlerte = true;
+        nuitRecap = false;
+        pageSince = millis();
+        dessiner = true;
+      } else if (millis() - pageSince >= (uint32_t)cfg.pageSec * 1000UL) {   // PANNE <-> récap
+        nuitRecap = !nuitRecap;
+        pageSince = millis();
+        dessiner = true;
+      }
+      if (dessiner || drawnSupVersion != gSup.version) {   // mise à jour sans relancer le minuteur
+        if (nuitRecap) drawSupervision(0, 0);
+        else drawAlert();
+        drawnSupVersion = gSup.version;
       }
       return;
     }

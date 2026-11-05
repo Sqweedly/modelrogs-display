@@ -12,6 +12,16 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.0.1] — 2026-11-06
+
+### Corrigé
+- Afficheur : la nuit, une panne de supervision n'affichait que l'écran PANNE, sans le récapitulatif des services en défaut. Elle affiche maintenant le même bloc que le jour : écran PANNE, puis récapitulatif Supervision, une durée de page chacun, en boucle jusqu'au retour à la normale, toujours à la luminosité de jour. L'écran de nuit revient ensuite.
+
+### Mise à jour
+- Afficheur seul (`/update`, fichier `.bin.gz` ou `.bin`). La passerelle ne change pas (image `:3`, publiée aussi en 3.0.1).
+
+---
+
 ## [3.0.0] — 2026-11-05 (remplacée le 2026-11-06)
 
 **Remplacement** : la première publication s'est arrêtée dans les tests de la passerelle, avant toute Release et toute image. Le test « Tesla : photo personnelle prioritaire » forçait la relecture du dossier des icônes personnelles avec un repère de temps à 0, alors que `time.monotonic()` compte depuis le démarrage de la machine : sur une machine de GitHub démarrée depuis moins de 30 s, le dossier n'était pas relu. Test corrigé (`-RELECTURE_PERSO`, comme les autres tests). Firmware et passerelle inchangés.

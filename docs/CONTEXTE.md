@@ -14,7 +14,7 @@ Il rassemble ce que le code ne dit pas : l'état à la clôture, la façon de tr
 
 ## 1. État à la clôture (2026-11-05)
 
-- **Dernière version : 3.0.0**, tag `v3.0.0` sur `main` (interface web à 5 onglets, écran de nuit, nouvel essai réseau, rétroéclairage sigma-delta, ville sur la passerelle ; voir `CHANGELOG.md`). Publiée directement sur `main`, sans beta, à la demande du propriétaire (exception à la règle n° 9) ; un commit par point du backlog pour pouvoir en retirer un. Précédente : 2.15.0 (page Tesla). Le diagnostic a été validé sur le matériel réel par le propriétaire (mesure du 2026-11-01, voir backlog n° 13 et 14). Le numéro ne vient que du tag : GitHub Actions l'injecte dans le firmware et dans l'image. Aucun numéro n'est écrit dans le code.
+- **Dernière version : 3.0.1** (2026-11-06 : la nuit, une panne affiche le même bloc PANNE + récap Supervision que le jour). Précédente : **3.0.0**, tag `v3.0.0` sur `main` (interface web à 5 onglets, écran de nuit, nouvel essai réseau, rétroéclairage sigma-delta, ville sur la passerelle ; voir `CHANGELOG.md`). Publiée directement sur `main`, sans beta, à la demande du propriétaire (exception à la règle n° 9) ; un commit par point du backlog pour pouvoir en retirer un. Précédente : 2.15.0 (page Tesla). Le diagnostic a été validé sur le matériel réel par le propriétaire (mesure du 2026-11-01, voir backlog n° 13 et 14). Le numéro ne vient que du tag : GitHub Actions l'injecte dans le firmware et dans l'image. Aucun numéro n'est écrit dans le code.
 - **Vérifié avant la clôture**, sur une copie vierge du dépôt :
   - tests de la passerelle (`python -m tests.test_passerelle`), tous passés ;
   - test de conservation de la configuration du firmware (structure `Config` v8, 908 octets sur 1024 ; `reserve[0]` bit 0 = page Tesla déjà activée une fois, 2.15.0) ;
@@ -83,4 +83,4 @@ Le dépôt est privé. Aucun jeton n'est écrit ici : ils ne vont que dans le `d
 12. **Plex à 2 lectures, titre trop long** : corrigé en 2.14.0 (titre toujours sur une ligne : 16 px, sinon 14 px, sinon 12 px, puis « … »).
 13. **Nouvel essai immédiat après un échec réseau** : fait en 3.0.0. À vérifier avec le diagnostic : plus aucune temporisation sur un raté isolé (compteurs `relances` et `relances_ok`).
 14. **Interroger Plex et Discord moins souvent quand il n'y a rien à afficher** : fait en 3.0.0 (15 s au repos, 5 s sinon).
-15. **Écran de nuit** : fait en 3.0.0 (variante A ambre, heure seule ; panne de supervision à la luminosité de jour, gardée jusqu'au retour à la normale ; aucune autre page la nuit).
+15. **Écran de nuit** : fait en 3.0.0 (variante A ambre, heure seule ; aucune autre page la nuit). Panne de supervision la nuit : même bloc que le jour (PANNE puis récap Supervision, une durée de page chacun), en boucle, à la luminosité de jour, jusqu'au retour à la normale (3.0.1, constaté par le propriétaire le 2026-11-06 : la 3.0.0 n'affichait que PANNE).

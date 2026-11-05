@@ -81,6 +81,11 @@ void diagTempo(const char* chemin, int16_t code) {
   copierChemin(cpt.tempoChemin, sizeof(cpt.tempoChemin), chemin);
 }
 
+void diagRelance(bool reussie) {
+  cpt.relances++;
+  if (reussie) cpt.relancesOk++;
+}
+
 void diagSaute(bool image) {
   if (image) cpt.sautesImages++; else cpt.sautesAppels++;
 }

@@ -64,6 +64,8 @@ struct DiagCompteurs {
   uint32_t sondes, sondesKo;  // sonde /ping (mode diagnostic)
   uint16_t sondeMin, sondeMax;
   uint32_t sondeSomme;        // somme des durées des sondes réussies
+  uint32_t relances;          // 3.0.0 : nouveaux essais immédiats après un raté réseau
+  uint32_t relancesOk;        //   dont réussis
 };
 
 void diagBegin();                         // à appeler au démarrage (événements Wi-Fi)
@@ -72,6 +74,7 @@ void diagRequete(uint8_t type, uint32_t id, const char* chemin, int16_t code,
                  uint32_t enTetesMs, uint32_t totalMs, uint32_t octets);
 void diagTempo(const char* chemin, int16_t code);
 void diagSaute(bool image);
+void diagRelance(bool reussie);           // nouvel essai immédiat (net.cpp)
 bool diagActif();
 bool diagActiver(bool actif);             // false si la mémoire manque
 const DiagCompteurs& diagCompteurs();

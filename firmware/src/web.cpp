@@ -624,6 +624,7 @@ static void handleDebug() {
     << F("<b>Image incomplète</b><span>") << (long)k.imageKo << F("</span>")
     << F("<b>Temporisations</b><span>") << (long)k.tempos << F(" — appels sautés ") << (long)k.sautesAppels
     << F(", images sautées ") << (long)k.sautesImages << F("</span>")
+    << F("<b>Nouveaux essais</b><span>") << (long)k.relances << F(", dont réussis ") << (long)k.relancesOk << F("</span>")
     << F("<b>Dernier échec</b><span>");
   if (k.dernierEchecMs) c << diagTexteCode(k.dernierCode) << F(" — ") << esc(k.dernierChemin) << F(" — ") << ilYa(k.dernierEchecMs);
   else c << F("aucun");
@@ -676,6 +677,7 @@ static void handleDebugJson() {
     << F(",\"connexion\":") << (long)k.connexion << F(",\"delai\":") << (long)k.delai << F(",\"perdue\":") << (long)k.perdue
     << F(",\"autres_reseau\":") << (long)k.autresReseau << F(",\"http\":") << (long)k.http << F(",\"json_ko\":") << (long)k.jsonKo
     << F(",\"image_ko\":") << (long)k.imageKo << F(",\"tempos\":") << (long)k.tempos
+    << F(",\"relances\":") << (long)k.relances << F(",\"relances_ok\":") << (long)k.relancesOk
     << F(",\"sautes_appels\":") << (long)k.sautesAppels << F(",\"sautes_images\":") << (long)k.sautesImages
     << F(",\"max_ms\":{\"json\":") << (long)k.maxMs[DG_JSON] << F(",\"image\":") << (long)k.maxMs[DG_IMG]
     << F(",\"sonde\":") << (long)k.maxMs[DG_PING] << F("},\"deconnexions\":") << (long)k.deconnexions

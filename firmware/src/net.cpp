@@ -91,6 +91,61 @@ uint32_t gwRetryInSeconds() {
   return (gwFails && reste > 0) ? (reste + 999) / 1000 : 0;
 }
 
+// Raté réseau isolé (3.0.0) : un SYN perdu n'est renvoyé par lwIP qu'au bout
+// de 3 s, après l'abandon à 2,5 s. Un nouvel essai ouvre une nouvelle
+// connexion, donc un nouveau SYN, tout de suite. Requêtes GET : sans risque à
+// répéter. Codes HTTPClient : -1 connexion impossible, -5 connexion perdue,
+// -11 délai dépassé (en-têtes non reçus).
+static bool rateReseau(int codeHttp) {
+  return codeHttp == HTTPC_ERROR_CONNECTION_FAILED || codeHttp == HTTPC_ERROR_CONNECTION_LOST ||
+         codeHttp == HTTPC_ERROR_READ_TIMEOUT;
+}
+
+// Un essai de GET JSON. Renvoie le code de gwGet ; *codeHttp = code d'HTTPClient.
+static int gwGetEssai(const String& path, JsonDocument& doc, JsonDocument* filter, int& codeHttp,
+                      int16_t& diagCode) {
+  WiFiClient client;
+  HTTPClient http;
+  String url = String(cfg.gateway) + path;
+  int code = -3;
+  codeHttp = 0;
+  diagCode = DG_ADRESSE;
+  const uint32_t id = diagNouvelId();
+  const uint32_t t0 = millis();
+  uint32_t tEnTetes = t0;
+  int taille = 0;
+  if (http.begin(client, url)) {
+    http.setTimeout(2500);   // borne aussi la connexion TCP
+    http.useHTTP10(true);    // pas de « chunked » : lecture directe du flux
+    http.setReuse(false);
+    http.addHeader(F("X-Req"), String(id));   // diagnostic : même numéro dans le journal de la passerelle
+    codeHttp = http.GET();
+    tEnTetes = millis();
+    diagCode = codeHttp;
+    if (codeHttp == HTTP_CODE_OK) {
+      taille = http.getSize();
+      doc.clear();
+      DeserializationError err = filter
+        ? deserializeJson(doc, http.getStream(), DeserializationOption::Filter(*filter))
+        : deserializeJson(doc, http.getStream());
+      if (err) {
+        code = -4;
+        diagCode = DG_JSON_KO;
+      } else if (!(doc["ok"] | 0)) {
+        code = -5;
+        diagCode = DG_SOURCE;
+      } else {
+        code = 200;
+      }
+    } else if (codeHttp > 0) {
+      code = codeHttp;
+    }
+    http.end();
+  }
+  diagRequete(DG_JSON, id, path.c_str(), diagCode, tEnTetes - t0, millis() - t0, taille > 0 ? taille : 0);
+  return code;
+}
+
 int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool interactif) {
   int code;
   int16_t diagCode = 0;   // code détaillé pour le diagnostic (diag.h)
@@ -102,45 +157,16 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
     diagSaute(false);
     return -3;   // temporisation en cours : pas de tentative, réponse immédiate
   } else {
-    WiFiClient client;
-    HTTPClient http;
-    String url = String(cfg.gateway) + path;
-    code = -3;
-    diagCode = DG_ADRESSE;
-    const uint32_t id = diagNouvelId();
-    const uint32_t t0 = millis();
-    uint32_t tEnTetes = t0;
-    int taille = 0;
-    if (http.begin(client, url)) {
-      http.setTimeout(2500);   // borne aussi la connexion TCP
-      http.useHTTP10(true);    // pas de « chunked » : lecture directe du flux
-      http.setReuse(false);
-      http.addHeader(F("X-Req"), String(id));   // diagnostic : même numéro dans le journal de la passerelle
-      int httpCode = http.GET();
-      tEnTetes = millis();
-      diagCode = httpCode;
-      if (httpCode == HTTP_CODE_OK) {
-        taille = http.getSize();
-        DeserializationError err = filter
-          ? deserializeJson(doc, http.getStream(), DeserializationOption::Filter(*filter))
-          : deserializeJson(doc, http.getStream());
-        if (err) {
-          code = -4;
-          diagCode = DG_JSON_KO;
-        } else if (!(doc["ok"] | 0)) {
-          code = -5;
-          diagCode = DG_SOURCE;
-        } else {
-          code = 200;
-        }
-      } else if (httpCode > 0) {
-        code = httpCode;
-      }
-      http.end();
+    int codeHttp;
+    code = gwGetEssai(path, doc, filter, codeHttp, diagCode);
+    if (code == -3 && rateReseau(codeHttp) && staConnected()) {
+      yield();                                   // Wi-Fi et chien de garde entre les deux essais
+      code = gwGetEssai(path, doc, filter, codeHttp, diagCode);
+      diagRelance(code != -3);
     }
-    diagRequete(DG_JSON, id, path.c_str(), diagCode, tEnTetes - t0, millis() - t0, taille > 0 ? taille : 0);
   }
-  // Passerelle injoignable ou en erreur serveur : on espace les tentatives.
+  // Passerelle injoignable (deux essais ratés, ou autre erreur réseau) ou en
+  // erreur serveur : on espace les tentatives.
   if (code == -3 || code >= 500) {
     if (gwFails < 255) gwFails++;
     uint8_t i = min<uint8_t>(gwFails, sizeof(GW_PAUSES_S) / sizeof(GW_PAUSES_S[0])) - 1;
@@ -154,6 +180,8 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
   return code;
 }
 
+static bool gwImageEssai(const char* path, int x, int y, int w, int h, int& codeHttpSortie);
+
 bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int rayon, bool ajuster) {
   if (!jeton || !jeton[0] || w <= 0 || h <= 0 || w > 240 || h > 240) return false;
   if (!staConnected() || cfg.gateway[0] == '\0') return false;
@@ -166,6 +194,17 @@ bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int r
   snprintf(path, sizeof(path), "/img?t=%s&w=%d&h=%d&f=%02X%02X%02X&r=%d%s",
            jeton, w, h, r, g, b, rayon, ajuster ? "&m=a" : "");
 
+  int codeHttp;
+  bool ok = gwImageEssai(path, x, y, w, h, codeHttp);
+  if (!ok && rateReseau(codeHttp) && staConnected()) {   // rien n'a été dessiné
+    yield();
+    ok = gwImageEssai(path, x, y, w, h, codeHttp);
+    diagRelance(ok);
+  }
+  return ok;
+}
+
+static bool gwImageEssai(const char* path, int x, int y, int w, int h, int& codeHttpSortie) {
   WiFiClient client;
   HTTPClient http;
   bool ok = false;
@@ -173,12 +212,14 @@ bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int r
   const uint32_t t0 = millis();
   uint32_t tEnTetes = t0, recus = 0;
   int16_t diagCode = DG_ADRESSE;
+  codeHttpSortie = 0;
   if (http.begin(client, String(cfg.gateway) + path)) {
     http.setTimeout(2500);
     http.useHTTP10(true);
     http.setReuse(false);
     http.addHeader(F("X-Req"), String(id));   // diagnostic : même numéro dans le journal de la passerelle
     const int codeHttp = http.GET();
+    codeHttpSortie = codeHttp;
     tEnTetes = millis();
     const int taille = codeHttp == HTTP_CODE_OK ? http.getSize() : 0;
     diagCode = codeHttp;

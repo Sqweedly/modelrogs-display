@@ -177,6 +177,12 @@ static String element(PGM_P liste, uint8_t n) {
   return tout.substring(debut, fin < 0 ? tout.length() : fin);
 }
 
+// Feuille de style envoyée directement depuis la flash (5 Ko : pas de copie en RAM)
+static void envoyerStyle(Chunks& c) {
+  c.flush();
+  server.sendContent_P(STYLE);
+}
+
 // --------------------------------------------------------- cadre des pages
 
 enum Onglet : uint8_t { OG_PAGES, OG_ECRAN, OG_RESEAU, OG_SYSTEME, OG_DIAG, OG_NB };
@@ -203,8 +209,9 @@ static void debutPage(Chunks& c, const char* titre, const String& sousTitre) {
   server.send(200, F("text/html; charset=utf-8"), "");
   c << F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
          "<meta name='viewport' content='width=device-width,initial-scale=1'><title>")
-    << titre << F(" — MODELROGS</title>") << FPSTR(STYLE)
-    << F("</head><body><div class='top'><div class='titre'><div class='logo'>M</div><h1>") << titre
+    << titre << F(" — MODELROGS</title>");
+  envoyerStyle(c);
+  c << F("</head><body><div class='top'><div class='titre'><div class='logo'>M</div><h1>") << titre
     << F("<small>") << esc(sousTitre) << F("</small></h1></div>");
 }
 
@@ -705,15 +712,21 @@ static void saveModuleParams(uint8_t page) {
   modParams(page)[size - 1] = '\0';
 }
 
-// Page de confirmation, puis retour à l'onglet (ou redémarrage)
+// Page de confirmation, puis retour à l'onglet (ou redémarrage). Envoyée par
+// morceaux, comme les onglets (la feuille de style fait plusieurs Ko).
 static void confirmation(const char* titre, const String& message, const char* retour, uint8_t secondes) {
-  server.send(200, F("text/html; charset=utf-8"),
-    String(F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
-             "<meta name='viewport' content='width=device-width,initial-scale=1'><meta http-equiv='refresh' content='"))
-    + String((int)secondes) + F(";url=") + retour + F("'><title>MODELROGS</title>") + FPSTR(STYLE)
-    + F("</head><body><div class='top'><div class='titre'><div class='logo'>M</div><h1>") + titre
-    + F("<small>MODELROGS Display</small></h1></div></div><div class='corps'><div class='carte'><p style='margin:0;"
-        "padding:14px'>") + message + F("</p></div></div></body></html>"));
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, F("text/html; charset=utf-8"), "");
+  Chunks c;
+  c << F("<!DOCTYPE html><html lang='fr'><head><meta charset='UTF-8'>"
+         "<meta name='viewport' content='width=device-width,initial-scale=1'><meta http-equiv='refresh' content='")
+    << (long)secondes << F(";url=") << retour << F("'><title>MODELROGS</title>");
+  envoyerStyle(c);
+  c << F("</head><body><div class='top'><div class='titre'><div class='logo'>M</div><h1>") << titre
+    << F("<small>MODELROGS Display</small></h1></div></div><div class='corps'><div class='carte'><p style='margin:0;"
+         "padding:14px'>") << message << F("</p></div></div></body></html>");
+  c.flush();
+  server.sendContent("");
 }
 
 // Chaque onglet envoie ses propres champs (« o » = onglet) : seuls ceux-là changent.

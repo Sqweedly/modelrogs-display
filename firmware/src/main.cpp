@@ -65,9 +65,10 @@ static bool     priorityDiscord = false;
 static bool     priorityPlex = false;
 static bool     priorityTesla = false;   // une charge vient de commencer
 // Écran de nuit (3.0.0) : affiché pendant la plage nocturne ; minute dessinée
-// (-1 : à redessiner) ; alerte de supervision affichée à la place.
+// (-1 : heure inconnue, « --:-- » ; -2 : à redessiner) ; alerte de supervision
+// affichée à la place.
 static bool     enNuit = false;
-static int      nuitMinute = -1;
+static int      nuitMinute = -2;
 static bool     nuitAlerte = false;
 static bool     configChanged = false;
 static bool     screenOff = false;
@@ -381,9 +382,9 @@ void loop() {
   //     Une panne de supervision s'affiche à la place, à la luminosité de jour,
   //     et reste affichée jusqu'au retour à la normale.
   if (nuit) {
-    if (!enNuit) {
+    if (!enNuit || configChanged) {   // entrée dans la nuit, retour d'un écran d'état, réglages
       enNuit = true;
-      nuitMinute = -1;
+      nuitMinute = -2;
       nuitAlerte = false;
     }
     configChanged = false;

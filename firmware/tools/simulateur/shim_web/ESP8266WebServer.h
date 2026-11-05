@@ -20,6 +20,8 @@ struct ESP8266WebServer {
   void setContentLength(size_t) {}
   template <class T> void send(int c, T, const String& b) { code = c; corps += b.s; }
   void sendContent(const String& b) { corps += b.s; }
+  void sendContent_P(const char* b) { corps += b; }
+  void sendContent_P(const __FlashStringHelper* b) { corps += reinterpret_cast<const char*>(b); }
   void sendHeader(const char* k, const String& v, bool = false) { entetes += std::string(k) + ": " + v.s + "\n"; }
   bool hasArg(const String& n) const { for (auto& a : args_) if (a.first == n.s) return true; return false; }
   String arg(const String& n) const { for (auto& a : args_) if (a.first == n.s) return a.second; return ""; }

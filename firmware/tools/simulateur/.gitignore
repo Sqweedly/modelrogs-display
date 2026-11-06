@@ -6,3 +6,4 @@ test_fit
 sim_lib.o
 out_web/
 test_web
+test_nuit

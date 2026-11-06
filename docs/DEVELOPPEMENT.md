@@ -138,7 +138,7 @@ cd firmware/tools/simulateur
 sh apercu.sh
 ```
 
-Résultat : un fichier par écran dans `out/` et une planche de tous les écrans, `planche.png`. Le script lance aussi le test de conservation de la configuration et un test de placement des textes. Il lance enfin le banc d'essai de l'interface web (`test_web.cpp`, 3.0.0) : le **vrai** `web.cpp` sur PC, avec un serveur web imité (`shim_web/`) et des réponses de la passerelle (`fixtures_web/`, produites par `gateway/tools/fixtures_interface.py`) ; chaque onglet est écrit dans `out_web/*.html`, à ouvrir dans un navigateur, puis les enregistrements sont vérifiés (seuls les champs de l'onglet changent). Le même test tourne sur GitHub après la compilation du firmware. Sous Windows, passer par WSL ou Git Bash.
+Résultat : un fichier par écran dans `out/` et une planche de tous les écrans, `planche.png`. Le script lance aussi le test de conservation de la configuration et un test de placement des textes. Il lance enfin le banc d'essai de l'interface web (`test_web.cpp`, 3.0.0) : le **vrai** `web.cpp` sur PC, avec un serveur web imité (`shim_web/`) et des réponses de la passerelle (`fixtures_web/`, produites par `gateway/tools/fixtures_interface.py`) ; chaque onglet est écrit dans `out_web/*.html`, à ouvrir dans un navigateur, puis les enregistrements sont vérifiés (seuls les champs de l'onglet changent). Le même test tourne sur GitHub après la compilation du firmware. Le script lance aussi le test de l'écran de nuit (`test_nuit.cpp`, 3.0.2) : pour toutes les minutes d'une journée, le redessin partiel doit donner les mêmes pixels que le redessin complet ; il tourne aussi sur GitHub. Sous Windows, passer par WSL ou Git Bash.
 
 ### Pastilles des devises et des indices
 

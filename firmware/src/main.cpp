@@ -378,7 +378,7 @@ void loop() {
   }
   if (screenOff) return;              // écran éteint : on ne dessine rien
 
-  // --- Écran de nuit (3.0.0) : l'heure seule ; aucune autre page (rotation,
+  // --- Écran de nuit (3.0.0 ; horloge à aiguilles en 3.0.2) : l'heure seule ; aucune autre page (rotation,
   //     priorités Plex, Discord, Tesla, pages demandées depuis l'interface).
   //     Une panne de supervision affiche à la place le même bloc que le jour
   //     (écran PANNE puis récap Supervision, une durée de page chacun, 3.0.1),
@@ -414,7 +414,7 @@ void loop() {
     }
     const int m = localMinuteOfDay();
     if (nuitAlerte || m != nuitMinute) {
-      drawNuit();
+      drawNuit(nuitAlerte || nuitMinute == -2);   // complet après un écran d'état
       nuitMinute = m;
       nuitAlerte = false;
     }

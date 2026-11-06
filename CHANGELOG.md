@@ -12,6 +12,28 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.0.2] — 2026-11-07
+
+### Modifié
+- Afficheur : **l'écran de nuit devient une horloge à aiguilles**, conforme à la maquette validée (`docs/maquettes/nuit-aiguilles.png`). Couronne de 60 points (plus gros toutes les 5 minutes) allumés de 0 à la minute en cours, les suivants en ambre très sombre ; 12 traits d'heures ; aiguille des heures épaisse, aiguille des minutes plus claire ; heure en chiffres sous le centre (`HH:MM`, 26 px). Ambre plus clair et plus soutenu que l'ancien écran : `#D06800` (au lieu de `#A04C00`), aiguille des minutes et centre `#F09020`. Pas de trotteuse. Le comportement de nuit ne change pas : luminosité de nuit, aucune autre page, panne de supervision au même bloc que le jour et à la luminosité de jour (3.0.1).
+- Afficheur : à chaque minute, seuls les éléments qui changent sont redessinés (anciennes aiguilles, texte, points nouvellement allumés), sans effacer l'écran ; redessin complet à l'entrée dans la nuit, après un écran d'état, au passage de l'heure (la couronne repart de zéro) et si l'heure saute.
+- Polices : la police 26 px (`F_26`) reçoit le caractère « : », placé d'après son encre, centré sur la hauteur des chiffres. Polices régénérées avec Inter 4.1 : les sept autres sont identiques octet pour octet.
+
+### Outils
+- Test de l'écran de nuit (`firmware/tools/simulateur/test_nuit.cpp`) : pour chaque minute d'une journée, en avançant de 1, 2 et 7 minutes, le redessin partiel doit donner exactement les mêmes pixels que le redessin complet (2 363 cas, dont 2 294 redessins partiels, 0 écart). Lancé par `apercu.sh` et par GitHub Actions après la compilation du firmware.
+
+### Mesures (compilation locale, PlatformIO 6.1.16)
+- Flash +1 332 octets (609 419), RAM statique +4 octets (37 784), code en IRAM inchangé (27 735 octets).
+
+### Limites connues
+- Quand les deux aiguilles se superposent (vers 00:00, 01:05, 02:11…), le bord lissé de l'aiguille des minutes est calculé sur le fond noir et laisse un liseré sombre sur l'aiguille des heures. L'éviter demanderait de relire les pixels de l'écran (le projet ne le fait nulle part, possibilité non vérifiée sur le SmallTV) ou de dessiner les aiguilles autrement ; laissé tel quel.
+- **Non vérifié sur le matériel** : rendu de l'ambre à la luminosité de nuit, absence de scintillement au changement de minute.
+
+### Mise à jour
+- Afficheur seul (`/update`, fichier `.bin.gz` ou `.bin`). La passerelle ne change pas (image `:3`, publiée aussi en 3.0.2).
+
+---
+
 ## [3.0.1] — 2026-11-06
 
 ### Corrigé

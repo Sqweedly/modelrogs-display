@@ -5,6 +5,7 @@
 #include "ui.h"
 
 #include <ArduinoJson.h>
+#include <math.h>
 
 using namespace Col;
 
@@ -141,15 +142,85 @@ static void drawClockDigits() {
   lastClockMinute = chiffresHeure(yChiffres, TXT, VIOLET);
 }
 
-// Écran de nuit (3.0.0) : l'heure seule, en ambre sombre (moins éblouissant
-// dans le noir), centrée sur l'écran. Redessiné à chaque minute (main.cpp).
-static constexpr uint16_t NUIT_AMBRE = RGB(0xA0, 0x4C, 0x00);
+// Écran de nuit (3.0.2) : horloge à aiguilles en ambre (maquette
+// docs/maquettes/nuit-aiguilles.png). Couronne de 60 points allumés de 0 à la
+// minute en cours, 12 traits d'heures, aiguilles en drawWideLine, heure en
+// chiffres sous le centre. Redessiné à chaque minute (main.cpp) : seuls les
+// anciennes aiguilles, le texte et les points nouvellement allumés changent,
+// pour éviter le clignotement d'un effacement complet.
+static constexpr uint16_t NUIT_AMBRE  = RGB(0xD0, 0x68, 0x00);   // points allumés, heures, texte
+static constexpr uint16_t NUIT_CLAIR  = RGB(0xF0, 0x90, 0x20);   // aiguille des minutes, centre
+static constexpr uint16_t NUIT_ETEINT = RGB(0x30, 0x1A, 0x04);   // points à venir, traits d'heures
+static constexpr int NUIT_CX = 120, NUIT_CY = 120;
+static constexpr int NUIT_R_POINTS = 110, NUIT_L_HEURES = 58, NUIT_L_MINUTES = 86;
+static constexpr int NUIT_W_HEURES = 10, NUIT_W_MINUTES = 6;
+static constexpr int NUIT_Y_TEXTE = 146;     // haut de la ligne de texte (TL_DATUM)
+static int nuitDessinee = -1;                // minute du jour affichée (-1 : rien)
 
-void drawNuit() {
-  tft.fillScreen(BG);
-  GlyphBox g0;
-  glyphBox(F_68, '0', g0);
-  chiffresHeure((240 - g0.h) / 2, NUIT_AMBRE, NUIT_AMBRE);
+static constexpr float NUIT_RAD = 3.14159265f / 180.f;            // degrés -> radians
+static float nuitX(float deg, float r) { return NUIT_CX + r * sinf(deg * NUIT_RAD); }
+static float nuitY(float deg, float r) { return NUIT_CY - r * cosf(deg * NUIT_RAD); }
+
+static void nuitPoint(int i, int minute) {
+  tft.fillSmoothCircle(nuitX(i * 6, NUIT_R_POINTS), nuitY(i * 6, NUIT_R_POINTS), (i % 5) ? 2 : 3,
+                       i <= minute ? NUIT_AMBRE : NUIT_ETEINT, BG);
+}
+
+static void nuitAiguilles(int minuteDuJour, bool effacer) {
+  const int h = (minuteDuJour / 60) % 12, m = minuteDuJour % 60;
+  const float aH = (h + m / 60.f) * 30.f, aM = m * 6.f;
+  // Effacement : 2 px plus large, pour couvrir le bord lissé
+  tft.drawWideLine(NUIT_CX, NUIT_CY, nuitX(aH, NUIT_L_HEURES), nuitY(aH, NUIT_L_HEURES),
+                   NUIT_W_HEURES + (effacer ? 2 : 0), effacer ? BG : NUIT_AMBRE, BG);
+  tft.drawWideLine(NUIT_CX, NUIT_CY, nuitX(aM, NUIT_L_MINUTES), nuitY(aM, NUIT_L_MINUTES),
+                   NUIT_W_MINUTES + (effacer ? 2 : 0), effacer ? BG : NUIT_CLAIR, BG);
+}
+
+// « HH:MM » en F_26, le « : » centré sur la hauteur des chiffres et à égale
+// distance (encre) des heures et des minutes.
+static void nuitTexte(int minuteDuJour) {
+  const uint8_t h = (minuteDuJour / 60) % 24, m = minuteDuJour % 60;
+  const char hh[3] = { (char)('0' + h / 10), (char)('0' + h % 10), 0 };
+  const char mm[3] = { (char)('0' + m / 10), (char)('0' + m % 10), 0 };
+  GlyphBox g0, gc, gh, gm;
+  glyphBox(F_26, '0', g0);
+  glyphBox(F_26, ':', gc);
+  glyphBox(F_26, (uint8_t)hh[1], gh);
+  glyphBox(F_26, (uint8_t)mm[0], gm);
+  const int asc = fontAscent(F_26);
+  const int yEncre = NUIT_Y_TEXTE + asc - g0.dy;                   // haut de l'encre des chiffres
+  tft.fillRect(64, yEncre - 2, 112, g0.h + 4, BG);           // sans toucher couronne ni traits
+  const int ECART = 4;
+  const int xc = NUIT_CX - gc.w / 2;                               // gauche de l'encre du « : »
+  const int finHH = xc - ECART - (gh.dx + gh.w - gh.adv);         // plume après les heures
+  const int debMM = xc + gc.w + ECART - gm.dx;                     // plume des minutes
+  drawText(hh, finHH, NUIT_Y_TEXTE, F_26, NUIT_AMBRE, BG, TR_DATUM);
+  drawText(mm, debMM, NUIT_Y_TEXTE, F_26, NUIT_AMBRE, BG, TL_DATUM);
+  const int yc = yEncre + (g0.h - gc.h) / 2 - (asc - gc.dy);      // « : » centré sur les chiffres
+  drawText(":", xc - gc.dx, yc, F_26, NUIT_AMBRE, BG, TL_DATUM);
+}
+
+void drawNuit(bool complet) {
+  const int md = localMinuteOfDay();
+  if (md < 0) return;                       // pas de nuit sans heure (main.cpp)
+  const int m = md % 60;
+  // Tout redessiner si demandé, au passage de l'heure (couronne remise à zéro)
+  // ou si l'heure a sauté (resynchronisation).
+  if (complet || nuitDessinee < 0 || m == 0 || m < nuitDessinee % 60 || md / 60 != nuitDessinee / 60) {
+    tft.fillScreen(BG);
+    for (int i = 0; i < 60; i++) nuitPoint(i, m);
+  } else {
+    nuitAiguilles(nuitDessinee, true);
+    for (int i = nuitDessinee % 60 + 1; i <= m; i++) nuitPoint(i, m);
+  }
+  for (int i = 0; i < 12; i++)               // traits d'heures (une aiguille effacée a pu les toucher)
+    tft.drawWideLine(nuitX(i * 30, 88), nuitY(i * 30, 88), nuitX(i * 30, 98), nuitY(i * 30, 98), 2,
+                     NUIT_ETEINT, BG);
+  nuitTexte(md);
+  nuitAiguilles(md, false);
+  tft.fillSmoothCircle(NUIT_CX, NUIT_CY, 8, NUIT_CLAIR, BG);
+  tft.fillSmoothCircle(NUIT_CX, NUIT_CY, 3, BG, NUIT_CLAIR);
+  nuitDessinee = md;
 }
 
 // Météo du jour (sans carte ni libellé : l'icône suffit). Renvoie le haut de

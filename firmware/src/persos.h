@@ -1,13 +1,14 @@
 #pragma once
 // Personnages (3.1.0) : un personnage par domaine, ajouté après la page de son
 // domaine pour former un bloc (une durée de page chacun) :
-//   Météo  -> Nimbus (ciel actuel), puis Pousse (température actuelle)
+//   Heure  -> Nimbus (ciel actuel), puis Pousse (température actuelle)
 //   Tesla  -> Volta (niveau de la batterie, charge)
 //   Panne  -> Bip, après PANNE et le récap Supervision (jour et nuit)
 // Maquette validée : docs/maquettes/personnages-3.1.png
 #include <Arduino.h>
 
-// Météo actuelle, retenue au dernier affichage réussi de la page Météo
+// Météo actuelle, retenue au dernier affichage de la page Heure ou Météo
+// (même réponse /meteo de la passerelle)
 struct WxState {
   bool    ok = false;
   int8_t  t = 0;          // température actuelle (°C, arrondie par la passerelle)

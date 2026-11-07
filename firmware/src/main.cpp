@@ -18,7 +18,7 @@
 //   puis après chaque page tant que la panne dure. Sans panne, la Supervision
 //   n'apparaît dans la rotation que si un service est instable ou si Kuma
 //   ne répond pas.
-// - Personnages (3.1.0, persos.cpp) : la page Météo est suivie de Nimbus et de
+// - Personnages (3.1.0, persos.cpp) : la page Heure est suivie de Nimbus et de
 //   Pousse, la page Tesla de Volta (une durée de page chacun), si leur case est
 //   cochée dans l'interface.
 // - Toutes les données viennent de la passerelle Docker (HTTP local)
@@ -226,7 +226,7 @@ static void showAlert() {
 // Bloc d'une page de domaine (3.1.0) : personnage à montrer après la page
 // (ou après le personnage) affichée, PERSO_AUCUN à la fin du bloc.
 static uint8_t persoSuivant() {
-  if (curPage == PG_METEO && persoActif(PG_METEO) && gWx.ok) {
+  if (curPage == PG_HEURE && persoActif(PG_HEURE) && gWx.ok) {
     if (persoEcran == PERSO_AUCUN) return PERSO_NIMBUS;
     if (persoEcran == PERSO_NIMBUS) return PERSO_POUSSE;
   }
@@ -609,7 +609,7 @@ void loop() {
   }
 
   // --- Personnage affiché : la page du domaine n'est pas redessinée par-dessus.
-  //     Volta suit la batterie ; Nimbus et Pousse gardent la météo de la page.
+  //     Volta suit la batterie ; Nimbus et Pousse gardent la météo lue par la page Heure.
   if (persoEcran != PERSO_AUCUN) {
     if (persoEcran == PERSO_VOLTA &&
         (gTesla.version != drawnTeslaVersion || gTesla.infos != drawnTeslaInfos)) {

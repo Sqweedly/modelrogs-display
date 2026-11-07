@@ -423,7 +423,7 @@ static String phraseFixe(uint8_t p) {
 // explication (réglage dans la page dépliée)
 static const __FlashStringHelper* persoNom(uint8_t p) {
   switch (p) {
-    case PG_METEO: return F("Nimbus, Pousse");
+    case PG_HEURE: return F("Nimbus, Pousse");
     case PG_TESLA: return F("Volta");
     case PG_SUP:   return F("Bip");
     default:       return nullptr;
@@ -434,7 +434,7 @@ static void renderPerso(Chunks& c, uint8_t p) {
   if (!persoNom(p)) return;
   c << F("<input type='hidden' name='pp") << (long)p << F("' value='1'><div class='ligne'><div class='lib'><b>Personnage</b><span>");
   switch (p) {
-    case PG_METEO: c << F("Nimbus (ciel) et Pousse (température)"); break;
+    case PG_HEURE: c << F("Nimbus (ciel) et Pousse (température)"); break;
     case PG_TESLA: c << F("Volta (batterie)"); break;
     default:       c << F("Bip, dans le bloc de panne"); break;
   }

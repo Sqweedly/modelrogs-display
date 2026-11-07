@@ -381,7 +381,7 @@ bool pageEnabled(uint8_t page) {
 // reserve[1] : un bit par domaine, à 1 quand le personnage est MASQUÉ
 static uint8_t bitPerso(uint8_t page) {
   switch (page) {
-    case PG_METEO: return 0x01;
+    case PG_HEURE: return 0x01;
     case PG_TESLA: return 0x02;
     case PG_SUP:   return 0x04;
     default:       return 0;

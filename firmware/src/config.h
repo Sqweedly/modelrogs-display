@@ -101,7 +101,7 @@ extern Config cfg;
 void loadConfig();
 void saveConfig();
 bool pageEnabled(uint8_t page);
-// Personnage du domaine (3.1.0) : Météo (Nimbus et Pousse), Tesla (Volta),
+// Personnage du domaine (3.1.0) : Heure (Nimbus et Pousse), Tesla (Volta),
 // Supervision (Bip). Autres pages : false.
 bool persoActif(uint8_t page);
 void persoRegler(uint8_t page, bool actif);

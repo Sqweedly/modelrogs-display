@@ -16,17 +16,17 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ### Ajouté
 - Afficheur : **personnages** (backlog n° 22 ; maquette `docs/maquettes/personnages-3.1.png`). Dessins originaux, style cartoon, tracés avec les fonctions de l'écran (aucune image). Nimbus, Pousse et Volta occupent tout l'écran au-dessus de la ligne de texte, à la même taille dans tous leurs états. Chaque personnage suit la page de son domaine et forme avec elle un **bloc**, le temps d'une page chacun :
-  - **Météo → Nimbus → Pousse**. Nimbus suit le ciel actuel : beau temps (soleil, éclaircies, lune), couvert (nuageux, brouillard), pluie (pluie, bruine, averses), neige, orage (orage, grêle) ; texte : libellé de la météo, « Beau temps » si le ciel est sans nuage. Pousse suit la température actuelle : **glacial** (5 °C et moins), **frais** (6 à 17 °C), **agréable** (18 à 33 °C), **canicule** (34 °C et plus) ; la plante évolue avec l'état ; pour revenir vers un état plus tempéré, il faut 1 °C de plus (canicule gardée à 33 °C, glacial à 6 °C, agréable à 17 °C). Texte : « 23° · agréable ».
+  - **Heure → Nimbus → Pousse**. Nimbus suit le ciel actuel : beau temps (soleil, éclaircies, lune), couvert (nuageux, brouillard), pluie (pluie, bruine, averses), neige, orage (orage, grêle) ; texte : libellé de la météo, « Beau temps » si le ciel est sans nuage. Pousse suit la température actuelle : **glacial** (5 °C et moins), **frais** (6 à 17 °C), **agréable** (18 à 33 °C), **canicule** (34 °C et plus) ; la plante évolue avec l'état ; pour revenir vers un état plus tempéré, il faut 1 °C de plus (canicule gardée à 33 °C, glacial à 6 °C, agréable à 17 °C). Texte : « 23° · agréable ».
   - **Tesla → Volta**, une pile dont le ventre est la jauge : rouge sous 20 %, orange de 20 à 39 %, verte de 40 à 80 %, contente au-dessus de 80 % ; en charge : éclair, câble et étincelles. Texte : « 64 % · 254 km » ou « 64 % · 80 % dans 1 h 05 min ». Volta n'apparaît pas si les données Tesla sont périmées et suit la batterie pendant son affichage.
   - **Panne → Supervision → Bip** : Bip, robot gris à l'écran noir, yeux et gyrophare rouges, termine le bloc de panne, le jour comme la nuit ; texte en rouge : « 1 service en panne », « 3 services en panne ».
-- Interface web, onglet Pages : une case **Personnage** dans les pages Météo, Tesla et Supervision, cochée d'office à la mise à jour ; le personnage s'ajoute à la ligne de résumé de la page.
+- Interface web, onglet Pages : une case **Personnage** dans les pages Heure, Tesla et Supervision, cochée d'office à la mise à jour ; le personnage s'ajoute à la ligne de résumé de la page.
 
 ### Modifié
 - Afficheur : **écran de nuit en « cadran évidé »** (maquette `docs/maquettes/nuit-cadran-evide.png`). L'heure en chiffres est au centre, dans un anneau sombre ; deux segments tournent sur deux pistes séparées, les heures à l'intérieur, les minutes à l'extérieur ; la couronne des minutes écoulées est conservée. Les aiguilles ne passent plus jamais sur les chiffres, ni l'une sur l'autre (le liseré sombre de la 3.0.2 disparaît). Les 12 traits d'heures sont retirés.
 
 ### Technique
 - Nouveau module `persos.cpp` / `persos.h` : dessin des 4 personnages et choix des états (fonctions séparées, testées).
-- La page Météo retient la météo actuelle (icône, température, libellé) déjà envoyée par la passerelle : aucune requête en plus, rien ne change côté passerelle.
+- La page Heure retient la météo actuelle (icône, température, libellé) qu'elle demande déjà à la passerelle pour sa météo du jour : aucune requête en plus, rien ne change côté passerelle. Nimbus et Pousse n'apparaissent pas si cette réponse manque.
 - Configuration : structure inchangée ; les 3 cases sont dans `reserve[1]` (bit à 1 = personnage masqué), d'où l'activation d'office.
 
 ### Outils
@@ -36,7 +36,7 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 - Ces tests tournent aussi sur GitHub Actions.
 
 ### Mesures (compilation locale, PlatformIO 6.1.16)
-- Flash +11 580 octets (620 999), RAM statique +188 octets (37 972), code en IRAM inchangé (27 735 octets).
+- Flash +11 632 octets (621 051), RAM statique +184 octets (37 968), code en IRAM inchangé (27 735 octets).
 
 ### Non vérifié sur le matériel
 - Enchaînement réel des blocs (le simulateur dessine les écrans mais ne fait pas tourner `main.cpp`), temps de dessin d'un personnage, rendu des couleurs et des détails fins.

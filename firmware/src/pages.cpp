@@ -266,6 +266,17 @@ static int carteMeteoDuJour(JsonDocument& doc, bool ok) {
   return haut;
 }
 
+// Météo actuelle, pour Nimbus et Pousse (bloc de la page Heure, 3.1.0) : tirée
+// de la réponse /meteo déjà demandée par la page Heure (et par la page Météo).
+static void retenirMeteo(int code, JsonDocument& doc) {
+  gWx.ok = code == 200 && doc["t"].is<int>() && doc["i"].is<int>();
+  if (gWx.ok) {
+    gWx.t = (int8_t)constrain((int)doc["t"], -60, 60);
+    gWx.i = doc["i"] | 0;
+    strlcpy(gWx.l, doc["l"] | "", sizeof(gWx.l));
+  }
+}
+
 void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   tft.fillScreen(BG);
   // En-tête « mercredi 28 octobre » : en minuscules, sans l'année, centré sur
@@ -280,7 +291,9 @@ void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   FontId fe = textW(entete, F_18) > 216 ? F_16 : F_18;
   drawText(entete, 120, Y_ENTETE, fe, TXT, BG, TC_DATUM);
   JsonDocument doc;
-  bool ok = gwGet("/meteo", doc) == 200;   // sinon l'horloge reste seule
+  const int code = gwGet("/meteo", doc);
+  const bool ok = code == 200;             // sinon l'horloge reste seule
+  retenirMeteo(code, doc);
   placerChiffres(carteMeteoDuJour(doc, ok));
   drawClockDigits();
   strncpy(lastDate, gTime.date, sizeof(lastDate) - 1);
@@ -350,13 +363,7 @@ void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
   JsonDocument doc;
   int code = gwGet("/meteo", doc);
   tft.fillScreen(BG);
-  // Météo actuelle, pour Nimbus et Pousse (bloc Météo, 3.1.0)
-  gWx.ok = code == 200 && doc["t"].is<int>() && doc["i"].is<int>();
-  if (gWx.ok) {
-    gWx.t = (int8_t)constrain((int)doc["t"], -60, 60);
-    gWx.i = doc["i"] | 0;
-    strlcpy(gWx.l, doc["l"] | "", sizeof(gWx.l));
-  }
+  retenirMeteo(code, doc);
   if (code != 200) {
     errorPage("Météo", code == -5 ? String(doc["err"] | "") : String(gwErrorText(code)));
     pageDots(dotIndex, dotCount, AMBRE);

@@ -15,10 +15,10 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 ## [3.1.0] — en essai sur la branche `beta`
 
 ### Ajouté
-- Afficheur : **personnages** (backlog n° 22 ; maquette `docs/maquettes/personnages-3.1.png`). Dessins originaux, style cartoon, tracés avec les fonctions de l'écran (aucune image). Chaque personnage suit la page de son domaine et forme avec elle un **bloc**, le temps d'une page chacun :
+- Afficheur : **personnages** (backlog n° 22 ; maquette `docs/maquettes/personnages-3.1.png`). Dessins originaux, style cartoon, tracés avec les fonctions de l'écran (aucune image). Nimbus, Pousse et Volta occupent tout l'écran au-dessus de la ligne de texte, à la même taille dans tous leurs états. Chaque personnage suit la page de son domaine et forme avec elle un **bloc**, le temps d'une page chacun :
   - **Météo → Nimbus → Pousse**. Nimbus suit le ciel actuel : beau temps (soleil, éclaircies, lune), couvert (nuageux, brouillard), pluie (pluie, bruine, averses), neige, orage (orage, grêle) ; texte : libellé de la météo, « Beau temps » si le ciel est sans nuage. Pousse suit la température actuelle : **glacial** (5 °C et moins), **frais** (6 à 17 °C), **agréable** (18 à 33 °C), **canicule** (34 °C et plus) ; la plante évolue avec l'état ; pour revenir vers un état plus tempéré, il faut 1 °C de plus (canicule gardée à 33 °C, glacial à 6 °C, agréable à 17 °C). Texte : « 23° · agréable ».
   - **Tesla → Volta**, une pile dont le ventre est la jauge : rouge sous 20 %, orange de 20 à 39 %, verte de 40 à 80 %, contente au-dessus de 80 % ; en charge : éclair, câble et étincelles. Texte : « 64 % · 254 km » ou « 64 % · 80 % dans 1 h 05 min ». Volta n'apparaît pas si les données Tesla sont périmées et suit la batterie pendant son affichage.
-  - **Panne → Supervision → Bip** : Bip, robot à écran rouge et gyrophare, termine le bloc de panne, le jour comme la nuit ; texte en rouge : « 1 service en panne », « 3 services en panne ».
+  - **Panne → Supervision → Bip** : Bip, robot gris à l'écran noir, yeux et gyrophare rouges, termine le bloc de panne, le jour comme la nuit ; texte en rouge : « 1 service en panne », « 3 services en panne ».
 - Interface web, onglet Pages : une case **Personnage** dans les pages Météo, Tesla et Supervision, cochée d'office à la mise à jour ; le personnage s'ajoute à la ligne de résumé de la page.
 
 ### Modifié
@@ -36,7 +36,7 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 - Ces tests tournent aussi sur GitHub Actions.
 
 ### Mesures (compilation locale, PlatformIO 6.1.16)
-- Flash +11 188 octets (620 607), RAM statique +196 octets (37 980), code en IRAM inchangé (27 735 octets).
+- Flash +11 580 octets (620 999), RAM statique +188 octets (37 972), code en IRAM inchangé (27 735 octets).
 
 ### Non vérifié sur le matériel
 - Enchaînement réel des blocs (le simulateur dessine les écrans mais ne fait pas tourner `main.cpp`), temps de dessin d'un personnage, rendu des couleurs et des détails fins.

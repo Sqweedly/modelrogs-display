@@ -52,9 +52,12 @@ uint8_t voltaEtat(uint8_t pct) {
 
 // ------------------------------------------------- repère et primitives
 // Personnage dessiné en coordonnées « nominales » (centre x = 120, pieds à
-// y = 210), à l'échelle S, pieds posés à y = OY : place pour le texte en bas.
+// y = 210), à l'échelle S, la ligne nominale y = 210 posée à y = OY. Chaque
+// personnage choisit S et OY pour occuper l'écran au-dessus du texte (y < 210).
 
-static constexpr float S = 0.88f, OX = 120, OY = 196;
+static float S = 0.88f, OY = 196;
+static constexpr float OX = 120;
+static void repere(float s, float oy) { S = s; OY = oy; }
 static constexpr float RAD = 3.14159265f / 180.f;
 static float X(float x) { return OX + (x - 120) * S; }
 static float Y(float y) { return OY + (y - 210) * S; }
@@ -158,21 +161,22 @@ static void etincelle(float x, float y, float r) {
   tft.fillTriangle(x, y - r, x, y + r, x - r * 2, y, JAUNE);
   tft.fillTriangle(x, y - r, x, y + r, x + r * 2, y, JAUNE);
 }
-static void soleil(int cx, int cy) {
+// Soleil et ondes de chaleur : coordonnées nominales (suivent l'échelle)
+static void soleil(float cx, float cy) {
   const uint16_t j = RGB(0xFF, 0xC8, 0x30);
   for (int i = 0; i < 8; i++) {
     const float a = i * 45 * RAD;
-    tft.drawWideLine(cx + 18 * sinf(a), cy - 18 * cosf(a), cx + 25 * sinf(a), cy - 25 * cosf(a), 4, j, BG);
+    L(cx + 15 * sinf(a), cy - 15 * cosf(a), cx + 20 * sinf(a), cy - 20 * cosf(a), 3, j, BG);
   }
-  tft.fillSmoothCircle(cx, cy, 12, j, BG);
+  C(cx, cy, 10, j, BG);
 }
-static void ondesChaleur(int x0, int y0) {
+static void ondesChaleur(float x0, float y0) {
   const uint16_t o = RGB(0xFF, 0x8A, 0x3C);
   for (int k = 0; k < 3; k++) {
     float px = x0 + k * 16, py = y0;
     for (int j = 1; j <= 8; j++) {
       const float yy = y0 - j * 3, xx = x0 + k * 16 + 3.5f * sinf(j * 0.9f);
-      tft.drawWideLine(px, py, xx, yy, 2.5f, o, BG);
+      L(px, py, xx, yy, 2.5f, o, BG);
       px = xx;
       py = yy;
     }
@@ -199,10 +203,10 @@ void drawNimbus() {
     case NIMBUS_ORAGE:   c = RGB(0x5E, 0x66, 0x7A); om = RGB(0x3C, 0x42, 0x52); break;
     default:             c = RGB(0x9C, 0xA6, 0xBA); om = RGB(0x6E, 0x78, 0x8C); break;   // pluie, neige
   }
-  if (e == NIMBUS_BEAU) soleil(196, 44);
+  repere(1.32f, 203);                    // nuage : 20 à 220 px de large
+  if (e == NIMBUS_BEAU) soleil(178, 80);  // derrière le nuage, en haut à droite
   if (e == NIMBUS_COUVERT)   // traînées de brume
-    for (int k = 0; k < 3; k++)
-      tft.drawWideLine(30 + k * 12, 150 + k * 14, 70 + k * 12, 150 + k * 14, 4, RGB(0x50, 0x56, 0x64), BG);
+    for (int k = 0; k < 3; k++) L(32 + k * 10, 150 + k * 14, 62 + k * 10, 150 + k * 14, 3, RGB(0x50, 0x56, 0x64), BG);
   if (e == NIMBUS_PLUIE || e == NIMBUS_ORAGE)
     for (int k = 0; k < 7; k++) {
       const float x = 62 + k * 20, y = 176 + (k % 2) * 12;
@@ -248,8 +252,8 @@ void drawNimbus() {
       oeil(xd, ey + 2, 13, 16, NOIR, c);
       sourcilsFaches(xg, xd, ey - 12, NOIR, c);
       dents(120, my, NOIR, c);
-      eclair(30, 150, 1.6f, RGB(0xFF, 0xD8, 0x30));
-      eclair(196, 140, 1.4f, RGB(0xFF, 0xD8, 0x30));
+      eclair(X(82), Y(170), D(1.1f), RGB(0xFF, 0xD8, 0x30));   // sous le nuage, dans la pluie
+      eclair(X(152), Y(168), D(1.0f), RGB(0xFF, 0xD8, 0x30));
       break;
   }
   // Libellé de la passerelle ; ciel sans nuage (soleil, lune) : « Beau temps »
@@ -264,10 +268,11 @@ void drawPousse() {
   const uint8_t e = pousseEtat(gWx.t, pousseDernier);
   pousseDernier = e;
   tft.fillScreen(BG);
+  repere(1.13f, 208);                    // de la grande plante (haut) aux pieds
   const uint16_t corps = RGB(0x8E, 0xE0, 0xB8), om = RGB(0x5E, 0xB8, 0x90), cl = RGB(0xC8, 0xF6, 0xDC);
   const uint16_t fe = RGB(0x3C, 0xA8, 0x5C), fe2 = RGB(0x58, 0xC4, 0x70), givre = RGB(0xA8, 0xD8, 0xFF);
   if (e == POUSSE_GLACIAL) {
-    const uint8_t G[8][2] = { { 22, 34 }, { 44, 86 }, { 16, 140 }, { 214, 70 }, { 224, 130 }, { 206, 176 }, { 70, 24 }, { 180, 30 } };
+    const uint8_t G[7][2] = { { 22, 34 }, { 40, 84 }, { 20, 186 }, { 214, 70 }, { 222, 184 }, { 70, 24 }, { 180, 30 } };
     for (auto& p : G) flocon(p[0], p[1], 5, RGB(0xDC, 0xEE, 0xFF));
   }
   RR(90, 190, 26, 18, 9, om, BG);   // pieds
@@ -282,9 +287,9 @@ void drawPousse() {
     C(134, 54, 10, fe2, BG);
   } else {
     const bool fanee = e == POUSSE_CANICULE;
-    L(120, 80, 122, fanee ? 20 : 36, 5, fe, BG);
+    L(120, 80, 122, fanee ? 34 : 46, 5, fe, BG);
     for (int k = 0; k < (fanee ? 6 : 4); k++) {
-      const float y = 72 - k * 10, s = (k % 2) ? 1 : -1, dy = fanee ? 8 : -2;
+      const float y = 72 - k * 8, s = (k % 2) ? 1 : -1, dy = fanee ? 8 : -2;
       L(121, y, 121 + s * 18, y + dy, 3, fe, BG);
       C(121 + s * 22, y + dy + (fanee ? 4 : 0), 9, (k % 2) ? fe2 : fe, BG);
     }
@@ -292,9 +297,9 @@ void drawPousse() {
       const uint16_t f = RGB(0xFF, 0x9A, 0xC0);
       for (int i = 0; i < 5; i++) {
         const float a = i * 72 * RAD;
-        C(122 + 8 * sinf(a), 34 - 8 * cosf(a), 6, f, BG);
+        C(122 + 8 * sinf(a), 44 - 8 * cosf(a), 6, f, BG);
       }
-      C(122, 34, 5, RGB(0xFF, 0xD8, 0x40), f);
+      C(122, 44, 5, RGB(0xFF, 0xD8, 0x40), f);
     }
   }
   C(120, 140, 64, om, BG);
@@ -339,7 +344,7 @@ void drawPousse() {
       langue(119, my, corps);
       goutte(60, 116);
       goutte(182, 100);
-      ondesChaleur(28, 120);
+      ondesChaleur(30, 72);              // en haut à gauche, hors du corps
       ct = RGB(0xFF, 0x8A, 0x3C);
       break;
   }
@@ -359,6 +364,7 @@ void drawVolta() {
   const uint8_t e = voltaEtat(gTesla.pct);
   const bool charge = gTesla.etat == TESLA_CHARGE;
   tft.fillScreen(BG);
+  repere(1.16f, 205);                    // de la borne aux pieds, bras levés compris
   const uint16_t JAUGE[4] = { RGB(0xF0, 0x44, 0x34), RGB(0xFF, 0x9C, 0x2C), RGB(0x4C, 0xD0, 0x64), RGB(0x3C, 0xE0, 0x70) };
   const uint16_t jauge = JAUGE[e];
   const uint16_t boit = RGB(0xF2, 0xF0, 0xEA), om = RGB(0xB8, 0xB4, 0xAA), vitre = RGB(0x1E, 0x26, 0x32);
@@ -366,13 +372,13 @@ void drawVolta() {
   if (charge) {   // câble branché
     const uint16_t cb = RGB(0x70, 0x78, 0x88);
     float px = X(150), py = Y(190);
-    for (int j = 1; j <= 10; j++) {
+    for (int j = 1; j <= 6; j++) {
       const float x = X(150 + j * 7), y = Y(196 + 8 * sinf(j * 0.8f));
       tft.drawWideLine(px, py, x, y, D(5), cb, BG);
       px = x;
       py = y;
     }
-    RR(212, 186, 18, 14, 4, cb, BG);
+    RR(190, 190, 16, 12, 4, cb, BG);
   }
   RR(98, 196, 18, 12, 6, om, BG);   // pieds
   RR(124, 196, 18, 12, 6, om, BG);
@@ -428,11 +434,13 @@ void drawVolta() {
 
 void drawBip() {   // affiché seulement pendant une panne (bloc PANNE, Supervision, Bip)
   tft.fillScreen(BG);
-  const uint16_t mt = RGB(0xC4, 0xCC, 0xD8), om = RGB(0x8C, 0x96, 0xA8);
-  const uint16_t ec = RGB(0x48, 0x10, 0x14), yeux = RGB(0xFF, 0x5A, 0x50), rouge = RGB(0xFF, 0x30, 0x30);
+  repere(0.88f, 196);
+  // Corps gris neutre ; écran noir, yeux et bouche rouges (ROUGE des pannes)
+  const uint16_t mt = RGB(0x9A, 0x9C, 0xA0), om = RGB(0x66, 0x68, 0x6C);
+  const uint16_t ec = RGB(0x12, 0x12, 0x14), yeux = ROUGE, rouge = ROUGE;
   for (int k = 0; k < 3; k++) {   // gyrophare
-    A(120, 34, 18 + k * 9, 300, 345, 3, RGB(0xFF, 0x50, 0x50), BG);
-    A(120, 34, 18 + k * 9, 15, 60, 3, RGB(0xFF, 0x50, 0x50), BG);
+    A(120, 34, 18 + k * 9, 300, 345, 3, ROUGE, BG);
+    A(120, 34, 18 + k * 9, 15, 60, 3, ROUGE, BG);
   }
   L(120, 54, 120, 38, 4, om, BG);
   C(120, 32, 9, rouge, BG);
@@ -446,7 +454,7 @@ void drawBip() {   // affiché seulement pendant une panne (bloc PANNE, Supervis
   RR(56, 52, 128, 116, 34, om, BG);    // tête
   RR(58, 52, 122, 110, 32, mt, om);
   RR(72, 70, 94, 78, 22, ec, mt);      // écran
-  RR(80, 76, 22, 6, 3, RGB(0x60, 0x20, 0x24), ec);
+  RR(80, 76, 22, 6, 3, RGB(0x2A, 0x2A, 0x2E), ec);
   const float xg = 102, xd = 136, ey = 104, my = 128;
   C(xg, ey, 11, yeux, ec); C(xd, ey, 11, yeux, ec);   // yeux écarquillés
   C(xg, ey, 5, ec, yeux);  C(xd, ey, 5, ec, yeux);

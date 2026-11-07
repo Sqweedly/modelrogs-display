@@ -7,6 +7,7 @@
 #include "config.h"
 #include "pages.h"
 #include "ui.h"
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -39,7 +40,29 @@ int main() {
     }
   }
   printf("%d minutes, dont %d redessins partiels, %d écart(s)\n", cas, partiels, ecarts);
+  // Cadran évidé (3.1.0) : rien ne se recouvre. Pour chaque minute de la
+  // journée, les couronnes vides entre les éléments doivent rester noires :
+  // chiffres | 49-50,5 px | anneau 52-55 | 56,5-58,5 | heures 60-82 | 83,8-85,2 | minutes 87-104
+  // | 105,2-105,8 | couronne (points de 3 px à 110 px). Bords lissés : 1 px de part et d'autre.
+  struct { float r0, r1; const char* entre; } const VIDES[] = {
+    {49.0f, 50.5f, "chiffres et anneau"}, {56.5f, 58.5f, "anneau et heures"}, {83.8f, 85.2f, "heures et minutes"},
+    {105.2f, 105.8f, "minutes et couronne"} };
+  int touches = 0;
+  for (int md = 0; md < 1440; md++) {
+    regle(md);
+    drawNuit(true);
+    for (auto& v : VIDES)
+      for (int y = 0; y < 240; y++)
+        for (int x = 0; x < 240; x++) {
+          const float d = sqrtf((x + 0.5f - 120) * (x + 0.5f - 120) + (y + 0.5f - 120) * (y + 0.5f - 120));
+          if (d >= v.r0 && d <= v.r1 && tft.fb[y * 240 + x] != 0) {
+            if (touches++ < 5) printf("RECOUVREMENT %02d:%02d entre %s (x=%d, y=%d)\n", md / 60, md % 60, v.entre, x, y);
+          }
+        }
+  }
+  printf("%d pixel(s) dans les espaces vides sur 1440 minutes\n", touches);
+  if (touches) { printf("ÉCHEC : écran de nuit (recouvrement)\n"); return 1; }
   if (ecarts || partiels < cas / 2) { printf("ÉCHEC : écran de nuit\n"); return 1; }
-  printf("Écran de nuit : redessin partiel identique au redessin complet.\n");
+  printf("Écran de nuit : redessin partiel identique au complet, aucun recouvrement.\n");
   return 0;
 }

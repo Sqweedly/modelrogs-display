@@ -419,6 +419,30 @@ static String phraseFixe(uint8_t p) {
   }
 }
 
+// Personnage du domaine (3.1.0) : nom court (ligne sous le nom de la page) et
+// explication (réglage dans la page dépliée)
+static const __FlashStringHelper* persoNom(uint8_t p) {
+  switch (p) {
+    case PG_METEO: return F("Nimbus, Pousse");
+    case PG_TESLA: return F("Volta");
+    case PG_SUP:   return F("Bip");
+    default:       return nullptr;
+  }
+}
+
+static void renderPerso(Chunks& c, uint8_t p) {
+  if (!persoNom(p)) return;
+  c << F("<input type='hidden' name='pp") << (long)p << F("' value='1'><div class='ligne'><div class='lib'><b>Personnage</b><span>");
+  switch (p) {
+    case PG_METEO: c << F("Nimbus (ciel) et Pousse (température)"); break;
+    case PG_TESLA: c << F("Volta (batterie)"); break;
+    default:       c << F("Bip, dans le bloc de panne"); break;
+  }
+  c << F("</span></div>");
+  interrupteur(c, String("ps") + p, persoActif(p));
+  c << F("</div>");
+}
+
 // Libellé d'une valeur choisie, d'après les options connues sans requête
 static String libelleOption(JsonArray options, const String& id) {
   for (JsonObject o : options) {
@@ -500,6 +524,10 @@ static void renderModules(Chunks& c) {
     else if (p == PG_METEO) { if (mod["v"].is<const char*>()) ligne = String((const char*)(mod["v"] | "")) + F(" · 5 jours"); }
     else if (phraseFixe(p).length()) { ligne = phraseFixe(p); pastille = F("on"); }
     else if (configure) ligne = resumeReglages(p, mod, optionsModule);
+    if (!absent && persoNom(p) && persoActif(p)) {
+      if (ligne.length()) ligne += F(" · ");
+      ligne += persoNom(p);
+    }
 
     c << (absent ? F("<div class='ligne'>") : F("<details><summary class='ligne'>"))
       << F("<div class='ico' style='background:") << element(PG_FONDS, p) << F("'>") << element(PG_ICONES, p)
@@ -547,6 +575,7 @@ static void renderModules(Chunks& c) {
     } else if (!mod.isNull()) {
       c << F("<p class='note'>À régler dans le docker-compose de la passerelle.</p>");
     }
+    renderPerso(c, p);
     if (moduleUsable(p)) c << F("<a class='sm' href='/show?p=") << (long)p << F("'>Afficher maintenant</a>");
     c << F("</div></details>");
     c.flush();
@@ -555,7 +584,8 @@ static void renderModules(Chunks& c) {
   curseur(c, "duree", "Durée de chaque page", 5, 120, 5, cfg.pageSec, "s");
   c << F("</div><p class='note'>Discord, Plex et Tesla passent en tête quand quelqu'un arrive dans le salon, "
          "quand une lecture ou une charge commence. Une panne de supervision s'affiche aussitôt, puis après "
-         "chaque page. La nuit, seul l'écran de nuit est affiché (onglet Écran).</p>");
+         "chaque page. Les personnages suivent leur page, le temps d'une page chacun. "
+         "La nuit, seul l'écran de nuit est affiché (onglet Écran).</p>");
 }
 
 static void handleRoot() {
@@ -771,6 +801,7 @@ static void handleSave() {
         else cfg.pages &= ~(1u << p);
       }
       if (server.hasArg(String("pm") + p)) saveModuleParams(p);
+      if (server.hasArg(String("pp") + p)) persoRegler(p, server.hasArg(String("ps") + p));
     }
     if (server.hasArg("duree")) cfg.pageSec = constrain(server.arg("duree").toInt(), 5, 120);
   }

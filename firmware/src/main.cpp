@@ -14,10 +14,13 @@
 //   (+ écran d'alerte prioritaire en cas de panne). Discord et Plex ne
 //   s'affichent que s'il y a quelqu'un / une lecture, et passent devant
 //   dès une arrivée / le début d'une lecture.
-// - Panne : bloc « PANNE + récapitulatif Supervision » affiché aussitôt, puis
-//   après chaque page tant que la panne dure. Sans panne, la Supervision
+// - Panne : bloc « PANNE + récapitulatif Supervision (+ Bip) » affiché aussitôt,
+//   puis après chaque page tant que la panne dure. Sans panne, la Supervision
 //   n'apparaît dans la rotation que si un service est instable ou si Kuma
 //   ne répond pas.
+// - Personnages (3.1.0, persos.cpp) : la page Météo est suivie de Nimbus et de
+//   Pousse, la page Tesla de Volta (une durée de page chacun), si leur case est
+//   cochée dans l'interface.
 // - Toutes les données viennent de la passerelle Docker (HTTP local)
 // =====================================================
 
@@ -30,6 +33,7 @@
 #include "diag.h"
 #include "net.h"
 #include "pages.h"
+#include "persos.h"
 #include "sante.h"
 #include "ui.h"
 #include "web.h"
@@ -58,6 +62,11 @@ static int8_t   curPage = -1;          // -1 : aucune page affichée
 static uint32_t pageSince = 0;
 static bool     alertShown = false;    // l'écran d'alerte est affiché en ce moment
 static bool     blocSup = false;       // récap Supervision affiché après l'écran PANNE
+static bool     blocBip = false;       // Bip affiché après le récap (3.1.0)
+// Personnage affiché après la page de son domaine (3.1.0) ; curPage reste la
+// page du domaine, pour reprendre la rotation ensuite.
+enum PersoEcran : uint8_t { PERSO_AUCUN, PERSO_NIMBUS, PERSO_POUSSE, PERSO_VOLTA };
+static uint8_t  persoEcran = PERSO_AUCUN;
 static bool     alertActive = false;   // une panne est en cours
 static bool     idleShown = false;
 static int8_t   forcedPage = -1;
@@ -70,7 +79,7 @@ static bool     priorityTesla = false;   // une charge vient de commencer
 static bool     enNuit = false;
 static int      nuitMinute = -2;
 static bool     nuitAlerte = false;
-static bool     nuitRecap = false;      // bloc de panne la nuit : récap Supervision affiché (sinon PANNE)
+static uint8_t  nuitEtape = 0;          // bloc de panne la nuit : 0 PANNE, 1 récap Supervision, 2 Bip
 static bool     configChanged = false;
 static bool     screenOff = false;
 static uint8_t  lastBrightness = 255;
@@ -151,6 +160,7 @@ static uint32_t dureeDe(int p) {
 
 static void showPage(uint8_t p, bool restartTimer = true) {
   curPage = p;
+  persoEcran = PERSO_AUCUN;
   if (restartTimer) pageSince = millis();
   idleShown = false;
 
@@ -193,6 +203,7 @@ static void nextPage() {
   }
   // Rien à afficher (ex. Discord seul et salon vide)
   curPage = -1;
+  persoEcran = PERSO_AUCUN;
   pageSince = millis();
   if (!idleShown) {
     drawSplash("Aucune page à afficher", "Configuration : http://" + WiFi.localIP().toString(),
@@ -206,7 +217,42 @@ static void nextPage() {
 static void showAlert() {
   drawAlert();
   alertShown = true;
-  blocSup = false;
+  blocSup = blocBip = false;
+  persoEcran = PERSO_AUCUN;
+  drawnSupVersion = gSup.version;
+  pageSince = millis();
+}
+
+// Bloc d'une page de domaine (3.1.0) : personnage à montrer après la page
+// (ou après le personnage) affichée, PERSO_AUCUN à la fin du bloc.
+static uint8_t persoSuivant() {
+  if (curPage == PG_METEO && persoActif(PG_METEO) && gWx.ok) {
+    if (persoEcran == PERSO_AUCUN) return PERSO_NIMBUS;
+    if (persoEcran == PERSO_NIMBUS) return PERSO_POUSSE;
+  }
+  if (curPage == PG_TESLA && persoEcran == PERSO_AUCUN && persoActif(PG_TESLA) && gTesla.ok && !gTesla.stale)
+    return PERSO_VOLTA;
+  return PERSO_AUCUN;
+}
+
+static void showPerso(uint8_t e) {
+  persoEcran = e;
+  pageSince = millis();
+  switch (e) {
+    case PERSO_NIMBUS: drawNimbus(); break;
+    case PERSO_POUSSE: drawPousse(); break;
+    case PERSO_VOLTA:
+      drawVolta();
+      drawnTeslaVersion = gTesla.version;
+      drawnTeslaInfos = gTesla.infos;
+      break;
+  }
+}
+
+// Bip, dernier écran du bloc de panne (3.1.0)
+static void showBip() {
+  blocBip = true;
+  drawBip();
   drawnSupVersion = gSup.version;
   pageSince = millis();
 }
@@ -232,7 +278,8 @@ static void setScreen(ScreenState s) {
   if (s == screen) return;
   screen = s;
   curPage = -1;
-  alertShown = blocSup = false;
+  persoEcran = PERSO_AUCUN;
+  alertShown = blocSup = blocBip = false;
   switch (s) {
     case S_VALIDATE:
       drawSplash("Configuration à valider", "1. Wi-Fi \"" + String(cfg.apSsid) + "\"",
@@ -381,7 +428,8 @@ void loop() {
   // --- Écran de nuit (3.0.0 ; horloge à aiguilles en 3.0.2) : l'heure seule ; aucune autre page (rotation,
   //     priorités Plex, Discord, Tesla, pages demandées depuis l'interface).
   //     Une panne de supervision affiche à la place le même bloc que le jour
-  //     (écran PANNE puis récap Supervision, une durée de page chacun, 3.0.1),
+  //     (écran PANNE, récap Supervision, puis Bip si sa case est cochée (3.1.0),
+  //     une durée de page chacun, 3.0.1),
   //     à la luminosité de jour, en boucle jusqu'au retour à la normale.
   if (nuit) {
     if (!enNuit || configChanged) {   // entrée dans la nuit, retour d'un écran d'état, réglages
@@ -392,21 +440,22 @@ void loop() {
     configChanged = false;
     forcedPage = -1;
     priorityDiscord = priorityPlex = priorityTesla = false;
-    alertShown = blocSup = alertActive = false;
+    alertShown = blocSup = blocBip = alertActive = false;
     if (supAlert) {
       bool dessiner = false;
       if (!nuitAlerte) {                       // début de la panne : écran PANNE
         nuitAlerte = true;
-        nuitRecap = false;
+        nuitEtape = 0;
         pageSince = millis();
         dessiner = true;
-      } else if (millis() - pageSince >= (uint32_t)cfg.pageSec * 1000UL) {   // PANNE <-> récap
-        nuitRecap = !nuitRecap;
+      } else if (millis() - pageSince >= (uint32_t)cfg.pageSec * 1000UL) {   // PANNE -> récap (-> Bip)
+        nuitEtape = (uint8_t)((nuitEtape + 1) % (persoActif(PG_SUP) ? 3 : 2));
         pageSince = millis();
         dessiner = true;
       }
       if (dessiner || drawnSupVersion != gSup.version) {   // mise à jour sans relancer le minuteur
-        if (nuitRecap) drawSupervision(0, 0);
+        if (nuitEtape == 1) drawSupervision(0, 0);
+        else if (nuitEtape == 2) drawBip();
         else drawAlert();
         drawnSupVersion = gSup.version;
       }
@@ -428,7 +477,7 @@ void loop() {
   // --- Après une modification de configuration
   if (configChanged) {
     configChanged = false;
-    alertShown = blocSup = false;
+    alertShown = blocSup = blocBip = false;
     alertActive = false;               // une panne en cours sera réaffichée aussitôt
     if (forcedPage < 0) {
       // reprendre la rotation sur la même page : on part de la page précédente
@@ -448,8 +497,8 @@ void loop() {
   }
   if (!supAlert && alertActive) {
     alertActive = false;
-    if (alertShown || blocSup) {
-      alertShown = blocSup = false;
+    if (alertShown || blocSup || blocBip) {
+      alertShown = blocSup = blocBip = false;
       nextPage();
       return;
     }
@@ -459,14 +508,14 @@ void loop() {
   if (forcedPage >= 0) {
     uint8_t p = forcedPage;
     forcedPage = -1;
-    alertShown = blocSup = false;
+    alertShown = blocSup = blocBip = false;
     showPage(p);
     return;
   }
   if (priorityDiscord) {
     priorityDiscord = false;
     if (pageAvailable(PG_DISCORD)) {
-      alertShown = blocSup = false;
+      alertShown = blocSup = blocBip = false;
       showPage(PG_DISCORD);
       return;
     }
@@ -474,7 +523,7 @@ void loop() {
   if (priorityPlex) {                      // une lecture vient de commencer
     priorityPlex = false;
     if (pageAvailable(PG_PLEX)) {
-      alertShown = blocSup = false;
+      alertShown = blocSup = blocBip = false;
       showPage(PG_PLEX);
       return;
     }
@@ -483,7 +532,7 @@ void loop() {
   if (priorityTesla) {                     // une charge vient de commencer
     priorityTesla = false;
     if (pageAvailable(PG_TESLA)) {
-      alertShown = blocSup = false;
+      alertShown = blocSup = blocBip = false;
       showPage(PG_TESLA);
       return;
     }
@@ -505,7 +554,7 @@ void loop() {
     return;
   }
 
-  // --- Récap Supervision du bloc : mise à jour, puis page suivante
+  // --- Récap Supervision du bloc : mise à jour, puis Bip (3.1.0) ou page suivante
   if (blocSup) {
     if (drawnSupVersion != gSup.version) {
       drawSupervision(0, 0);
@@ -513,6 +562,20 @@ void loop() {
     }
     if (now - pageSince >= dureePage) {
       blocSup = false;
+      if (persoActif(PG_SUP)) showBip();
+      else nextPage();
+    }
+    return;
+  }
+
+  // --- Bip, fin du bloc de panne : mis à jour avec le nombre de services en panne
+  if (blocBip) {
+    if (drawnSupVersion != gSup.version) {
+      drawBip();
+      drawnSupVersion = gSup.version;
+    }
+    if (now - pageSince >= dureePage) {
+      blocBip = false;
       nextPage();
     }
     return;
@@ -524,9 +587,9 @@ void loop() {
     if (now - pageSince > 5000UL || !idleShown) nextPage();
     return;
   }
-  if (now - pageSince >= dureeDe(curPage)) {
+  if (now - pageSince >= (persoEcran != PERSO_AUCUN ? dureePage : dureeDe(curPage))) {
     // Pages de cours : pages dédiées (+/- 5 % sur 7 jours) avant de passer à la suite
-    if (pageCours(curPage)) {
+    if (persoEcran == PERSO_AUCUN && pageCours(curPage)) {
       uint8_t idx, cnt;
       positionPage(curPage, idx, cnt);
       if (coursEcranSuivant(curPage, idx, cnt)) {
@@ -534,8 +597,30 @@ void loop() {
         return;
       }
     }
+    // Bloc de la page : personnage suivant (3.1.0)
+    const uint8_t perso = persoSuivant();
+    if (perso != PERSO_AUCUN) {
+      showPerso(perso);
+      return;
+    }
     if (supAlert) showAlert();
     else nextPage();
+    return;
+  }
+
+  // --- Personnage affiché : la page du domaine n'est pas redessinée par-dessus.
+  //     Volta suit la batterie ; Nimbus et Pousse gardent la météo de la page.
+  if (persoEcran != PERSO_AUCUN) {
+    if (persoEcran == PERSO_VOLTA &&
+        (gTesla.version != drawnTeslaVersion || gTesla.infos != drawnTeslaInfos)) {
+      if (gTesla.ok && !gTesla.stale) {   // redessinée sans relancer le minuteur
+        drawVolta();
+        drawnTeslaVersion = gTesla.version;
+        drawnTeslaInfos = gTesla.infos;
+      } else {
+        nextPage();
+      }
+    }
     return;
   }
 

@@ -26,7 +26,7 @@ void plexProgress();          // Plex affichée : ne redessine que la progressio
 void drawTesla();
 void teslaBandeau();
 void drawAlert();
-// Écran de nuit (plage nocturne) : horloge à aiguilles en ambre (3.0.2).
+// Écran de nuit (plage nocturne) : horloge « cadran évidé » en ambre (3.1.0).
 // complet = true : tout redessiner (entrée dans la nuit, après un écran d'état) ;
 // sinon, seuls les éléments qui changent avec la minute.
 void drawNuit(bool complet);

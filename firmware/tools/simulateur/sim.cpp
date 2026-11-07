@@ -11,6 +11,7 @@
 #include "config.h"
 #include "net.h"
 #include "pages.h"
+#include "persos.h"
 #include "ui.h"
 
 uint32_t g_millis = 1000;
@@ -331,6 +332,24 @@ int main(int argc, char** argv) {
     drawTesla(); save(std::string("32_tesla_") + e);
   }
   drawNuit(true);                  save("33_nuit");   // écran de nuit (horloge à aiguilles, 3.0.2)
+  // Personnages (3.1.0) : Nimbus (ciel), Pousse (température), Volta (Tesla), Bip (panne)
+  {
+    struct { uint8_t i; int8_t t; const char* l; const char* f; } const CIEL[] = {
+      {0, 14, "Ensoleillé", "34a_nimbus_beau"}, {1, 15, "Éclaircies", "34a2_nimbus_eclaircies"}, {3, 11, "Brouillard", "34b_nimbus_couvert"},
+      {4, 9, "Averses", "34c_nimbus_pluie"}, {5, -1, "Neige", "34d_nimbus_neige"},
+      {6, 17, "Orage et grêle", "34e_nimbus_orage"} };
+    for (auto& c : CIEL) { gWx.ok = true; gWx.i = c.i; gWx.t = c.t; strcpy(gWx.l, c.l); drawNimbus(); save(c.f); }
+    struct { int8_t t; const char* f; } const TEMP[] = {
+      {2, "35a_pousse_glacial"}, {12, "35b_pousse_frais"}, {23, "35c_pousse_agreable"}, {35, "35d_pousse_canicule"} };
+    for (auto& c : TEMP) { gWx.t = c.t; drawPousse(); save(c.f); }
+    struct { uint8_t pct; uint8_t etat; const char* l; const char* f; } const BATT[] = {
+      {12, TESLA_STATIONNEE, "Autonomie 41 km", "36a_volta_rouge"}, {32, TESLA_STATIONNEE, "Autonomie 112 km", "36b_volta_orange"},
+      {80, TESLA_BRANCHEE, "Autonomie 281 km", "36c_volta_vert"}, {91, TESLA_STATIONNEE, "Autonomie 321 km", "36d_volta_contente"},
+      {64, TESLA_CHARGE, "80 % dans 1 h 05 min", "36e_volta_charge"}, {15, TESLA_CHARGE, "80 % dans 6 h 40 min", "36f_volta_charge_rouge"} };
+    for (auto& c : BATT) { gTesla.pct = c.pct; gTesla.etat = c.etat; strcpy(gTesla.ligne, c.l); drawVolta(); save(c.f); }
+    gSup.pa = 1; drawBip(); save("37a_bip_1");
+    gSup.pa = 3; drawBip(); save("37b_bip_3");
+  }
   drawPlex(5, 6);                  save("14_plex_1");
   fixtures["/plex"] = FX("plex1s"); pollPlex();
   drawPlex(5, 6);                  save("14b_plex_serie");

@@ -132,10 +132,27 @@ int main() {
     CHECK(modParams(PG_TESLA) == cfg.pPlex && modParam(PG_TESLA, "x") == "", "page Tesla : aucun reglage");
   }
 
+  // 4c. 3.0.x (reserve[1] vide) -> 3.1.0 : personnages affiches, reglage conserve
+  {
+    Config v{};
+    memcpy(&v, &cfg, sizeof(cfg));
+    v.reserve[1] = 0;
+    ecrire(v); loadConfig();
+    CHECK(persoActif(PG_METEO) && persoActif(PG_TESLA) && persoActif(PG_SUP) && !persoActif(PG_HEURE)
+          && !persoActif(PG_PLEX), "3.0.x -> 3.1.0 : personnages Meteo, Tesla, Supervision affiches");
+    persoRegler(PG_TESLA, false); saveConfig(); loadConfig();
+    CHECK(persoActif(PG_METEO) && !persoActif(PG_TESLA) && persoActif(PG_SUP), "Volta decoche : conserve apres relecture");
+    persoRegler(PG_TESLA, true); persoRegler(PG_PLEX, false); saveConfig(); loadConfig();
+    CHECK(persoActif(PG_TESLA) && cfg.reserve[1] == 0, "Volta recoche ; page sans personnage : aucun effet");
+    cfg.reserve[1] = 0xF8; saveConfig(); loadConfig();
+    CHECK(cfg.reserve[1] == 0 && persoActif(PG_SUP), "bits inconnus de reserve[1] effaces");
+  }
+
   // 5. Firmware inconnu / EEPROM vierge
   memset(EEPROM.data, 0xFF, sizeof(EEPROM.data)); loadConfig();
   CHECK(!cfg.validated && !strcmp(cfg.apSsid, "MODELROGS Display") && cfg.wifiSsid[0] == 0, "vierge -> valeurs par defaut, a valider");
   CHECK(cfg.pages == (1u << PG_COUNT) - 1 && !cfg.pCrypto[0], "vierge -> toutes les pages, Crypto selon le compose");
+  CHECK(persoActif(PG_METEO) && persoActif(PG_TESLA) && persoActif(PG_SUP), "vierge -> personnages affiches");
   printf("\ntaille Config = %u octets / %d\n", (unsigned)sizeof(Config), EEPROM_SIZE);
   return fails;
 }

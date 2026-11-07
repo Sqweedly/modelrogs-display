@@ -86,6 +86,8 @@ struct Config {
   uint8_t reserve[8];   // place libre pour de futurs réglages (initialisée à 0)
                         // reserve[0] : pages apparues sans changement de structure, déjà
                         // activées une fois (bit RES_PAGE_TESLA, 2.15)
+                        // reserve[1] : personnages masqués (3.1.0) ; bit à 0 = affiché,
+                        // donc activés d'office à la mise à jour (voir persoActif)
 
   // 2.11 (structure 7) : ajouté à la fin, les structures 5 et 6 en sont le début
   char pCustom[96];     // valeurs préfixées par catégorie : « s1=c%3Abitcoin&s2=a%3ATSLA… »
@@ -99,6 +101,10 @@ extern Config cfg;
 void loadConfig();
 void saveConfig();
 bool pageEnabled(uint8_t page);
+// Personnage du domaine (3.1.0) : Météo (Nimbus et Pousse), Tesla (Volta),
+// Supervision (Bip). Autres pages : false.
+bool persoActif(uint8_t page);
+void persoRegler(uint8_t page, bool actif);
 
 // Réglages d'un module : tampon et taille.
 char*  modParams(uint8_t page);

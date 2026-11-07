@@ -185,6 +185,7 @@ static void sanitize() {
     cfg.reserve[0] |= RES_PAGE_TESLA;
   }
   cfg.pages &= (1u << PG_COUNT) - 1;
+  cfg.reserve[1] &= 0x07;          // 3.1.0 : bits des personnages (Météo, Tesla, Supervision)
   cfg.pages |= 1u << PG_HEURE;   // 3.0.0 : la page Heure est toujours active (interface)
   cfg.pageSec = constrain(cfg.pageSec, 5, 120);
   cfg.nightStart %= 1440;
@@ -375,6 +376,27 @@ void saveConfig() {
 
 bool pageEnabled(uint8_t page) {
   return page < PG_COUNT && (cfg.pages & (1u << page));
+}
+
+// reserve[1] : un bit par domaine, à 1 quand le personnage est MASQUÉ
+static uint8_t bitPerso(uint8_t page) {
+  switch (page) {
+    case PG_METEO: return 0x01;
+    case PG_TESLA: return 0x02;
+    case PG_SUP:   return 0x04;
+    default:       return 0;
+  }
+}
+
+bool persoActif(uint8_t page) {
+  const uint8_t b = bitPerso(page);
+  return b && !(cfg.reserve[1] & b);
+}
+
+void persoRegler(uint8_t page, bool actif) {
+  const uint8_t b = bitPerso(page);
+  if (actif) cfg.reserve[1] &= ~b;
+  else cfg.reserve[1] |= b;
 }
 
 char* modParams(uint8_t page) {

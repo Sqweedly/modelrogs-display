@@ -12,7 +12,7 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [3.1.0] — en essai sur la branche `beta`
+## [3.1.0] — 2026-11-08
 
 ### Ajouté
 - Afficheur : **personnages** (backlog n° 22 ; maquette `docs/maquettes/personnages-3.1.png`). Dessins originaux, style cartoon, tracés avec les fonctions de l'écran (aucune image). Nimbus, Pousse et Volta occupent tout l'écran au-dessus de la ligne de texte, à la même taille dans tous leurs états. Chaque personnage suit la page de son domaine et forme avec elle un **bloc**, le temps d'une page chacun :
@@ -38,8 +38,8 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 ### Mesures (compilation locale, PlatformIO 6.1.16)
 - Flash +11 632 octets (621 051), RAM statique +184 octets (37 968), code en IRAM inchangé (27 735 octets).
 
-### Non vérifié sur le matériel
-- Enchaînement réel des blocs (le simulateur dessine les écrans mais ne fait pas tourner `main.cpp`), temps de dessin d'un personnage, rendu des couleurs et des détails fins.
+### Essai
+- Testée sur l'afficheur par le propriétaire avec la beta (branche `beta`, commit 89a3d65) avant publication : validée le 2026-11-08.
 
 ### Mise à jour
 - Afficheur seul. La passerelle ne change pas.

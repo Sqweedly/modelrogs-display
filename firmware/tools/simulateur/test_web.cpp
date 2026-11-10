@@ -31,6 +31,9 @@ void schedulerConfigChanged(bool) {}
 int gwLastCode = 200;
 uint32_t gwLastOkMs = 7120456;
 static std::string dossier = "fixtures_web/";
+// Réponse à /modules?f=2 : « modules » (passerelle 3.2.0, format compact) ou
+// « modules_v1 » (passerelle plus ancienne, qui ignore ?f=2 : format d'origine)
+static std::string modulesFixture = "modules";
 static std::string lire(const std::string& p) { std::ifstream f(p); std::stringstream s; s << f.rdbuf(); return s.str(); }
 bool staConnected() { return true; }
 void netApplyConfig(bool, bool) {}
@@ -39,9 +42,12 @@ const char* gwErrorText(int code) { return code == -3 ? "Passerelle injoignable"
 String urlEncode(const char* s) { return String(s); }
 int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   std::string p = path.s, nom;
-  if (p == "/modules") nom = "modules";
+  if (p == "/modules?f=2") nom = modulesFixture;   // l'afficheur demande le format compact (3.2.0)
   else if (p == "/btc/liste") nom = "btc_liste";
   else if (p == "/custom/liste") nom = "custom_liste";
+  else if (p == "/actions/liste") nom = "actions_liste";
+  else if (p == "/devises/liste") nom = "devises_liste";
+  else if (p == "/commodities/liste") nom = "commodities_liste";
   else if (p == "/immich/sources") nom = "immich_sources";
   else if (p == "/time") nom = "time";
   std::string json = nom.empty() ? "" : lire(dossier + nom + ".json");
@@ -103,6 +109,18 @@ int main() {
   verifier("Pages : Discord non configuré signalé", contient(h, "non configuré"));
   verifier("Pages : Heure toujours active, sans champ", contient(h, "toujours active") && !contient(h, "name='pk0'"));
   verifier("Pages : Commodities décochée", contient(h, "name='pg8'>") || contient(h, "name='pg8'><b>"));
+  verifier("Pages : Actions, listes de /actions/liste (format compact)", contient(h, "name='p6_s1'")
+           && contient(h, "<option value='MC.PA'>LVMH</option>") && contient(h, "placeholder='ex. BNP.PA, ^FCHI'"));
+  verifier("Pages : note des pages de cours construite par l'afficheur",
+           contient(h, "<p class='note'>3 au plus, dans l&#39;ordre : listes 1 à 3, puis saisie</p>"));
+  // Passerelle plus ancienne (format d'origine) : exactement la même page
+  modulesFixture = "modules_v1";
+  {
+    const std::string v1 = appeler("/");
+    verifier("Pages : passerelle d'avant la 3.2.0 (format d'origine), HTML identique", v1 == h);
+    if (v1 != h) ecrire("pages_v1", v1);
+  }
+  modulesFixture = "modules";
   h = appeler("/ecran");
   ecrire("ecran", h);
   verifier("Écran : color-scheme dark, champs d'heure 22:30 et 07:00", contient(h, "color-scheme:dark")

@@ -364,6 +364,14 @@ def _options(dico: dict) -> list[dict]:
     return [{"id": k, "n": v if isinstance(v, str) else v[0]} for k, v in dico.items()]
 
 
+def _liste(dico: dict):
+    """Route /<page>/liste (3.2.0) : liste des listes déroulantes, demandée par
+    l'interface de l'afficheur au lieu de figurer dans /modules (format compact)."""
+    async def liste(session: aiohttp.ClientSession, q: dict) -> dict:
+        return {"ok": 1, "s": _options(dico)}
+    return liste
+
+
 _actions, _actions30 = _page("actions", "ACTIONS", "AAPL")
 _indices, _indices30 = _page("indices", "INDICES", "FCHI")
 _devises, _devises30 = _page("devises", "DEVISES", "EUR")
@@ -373,27 +381,27 @@ MODULE_ACTIONS = Module(
     id="actions", nom="Actions",
     params=cours.params("ex. BNP.PA, ^FCHI"),
     extra=lambda: cours.manifeste("ACTIONS", "AAPL", _options(ACTIONS)),
-    routes={"/actions": _actions, "/actions/30j": _actions30},
+    routes={"/actions": _actions, "/actions/30j": _actions30, "/actions/liste": _liste(ACTIONS)},
     arreter=fermer,
 )
 MODULE_INDICES = Module(
     id="indices", nom="Indices",
     params=cours.params("ex. ^IBEX, CAC40"),
     extra=lambda: cours.manifeste("INDICES", "FCHI", _options(INDICES)),
-    routes={"/indices": _indices, "/indices/30j": _indices30},
+    routes={"/indices": _indices, "/indices/30j": _indices30, "/indices/liste": _liste(INDICES)},
     arreter=fermer,
 )
 MODULE_DEVISES = Module(
     id="devises", nom="Devises",
     params=cours.params("ex. KRW, BRL"),
     extra=lambda: cours.manifeste("DEVISES", "EUR", _options(DEVISES)),
-    routes={"/devises": _devises, "/devises/30j": _devises30},
+    routes={"/devises": _devises, "/devises/30j": _devises30, "/devises/liste": _liste(DEVISES)},
     arreter=fermer,
 )
 MODULE_COMMODITIES = Module(
     id="commodities", nom="Commodities",
     params=cours.params("ex. BZ=F, PL=F"),
     extra=lambda: cours.manifeste("COMMODITIES", "GC=F", _options(COMMODITIES)),
-    routes={"/commodities": _commodities, "/commodities/30j": _commodities30},
+    routes={"/commodities": _commodities, "/commodities/30j": _commodities30, "/commodities/liste": _liste(COMMODITIES)},
     arreter=fermer,
 )

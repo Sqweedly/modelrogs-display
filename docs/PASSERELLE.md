@@ -74,6 +74,14 @@ L'afficheur ne connaît ni Yahoo ni Kuma : il affiche les champs décrits par la
 
 `g` = 1 place les champs consécutifs dans une grille de 2 colonnes. Au niveau du module, `nt` est une consigne affichée au-dessus des champs et `df` les valeurs utilisées quand rien n'est choisi (celles du `docker-compose.yml`).
 
+**Format compact `/modules?f=2`** (3.2.0, demandé par l'afficheur à partir de la 3.2.0). Les 6 pages de cours (Crypto, Actions, Indices, Devises, Commodities, Custom) ont toutes les mêmes champs (3 listes et une saisie) et la même consigne : la passerelle ne les envoie plus, seulement `"f":"c"` (page de cours) et l'exemple de saisie `ph`, et la liste des listes déroulantes passe toujours par une route `src` (`/btc/liste`, `/actions/liste`, `/indices/liste`, `/devises/liste`, `/commodities/liste`, `/custom/liste`), demandée à l'ouverture de l'interface :
+
+```json
+{"id":"actions","n":"Actions","ok":1,"err":"","df":"AAPL, MC.PA","f":"c","ph":"ex. BNP.PA, ^FCHI","src":"/actions/liste"}
+```
+
+L'afficheur construit lui-même les 3 listes, la saisie et la consigne, à l'identique (même page HTML, vérifié par `test_web`). Les autres modules sont envoyés tels quels. Sans `?f=2`, `/modules` garde le format d'origine : un afficheur plus ancien fonctionne avec une passerelle 3.2.0, et un afficheur 3.2.0 avec une passerelle plus ancienne (qui ignore `?f=2`). Taille dans les tests : 1 665 octets au lieu de 4 077.
+
 **Où vont les réglages :**
 - **les secrets et les accès** (jeton Discord, adresse de Kuma) sont dans le `docker-compose.yml`, côté serveur ;
 - **les préférences** (salon, valeurs des pages de cours) sont dans l'afficheur ; pour les pages de cours, les valeurs du `docker-compose.yml` servent quand l'afficheur n'en envoie aucune. La **ville** (heure, météo) est réglée sur la passerelle depuis la 3.0.0 : `VILLE` (`VILLE_DEFAUT`, l'ancien nom, reste accepté ; Paris par défaut). Une ville envoyée par un afficheur 2.x (`?ville=`) est toujours respectée.
@@ -365,7 +373,7 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 
 | Appel | Fréquence | Pourquoi |
 |---|---|---|
-| `/modules` | toutes les 10 min, et à l'ouverture de l'interface | Suivre les modules activés |
+| `/modules?f=2` | toutes les 10 min, et à l'ouverture de l'interface | Suivre les modules activés (format compact, 3.2.0) |
 | `/time` | toutes les 10 min | Recaler l'horloge interne |
 | `/discord` | toutes les 5 s | Réagir vite aux arrivées (réponse instantanée, depuis la mémoire) |
 | `/supervision` | toutes les 30 s | Alerte rapide en cas de panne |

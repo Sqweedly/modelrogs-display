@@ -12,6 +12,29 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.2.0] — en essai sur la branche `beta`
+
+### Modifié
+- **Pages de cours uniformisées dans `/modules`** (Crypto, Actions, Indices, Devises, Commodities, Custom). Les 6 pages envoyaient chacune la même description de 4 champs (3 listes et une saisie) et la même consigne, et 4 d'entre elles (Actions, Indices, Devises, Commodities) leur liste de valeurs complète. Dans le format compact, la passerelle n'envoie plus que la marque `"f":"c"`, l'exemple de saisie et l'adresse de la liste ; l'afficheur construit les champs et la consigne lui-même.
+  - Passerelle : `/modules?f=2` (format compact) ; nouvelles routes `/actions/liste`, `/indices/liste`, `/devises/liste`, `/commodities/liste`, comme `/btc/liste` et `/custom/liste`. Sans `?f=2`, le format d'origine ne change pas.
+  - Afficheur : demande `/modules?f=2` ; l'onglet Pages demande la liste de chaque page de cours à son tour et la libère avant la suivante. **Même page HTML** qu'avec le format d'origine (vérifié par `test_web`).
+  - **Taille de `/modules`** dans les tests : **1 665 octets au lieu de 4 077** (−59 %). Mémoire de l'analyse JSON mesurée sur PC (64 bits) avec les données de l'interface : 6 128 octets au lieu de 15 603 (−61 %) ; non mesurée sur l'afficheur.
+  - **Compatibilité dans les deux sens** : afficheur 3.2.0 avec une passerelle plus ancienne (qui ignore `?f=2`, format d'origine compris) ; afficheur plus ancien avec une passerelle 3.2.0 (format d'origine sans `?f=2`). Pas d'ordre de mise à jour imposé.
+- Coût : l'ouverture de l'onglet Pages fait 3 requêtes de plus (Actions, Devises, Commodities ; 4 avec Indices), une à la fois.
+
+### Outils
+- `test_passerelle` : format compact (champs absents, marque, exemple, adresse des listes, autres modules inchangés, moins de 2 048 octets) et les 4 nouvelles routes.
+- `test_web` : l'onglet Pages est rendu avec le format compact puis avec le format d'origine ; les deux pages HTML doivent être identiques à l'octet.
+- `fixtures_interface.py` enregistre les deux formats (`modules.json`, `modules_v1.json`) et les nouvelles listes.
+
+### Mesures (compilation locale, PlatformIO 6.1.16)
+- Flash +612 octets (621 663), RAM statique +4 octets (37 972), code en IRAM inchangé (27 735 octets).
+
+### Mise à jour
+- Afficheur et passerelle, dans n'importe quel ordre (compatibles dans les deux sens). Pour la beta : image `ghcr.io/sqweedly/modelrogs-gateway:beta` et firmware `firmware-dev`.
+
+---
+
 ## [3.1.0] — 2026-11-08
 
 ### Ajouté

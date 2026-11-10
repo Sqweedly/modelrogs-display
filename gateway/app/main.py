@@ -19,7 +19,7 @@ from aiohttp import web
 
 from .cache import SourceIndisponible, cache
 from . import diagnostic, images
-from .modules import Module, btc, cotations, custom, discord_vocal, immich, meteo, plex, supervision, tesla
+from .modules import Module, btc, cotations, cours, custom, discord_vocal, immich, meteo, plex, supervision, tesla
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("passerelle")
@@ -91,11 +91,14 @@ async def route_image(request: web.Request) -> web.Response:
 
 
 async def route_modules(request: web.Request) -> web.Response:
+    # ?f=2 (afficheur 3.2.0 et suivants) : pages de cours au format compact
+    # (cours.compacter) ; sans ce paramètre, format d'origine (afficheurs plus anciens)
+    compact = request.query.get("f") == "2"
     liste = []
     for m in request.app[ACTIFS]:
         erreur = m.erreur_config()
-        liste.append({"id": m.id, "n": m.nom, "ok": int(not erreur), "err": erreur, "p": m.params,
-                      **m.manifeste()})
+        entree = {"id": m.id, "n": m.nom, "ok": int(not erreur), "err": erreur, "p": m.params, **m.manifeste()}
+        liste.append(cours.compacter(entree) if compact else entree)
     return _json({"ok": 1, "v": VERSION, "m": liste})
 
 

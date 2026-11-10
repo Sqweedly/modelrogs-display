@@ -26,7 +26,8 @@ void fetchModules() {
   filter["m"][0]["id"] = true;
   filter["m"][0]["ok"] = true;
   JsonDocument doc;
-  if (gwGet("/modules", doc, &filter) != 200) return;   // on garde la dernière connaissance
+  // ?f=2 : format compact des pages de cours (passerelle 3.2.0 ; ignoré par les plus anciennes)
+  if (gwGet("/modules?f=2", doc, &filter) != 200) return;   // on garde la dernière connaissance
 
   uint16_t present = 0, ok = 0;
   for (JsonObject m : doc["m"].as<JsonArray>()) {

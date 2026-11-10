@@ -455,10 +455,34 @@ static String libelleOption(JsonArray options, const String& id) {
   return "";
 }
 
+// Pages de cours au format compact (passerelle 3.2.0, /modules?f=2) : la
+// passerelle n'envoie que « f »: « c » et l'exemple de saisie « ph » ; les
+// 3 listes, la saisie et la note sont construites ici, à l'identique de ce que
+// les passerelles plus anciennes envoient dans « p » et « nt » (même HTML).
+static bool pageDeCours(JsonObject mod) { return strcmp(mod["f"] | "", "c") == 0; }
+
+static JsonArray champsModule(JsonObject mod, JsonDocument& tmp) {
+  if (!pageDeCours(mod)) return mod["p"].as<JsonArray>();
+  JsonArray a = tmp.to<JsonArray>();
+  for (uint8_t i = 1; i <= 3; i++) {
+    JsonObject o = a.add<JsonObject>();
+    o["k"] = String('s') + i;
+    o["t"] = "select";
+    o["g"] = 1;
+    o["ph"] = String(i) + ". —";
+  }
+  JsonObject m = a.add<JsonObject>();
+  m["k"] = "m";
+  m["t"] = "text";
+  m["g"] = 1;
+  m["ph"] = (const char*)(mod["ph"] | "");
+  return a;
+}
+
 // Résumé des réglages d'une page (« Bitcoin, Ethereum, Solana », « Au hasard · 30 s »)
-static String resumeReglages(uint8_t p, JsonObject mod, JsonArray optionsModule) {
+static String resumeReglages(uint8_t p, JsonArray champs, JsonObject mod, JsonArray optionsModule) {
   String r;
-  for (JsonObject param : mod["p"].as<JsonArray>()) {
+  for (JsonObject param : champs) {
     const char* key = param["k"] | "";
     String v = modParam(p, key);
     if (!v.length()) v = (const char*)(param["d"] | "");
@@ -481,7 +505,7 @@ static String resumeReglages(uint8_t p, JsonObject mod, JsonArray optionsModule)
 
 static void renderModules(Chunks& c) {
   JsonDocument man;
-  int code = gwGet("/modules", man, nullptr, true);
+  int code = gwGet("/modules?f=2", man, nullptr, true);   // ?f=2 : voir champsModule
   auto trouver = [&](uint8_t p) {
     JsonObject mod;
     if (code == 200)
@@ -507,6 +531,10 @@ static void renderModules(Chunks& c) {
     const bool absent = code == 200 && mod.isNull();
     const bool configure = !mod.isNull() && (mod["ok"] | 0);
 
+    // Champs de réglage (construits ici pour une page de cours au format compact)
+    JsonDocument champsDoc;
+    JsonArray champs = mod.isNull() ? JsonArray() : champsModule(mod, champsDoc);
+
     // Liste commune aux listes déroulantes du module (pages de cours)
     JsonDocument listeModule;
     JsonArray optionsModule = configure ? mod["o"].as<JsonArray>() : JsonArray();
@@ -523,7 +551,7 @@ static void renderModules(Chunks& c) {
     else if (p == PG_HEURE) ligne = F("toujours active");
     else if (p == PG_METEO) { if (mod["v"].is<const char*>()) ligne = String((const char*)(mod["v"] | "")) + F(" · 5 jours"); }
     else if (phraseFixe(p).length()) { ligne = phraseFixe(p); pastille = F("on"); }
-    else if (configure) ligne = resumeReglages(p, mod, optionsModule);
+    else if (configure) ligne = resumeReglages(p, champs, mod, optionsModule);
     if (!absent && persoNom(p) && persoActif(p)) {
       if (ligne.length()) ligne += F(" · ");
       ligne += persoNom(p);
@@ -553,7 +581,7 @@ static void renderModules(Chunks& c) {
       if (codeListe != 200) { erreurListe(c, codeListe, listeModule); all = false; }
       if (all) {
         bool grille = false;
-        for (JsonObject param : mod["p"].as<JsonArray>()) {
+        for (JsonObject param : champs) {
           bool g = param["g"] | 0;
           if (g && !grille) c << F("<label>Valeurs 1 à 3 (listes fournies par la passerelle)</label><div class='pile'>");
           if (!g && grille) c << F("</div>");
@@ -567,6 +595,7 @@ static void renderModules(Chunks& c) {
         if (df[0]) c << F("<p class='note'>Rien de choisi : valeurs du docker-compose (") << esc(df) << F(").</p>");
         const char* nt = mod["nt"] | "";
         if (nt[0]) c << F("<p class='note'>") << esc(nt) << F("</p>");
+        else if (pageDeCours(mod)) c << F("<p class='note'>3 au plus, dans l&#39;ordre : listes 1 à 3, puis saisie</p>");
       }
       if (all) c << F("<input type='hidden' name='pm") << (long)p << F("' value='1'>");
       if (p == PG_SUP)

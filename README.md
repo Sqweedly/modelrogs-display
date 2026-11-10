@@ -319,12 +319,13 @@ Ces réglages sont dans `firmware/platformio.ini` et `firmware/src/ui.cpp`. Apr�
 
 | Route | Rôle |
 |---|---|
-| `/modules` | Manifeste : modules actifs, état de configuration, réglages à proposer |
+| `/modules` | Manifeste : modules actifs, état de configuration, réglages à proposer (`?f=2` : format compact des pages de cours, afficheur 3.2.0) |
 | `/time` | Heure locale, lever et coucher du soleil (ville : `VILLE`). Toujours disponible : sert aussi à la plage nocturne |
 | `/meteo` | Météo du jour (page Heure) + 5 jours (page Météo) (ville : `VILLE`) |
 | `/btc?s1=bitcoin&s2=&s3=&m=pepe` | Cryptos choisies (3 au plus ; rien : `CRYPTOS` du compose) ; courbe 30 jours si une seule |
 | `/btc/30j?id=ripple` | Une crypto sur 30 jours (page dédiée) |
 | `/btc/liste` | Les 10 premières cryptos (listes de l'interface) |
+| `/actions/liste`, `/indices/liste`, `/devises/liste`, `/commodities/liste` | Valeurs proposées dans les listes de l'interface (3.2.0) |
 | `/actions?s1=AAPL&m=BNP.PA`, `/actions/30j?id=` | Actions (symboles Yahoo), même format |
 | `/indices?s1=FCHI&m=SP500`, `/indices/30j?id=` | Indices boursiers, en points |
 | `/devises?s1=EUR`, `/devises/30j?id=` | Devises cotées en dollars |

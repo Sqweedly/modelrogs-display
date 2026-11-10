@@ -186,6 +186,23 @@ def params(exemple: str) -> list[dict]:
     ]
 
 
+def compacter(entree: dict) -> dict:
+    """Entrée de /modules au format compact (3.2.0, afficheur qui demande
+    /modules?f=2) pour une page de cours : les 3 listes, la saisie et la note sont
+    construites par l'afficheur ; restent la marque « f »: « c » et l'exemple de
+    saisie « ph ». Les options « o » sont remplacées par la route /<id>/liste.
+    Les autres modules sont rendus tels quels."""
+    p = entree.get("p") or []
+    if [x.get("k") for x in p] != ["s1", "s2", "s3", "m"]:
+        return entree
+    compacte = {k: v for k, v in entree.items() if k not in ("p", "nt", "o")}
+    compacte["f"] = "c"
+    compacte["ph"] = p[3].get("ph", "")
+    if "o" in entree:
+        compacte["src"] = f"/{entree['id']}/liste"
+    return compacte
+
+
 def manifeste(variable: str, defaut: str, options: list[dict] | None = None,
               src: str = "") -> dict:
     """Compléments du manifeste /modules : liste commune aux 3 listes déroulantes,

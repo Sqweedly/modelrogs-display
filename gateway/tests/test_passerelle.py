@@ -333,6 +333,20 @@ async def principal() -> int:
                 and len(next(m for m in d["m"] if m["id"] == "actions")["o"]) == 10
                 and next(m for m in d["m"] if m["id"] == "devises")["df"] == "EUR, JPY"
                 and next(m for m in d["m"] if m["id"] == "commodities")["o"][0] == {"id": "GC=F", "n": "Or"}),
+            # 3.2.0 : format compact (?f=2) des pages de cours : marque « f », exemple de
+            # saisie, liste par /<id>/liste ; les autres modules inchangés
+            ("/modules?f=2", lambda d: all(
+                m["f"] == "c" and m["ph"].startswith("ex. ") and m["src"] == f"/{m['id']}/liste"
+                and not ({"p", "nt", "o"} & set(m)) and m["df"]
+                for m in d["m"] if m["id"] in ("btc", "actions", "indices", "devises", "commodities", "custom"))
+                and next(m for m in d["m"] if m["id"] == "actions")["ph"] == "ex. BNP.PA, ^FCHI"
+                and next(m for m in d["m"] if m["id"] == "immich")["p"][1]["k"] == "duree"
+                and next(m for m in d["m"] if m["id"] == "discord")["p"][0]["src"] == "/discord/salons"
+                and next(m for m in d["m"] if m["id"] == "meteo")["v"]),
+            ("/actions/liste", lambda d: d["ok"] and len(d["s"]) == 10 and d["s"][0] == {"id": "AAPL", "n": "Apple"}),
+            ("/indices/liste", lambda d: d["ok"] and d["s"][0] == {"id": "FCHI", "n": "CAC 40"}),
+            ("/devises/liste", lambda d: d["ok"] and len(d["s"]) >= 10),
+            ("/commodities/liste", lambda d: d["ok"] and d["s"][0] == {"id": "GC=F", "n": "Or"}),
             ("/time?ville=Lyon", lambda d: d["ok"] and d["lv"] == "08:13" and d["o"] in (3600, 7200)),
             # 3.0.0 : sans ?ville= (afficheur 3.x), la ville du docker-compose (VILLE)
             ("/time", lambda d: d["ok"] and d["lv"] == "08:13"),

@@ -25,7 +25,11 @@ async def main(dest):
     os.environ.pop("DISCORD_TOKEN", None)
     from app.main import creer_app
     async with TestClient(TestServer(creer_app())) as c:
-        for nom, route in [("modules", "/modules"), ("btc_liste", "/btc/liste"), ("custom_liste", "/custom/liste"),
+        # modules : format compact (afficheur 3.2.0, ?f=2) ; modules_v1 : format d'origine
+        # (passerelle plus ancienne), pour vérifier que l'interface est la même
+        for nom, route in [("modules", "/modules?f=2"), ("modules_v1", "/modules"), ("btc_liste", "/btc/liste"),
+                           ("custom_liste", "/custom/liste"), ("actions_liste", "/actions/liste"),
+                           ("devises_liste", "/devises/liste"), ("commodities_liste", "/commodities/liste"),
                            ("immich_sources", "/immich/sources")]:
             d = await (await c.get(route)).json()
             json.dump(d, open(f"{dest}/{nom}.json", "w"), ensure_ascii=False)

@@ -12,7 +12,7 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [3.2.0] — en essai sur la branche `beta`
+## [3.2.0] — 2026-11-11
 
 ### Modifié
 - **Pages de cours uniformisées dans `/modules`** (Crypto, Actions, Indices, Devises, Commodities, Custom). Les 6 pages envoyaient chacune la même description de 4 champs (3 listes et une saisie) et la même consigne, et 4 d'entre elles (Actions, Indices, Devises, Commodities) leur liste de valeurs complète. Dans le format compact, la passerelle n'envoie plus que la marque `"f":"c"`, l'exemple de saisie et l'adresse de la liste ; l'afficheur construit les champs et la consigne lui-même.
@@ -30,8 +30,11 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 ### Mesures (compilation locale, PlatformIO 6.1.16)
 - Flash +612 octets (621 663), RAM statique +4 octets (37 972), code en IRAM inchangé (27 735 octets).
 
+### Essai
+- Testée par le propriétaire avec la beta (branche `beta`, commit abce1e2 : firmware `dev`, image `:beta`) avant publication : validée le 2026-11-11.
+
 ### Mise à jour
-- Afficheur et passerelle, dans n'importe quel ordre (compatibles dans les deux sens). Pour la beta : image `ghcr.io/sqweedly/modelrogs-gateway:beta` et firmware `firmware-dev`.
+- Afficheur et passerelle, dans n'importe quel ordre (compatibles dans les deux sens) : afficheur par `/update` (`.bin.gz` de la Release), passerelle avec l'image `:3` (`docker compose pull && docker compose up -d`). Si la beta était installée, remettre `image: ghcr.io/sqweedly/modelrogs-gateway:3` dans le `docker-compose.yml`.
 
 ---
 

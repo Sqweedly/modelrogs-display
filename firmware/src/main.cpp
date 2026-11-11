@@ -31,6 +31,7 @@
 #include "app.h"
 #include "config.h"
 #include "diag.h"
+#include "memo.h"
 #include "net.h"
 #include "pages.h"
 #include "persos.h"
@@ -368,6 +369,7 @@ void loop() {
 
   // --- Redémarrage préventif (2 h 15), filet de sécurité mémoire, mesures
   santeTick(timeValid(), localMinuteOfDay(), nuit);
+  memoPurger();   // 3.4.0 : copies de plus de 30 min rendues
 
   applyBacklight(brightness);
 

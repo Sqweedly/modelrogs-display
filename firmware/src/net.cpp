@@ -1,4 +1,5 @@
 #include "net.h"
+#include "memo.h"
 #include "config.h"
 #include "diag.h"
 #include "ui.h"
@@ -101,9 +102,34 @@ static bool rateReseau(int codeHttp) {
          codeHttp == HTTPC_ERROR_READ_TIMEOUT;
 }
 
+// Lecture d'un texte en mémoire comme un flux : deserializeJson reçoit alors
+// le même type (Stream&) que pour la réponse réseau, et le firmware n'embarque
+// qu'un seul analyseur JSON (3.4.0, environ 2,5 Ko de flash de moins, mesuré).
+class LecteurTexte : public Stream {
+ public:
+  explicit LecteurTexte(const String& t) : p_(t.c_str()), n_(t.length()) {}
+  int available() override { return (int)(n_ - i_); }
+  int read() override { return i_ < n_ ? (uint8_t)p_[i_++] : -1; }
+  int peek() override { return i_ < n_ ? (uint8_t)p_[i_] : -1; }
+  size_t write(uint8_t) override { return 0; }
+  size_t readBytes(char* b, size_t l) override {
+    size_t k = l < n_ - i_ ? l : n_ - i_;
+    memcpy(b, p_ + i_, k); i_ += k; return k;
+  }
+ private:
+  const char* p_; size_t n_, i_ = 0;
+};
+
+int gwRelire(JsonDocument& doc, const String& texte) {
+  LecteurTexte lu(texte);
+  return deserializeJson(doc, static_cast<Stream&>(lu)) ? -4 : 200;
+}
+
 // Un essai de GET JSON. Renvoie le code de gwGet ; *codeHttp = code d'HTTPClient.
+// `brut` (memo.h) : si non nul et la réponse fait au plus MEMO_REPONSE octets,
+// elle est lue en entier dans *brut puis analysée depuis ce texte.
 static int gwGetEssai(const String& path, JsonDocument& doc, JsonDocument* filter, int& codeHttp,
-                      int16_t& diagCode) {
+                      int16_t& diagCode, String* brut) {
   WiFiClient client;
   HTTPClient http;
   String url = String(cfg.gateway) + path;
@@ -125,9 +151,17 @@ static int gwGetEssai(const String& path, JsonDocument& doc, JsonDocument* filte
     if (codeHttp == HTTP_CODE_OK) {
       taille = http.getSize();
       doc.clear();
-      DeserializationError err = filter
-        ? deserializeJson(doc, http.getStream(), DeserializationOption::Filter(*filter))
-        : deserializeJson(doc, http.getStream());
+      DeserializationError err;
+      if (brut && taille > 0 && taille <= (int)MEMO_REPONSE) {
+        *brut = http.getString();
+        LecteurTexte lu(*brut);
+        err = deserializeJson(doc, static_cast<Stream&>(lu));
+      } else {
+        Stream& flux = http.getStream();   // un seul analyseur JSON pour les deux lectures (flash)
+        err = filter
+          ? deserializeJson(doc, flux, DeserializationOption::Filter(*filter))
+          : deserializeJson(doc, flux);
+      }
       if (err) {
         code = -4;
         diagCode = DG_JSON_KO;
@@ -146,7 +180,8 @@ static int gwGetEssai(const String& path, JsonDocument& doc, JsonDocument* filte
   return code;
 }
 
-int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool interactif) {
+static int gwGetInterne(const String& path, JsonDocument& doc, JsonDocument* filter, bool interactif,
+                        String* brut) {
   int code;
   int16_t diagCode = 0;   // code détaillé pour le diagnostic (diag.h)
   if (!staConnected()) {
@@ -158,10 +193,10 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
     return -3;   // temporisation en cours : pas de tentative, réponse immédiate
   } else {
     int codeHttp;
-    code = gwGetEssai(path, doc, filter, codeHttp, diagCode);
+    code = gwGetEssai(path, doc, filter, codeHttp, diagCode, brut);
     if (code == -3 && rateReseau(codeHttp) && staConnected()) {
       yield();                                   // Wi-Fi et chien de garde entre les deux essais
-      code = gwGetEssai(path, doc, filter, codeHttp, diagCode);
+      code = gwGetEssai(path, doc, filter, codeHttp, diagCode, brut);
       diagRelance(code != -3);
     }
   }
@@ -177,6 +212,17 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool inte
   }
   gwLastCode = code;
   if (code == 200) gwLastOkMs = millis();
+  return code;
+}
+
+int gwGet(const String& path, JsonDocument& doc, JsonDocument* filter, bool interactif) {
+  return gwGetInterne(path, doc, filter, interactif, nullptr);
+}
+
+int gwGetBrut(const String& path, JsonDocument& doc, String& brut) {
+  brut = String();
+  const int code = gwGetInterne(path, doc, nullptr, false, &brut);
+  if (code != 200) brut = String();   // seule une réponse valide est gardée
   return code;
 }
 

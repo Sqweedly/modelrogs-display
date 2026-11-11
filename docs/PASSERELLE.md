@@ -97,7 +97,7 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
 3. **Le cache** est consulté avec la clé `crypto-top` :
    - si la donnée a moins de 10 minutes, elle est utilisée telle quelle ;
    - sinon, la passerelle fait **un seul appel** CoinGecko `/coins/markets` qui ramène les **50 premières capitalisations** : prix en dollars, variations 24 h, 7 jours et 30 jours, adresse du logo officiel. Une crypto hors de ce classement (saisie manuelle) fait l'objet d'un appel à part, gardé lui aussi 10 minutes ;
-   - une seule crypto étant choisie, la passerelle ajoute sa **courbe sur 30 jours** (`/coins/bitcoin/market_chart?days=30`, environ 720 prix horaires, gardés 30 minutes).
+   - une seule crypto étant choisie, la passerelle ajoute sa **courbe sur 30 jours** (`/coins/bitcoin/market_chart?days=30`, environ 720 prix horaires, gardés 10 minutes depuis la 3.4.0, 30 avant).
 4. **La mise en forme** :
    - prix formaté à la française, en dollars, avec au moins 4 chiffres (`57 864 $`, `142,35 $`, `2,184 $`) ;
    - variations sur 24 h, 7 jours et 30 jours, avec le signe et une virgule décimale ;
@@ -120,11 +120,11 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
 | Donnée | Durée de validité | Conservée sur disque (dossier du cache) |
 |---|---|---|
 | Géocodage d'une ville (coordonnées, fuseau) | 1 an | oui |
-| Météo | 15 min | non |
+| Météo | 10 min (15 avant la 3.4.0) | non |
 | Cours et variations des cryptos (50 premières à la fois) | 10 min | oui |
-| Cours d'une action, d'une devise ou d'une matière première (Yahoo, BCE) | 5 min | oui |
+| Cours d'une action, d'une devise ou d'une matière première (Yahoo, BCE) | 10 min (5 avant la 3.4.0) | oui |
 | Symbole inconnu de Yahoo | 1 h (aucun nouvel appel) | non |
-| Courbe sur 30 jours d'une crypto | 30 min | oui |
+| Courbe sur 30 jours d'une crypto | 10 min (30 avant la 3.4.0) | oui |
 | Liste des sondes Kuma | 1 min | non |
 | États des sondes Kuma | 30 s | non |
 | Lectures Plex | 5 s | non |
@@ -138,6 +138,8 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
 - **Villes.** La clé est normalisée : « Lyon », « lyon » et «  LYON  » partagent la même entrée. Une ville introuvable est mémorisée 1 heure : l'afficheur reçoit « Ville introuvable » sans nouvel appel à Open-Meteo.
 
 Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, CoinGecko n'est appelé qu'une fois toutes les 10 minutes, quel que soit le nombre d'écrans.
+
+**Une durée commune depuis la 3.4.0.** Toutes les données « non dynamiques » (météo, cours, courbes 30 jours, listes de photos) sont gardées **10 minutes** : constante `TTL_DONNEES` dans `app/cache.py`. L'afficheur garde lui aussi ces réponses 10 minutes (§ 9). Une valeur affichée a donc environ 20 minutes au plus.
 
 ## 6. Les modules en détail
 
@@ -185,7 +187,7 @@ Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, 
 - Un afficheur 2.8 envoie encore `?ids=bitcoin,ethereum&devise=eur` : les cryptos sont reprises, la devise ignorée.
 
 **Actions, Indices, Devises, Commodities** (module `cotations.py`)
-- Source : **Yahoo Finance** (`/v8/finance/chart/<symbole>?range=1mo&interval=1d`, sans clé) : cours actuel et clôtures quotidiennes du mois, **gardés 5 minutes par valeur**. C'est une API non officielle :
+- Source : **Yahoo Finance** (`/v8/finance/chart/<symbole>?range=1mo&interval=1d`, sans clé) : cours actuel et clôtures quotidiennes du mois, **gardés 10 minutes par valeur** (5 avant la 3.4.0). C'est une API non officielle :
   - Yahoo refuse (erreur 429) les programmes qu'il ne prend pas pour un navigateur, en se fiant aussi à la façon dont la connexion chiffrée est établie. La passerelle l'appelle donc avec **curl_cffi**, qui se connecte exactement comme Chrome (méthode de yfinance). Le log de démarrage indique le client utilisé : `Yahoo Finance : client curl_cffi (Chrome)`. curl_cffi n'existe pas pour les processeurs ARM 32 bits (armv7) : la passerelle y utilise aiohttp, avec le risque de refus ;
   - après un refus (401, 403, 429), Yahoo n'est plus appelé pendant **15 minutes** ; la page affiche la cause (« Yahoo refuse l'accès (429) ») ou, s'ils existent, les derniers cours connus, marqués périmés (`p`: 1) ;
   - un symbole inconnu n'est redemandé qu'au bout d'une heure.
@@ -379,7 +381,7 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 | `/supervision` | toutes les 30 s | Alerte rapide en cas de panne |
 | `/plex` | toutes les 5 s | Montrer la page dès le début d'une lecture, suivre la progression |
 | `/tesla` | toutes les 15 s | Montrer la page au début d'une charge, suivre le pourcentage (réponse depuis la mémoire) |
-| `/meteo`, `/btc`, `/actions`, `/devises`, `/commodities` | à chaque affichage de la page | Données en cache côté passerelle |
+| `/meteo`, `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, `…/30j` | à l'affichage de la page, **au plus une fois toutes les 10 min** (3.4.0) | Réponse gardée 10 min par l'afficheur (`memo.cpp`), en plus du cache de la passerelle. Passerelle sans réponse : dernière copie affichée, marquée périmée, pendant 30 min au plus |
 | `/img` | à chaque dessin d'une page avec image | Images converties gardées en mémoire par la passerelle |
 | `/ping` | toutes les 30 s, en mode diagnostic de l'afficheur seulement | Sonde réseau (§ 11) |
 

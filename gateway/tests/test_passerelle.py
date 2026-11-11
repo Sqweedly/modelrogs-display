@@ -316,6 +316,17 @@ async def principal() -> int:
     echecs += not ok
     print(f"{'OK ' if ok else 'ÉCHEC'} repères placés comme la courbe (0 = plus bas, 100 = plus haut) -> {[x['y'] for x in r]}")
 
+    # --- 3.4.0 : données « non dynamiques » gardées 10 minutes, partout
+    from app import cache as CA
+    from app.modules import btc as BT, cotations as CO, immich as IM
+    import inspect
+    from app.modules import meteo as ME
+    durees = {"commune": CA.TTL_DONNEES, "crypto": BT.TTL_MARCHES, "cours": CO.TTL_COURS, "photos": IM.TTL_LISTE}
+    ok = set(durees.values()) == {600} and "TTL_DONNEES" in inspect.getsource(ME) \
+        and "crypto30-{cid}-usd\", TTL_DONNEES" in inspect.getsource(BT)
+    echecs += not ok
+    print(f"{'OK ' if ok else 'ÉCHEC'} caches de la passerelle à 10 min (météo, crypto, courbes 30 j, cours, photos) -> {durees}")
+
     async with TestClient(TestServer(creer_app())) as c:
         cas = [
             ("/health", lambda d: d["modules"]["discord"].startswith("non configuré")),

@@ -4,7 +4,7 @@ Cours en dollars, sauf les indices boursiers, affichés en points (sans unité :
 convertir le CAC 40 en dollars n'aurait pas de sens).
 
 Source : Yahoo Finance (/v8/finance/chart, sans clé), une requête par valeur
-qui ramène le cours et les clôtures quotidiennes sur un mois, gardée 5 minutes.
+qui ramène le cours et les clôtures quotidiennes sur un mois, gardée 10 minutes.
 Devises : taux de la BCE (Frankfurter, sans clé) si Yahoo ne répond pas.
 
 Yahoo refuse (erreur 429) les programmes qu'il ne prend pas pour un
@@ -43,7 +43,7 @@ except ImportError:                   # pragma: no cover — dépend de la plate
     _CurlSession = None
 
 from .. import images
-from ..cache import SourceIndisponible, cache
+from ..cache import TTL_DONNEES, SourceIndisponible, cache
 from ..http import get_json
 from . import Module, cours
 
@@ -51,7 +51,7 @@ YAHOO = os.environ.get("YAHOO_URL", "https://query1.finance.yahoo.com").rstrip("
 FRANKFURTER = os.environ.get("FRANKFURTER_URL", "https://api.frankfurter.app").rstrip("/")
 LOGO_DEV = os.environ.get("LOGO_DEV_URL", "https://img.logo.dev").rstrip("/")
 NVSTLY = os.environ.get("NVSTLY_URL", "https://raw.githubusercontent.com/nvstly/icons/main/ticker_icons").rstrip("/")
-TTL_COURS = 5 * 60
+TTL_COURS = TTL_DONNEES          # 10 min (3.4.0 ; 5 min avant)
 TTL_INCONNU = 3600
 PAUSE_REFUS = 15 * 60       # après un refus de Yahoo, pas de nouvel appel avant 15 min
 # Yahoo refuse souvent les clients qui ne ressemblent pas à un navigateur
@@ -186,7 +186,7 @@ _inconnus: dict[str, float] = {}
 
 
 async def _avec_inconnu(cle: str, charger) -> dict:
-    """Cache de 5 min ; un symbole inconnu est mémorisé une heure (pas de nouvel appel).
+    """Cache de 10 min ; un symbole inconnu est mémorisé une heure (pas de nouvel appel).
     Source en échec : dernière valeur connue, marquée « p » (périmée)."""
     if time.time() - _inconnus.get(cle, 0) < TTL_INCONNU:
         raise Introuvable(cle)

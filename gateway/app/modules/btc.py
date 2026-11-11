@@ -20,7 +20,7 @@ import re
 import aiohttp
 
 from .. import images
-from ..cache import SourceIndisponible, cache
+from ..cache import TTL_DONNEES, SourceIndisponible, cache
 from ..http import get_json
 from ..text import ecran
 from . import Module, cours
@@ -28,7 +28,7 @@ from . import Module, cours
 URL = os.environ.get("COINGECKO_URL", "https://api.coingecko.com/api/v3").rstrip("/")
 CLE = os.environ.get("COINGECKO_KEY", "")
 TAILLE_LISTE = 10
-TTL_MARCHES = 10 * 60
+TTL_MARCHES = TTL_DONNEES
 _ENVELOPPES = re.compile(r"wrapped|staked|bridged|restaked|liquid staking|\bweth\b", re.I)
 
 
@@ -120,13 +120,13 @@ def _element(c: dict) -> dict:
 
 
 async def _courbe_30j(session: aiohttp.ClientSession, cid: str) -> list[float]:
-    """Prix horaires sur 30 jours (CoinGecko market_chart), gardés 30 min."""
+    """Prix horaires sur 30 jours (CoinGecko market_chart), gardés 10 min (30 avant la 3.4.0)."""
     async def charger() -> list[float]:
         donnees = await get_json(session, f"{URL}/coins/{cid}/market_chart",
                                  {"vs_currency": "usd", "days": 30}, _entetes())
         return [p for _, p in donnees.get("prices", [])]
 
-    valeurs, _ = await cache.obtenir(f"crypto30-{cid}-usd", 30 * 60, charger, persistant=True)
+    valeurs, _ = await cache.obtenir(f"crypto30-{cid}-usd", TTL_DONNEES, charger, persistant=True)
     return valeurs
 
 

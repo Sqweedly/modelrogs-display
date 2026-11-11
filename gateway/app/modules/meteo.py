@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 
-from ..cache import SourceIndisponible, cache
+from ..cache import TTL_DONNEES, SourceIndisponible, cache
 from ..http import get_json
 from ..text import JOURS, JOURS_COURTS, MOIS, ecran
 from . import Module
@@ -108,7 +108,7 @@ async def _previsions(session: aiohttp.ClientSession, lieu: dict) -> tuple[dict,
             "forecast_days": 6,          # aujourd'hui + 5 jours
         })
 
-    return await cache.obtenir(f"meteo-{lieu['lat']:.2f}-{lieu['lon']:.2f}", 15 * 60, charger)
+    return await cache.obtenir(f"meteo-{lieu['lat']:.2f}-{lieu['lon']:.2f}", TTL_DONNEES, charger)
 
 
 async def meteo(session: aiohttp.ClientSession, q: dict) -> dict:

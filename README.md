@@ -351,7 +351,7 @@ Options : `g` = 1 place le champ dans une grille de 2 colonnes ; au niveau du mo
 
 Ajouter une nouvelle page demande un module dans la passerelle et un écran dans le firmware.
 
-**Sources des cours** : CoinGecko (cryptos), Yahoo Finance (actions, devises, matières premières ; API non officielle, sans clé, appelée au plus une fois toutes les 5 minutes par valeur, avec curl_cffi qui se connecte comme Chrome, sauf en armv7), BCE via Frankfurter (devises, en secours). Logos provided by Logo.dev.
+**Sources des cours** : CoinGecko (cryptos), Yahoo Finance (actions, devises, matières premières ; API non officielle, sans clé, appelée au plus une fois toutes les 10 minutes par valeur, avec curl_cffi qui se connecte comme Chrome, sauf en armv7), BCE via Frankfurter (devises, en secours). Logos provided by Logo.dev.
 
 **Outils** (guide complet pour reprendre le projet depuis zéro, avec VS Code : [docs/DEVELOPPEMENT.md](docs/DEVELOPPEMENT.md))
 - **Tests de la passerelle** : `cd gateway && python -m tests.test_passerelle`. Ils sont lancés par GitHub à chaque envoi et avant chaque publication.

@@ -56,6 +56,15 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   if (deserializeJson(doc, json)) return gwLastCode = -4;
   return gwLastCode = (doc["ok"] | 0) ? 200 : -5;
 }
+
+int gwRelire(JsonDocument& doc, const String& texte) {   // 3.4.0 (memo.h)
+  return deserializeJson(doc, texte.c_str(), texte.length()) ? -4 : 200;
+}
+
+int gwGetBrut(const String& path, JsonDocument& doc, String& brut) {   // 3.4.0 (memo.h)
+  brut = String();
+  return gwGet(path, doc, nullptr, false);
+}
 bool gwImage(const char*, int, int, int, int, uint16_t, int, bool) { return false; }
 
 // ----------------------------------------------------------------- outils

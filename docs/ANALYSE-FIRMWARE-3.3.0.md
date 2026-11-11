@@ -5,6 +5,23 @@ Périmètre : firmware uniquement. ESP8266 seulement. La partie OTA n'est pas co
 
 Légende : **V** = vérifié dans le code ou les sources du cœur ; **NV** = non vérifié sur l'appareil, à mesurer ; **S** = supposé.
 
+## Suite donnée (2026-11-11)
+
+- **P2** (`/meteo` redemandé par la page Heure) : traité en **3.4.0**, dans le cadre plus large de la copie gardée 10 minutes des données non dynamiques (`src/memo.cpp`).
+- Les autres propositions sont au backlog (`docs/CONTEXTE.md`) :
+
+| Proposition | Backlog |
+|---|---|
+| P1 | n° 31 |
+| Mesures sans changement de comportement | n° 32 |
+| P3 | n° 33 |
+| P4 | n° 34 |
+| P5 | n° 35 |
+| P6 | n° 36 |
+| P7 | n° 37 |
+| P8 | n° 38 |
+| Mot de passe facultatif du point d'accès | n° 39 |
+
 ## 1. Ce qui est déjà bien fait (à garder)
 
 - Lecture JSON en flux : `useHTTP10(true)` + `getStream()` + filtre ArduinoJson. C'est la méthode recommandée par la documentation d'ArduinoJson pour HTTPClient. **V**
@@ -28,7 +45,7 @@ Légende : **V** = vérifié dans le code ou les sources du cœur ; **NV** = non
 - Proposition : une seule requête de fond par tour, à tour de rôle (petit ordonnanceur). Le comportement ne change pas, mais l'interface web et l'écran restent réactifs.
 - Coût : quelques dizaines d'octets de flash. Risque faible.
 
-### P2 — Page Heure : `/meteo` redemandé à chaque redessin complet (moyenne)
+### P2 — Page Heure : `/meteo` redemandé à chaque redessin complet (moyenne) — traité en 3.4.0
 - Constat **V** : pages.cpp l.294 (`drawHeure`) et l.364 (`drawMeteo`). `gWx` est déjà rempli par `retenirMeteo`.
 - Proposition : réutiliser `gWx` s'il a moins de N minutes (par exemple la période de la passerelle), et ne redemander qu'au-delà.
 - Gain : une requête HTTP et un `JsonDocument` de moins par passage sur la page Heure, et un affichage plus rapide.

@@ -212,6 +212,18 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   return gwLastCode = (doc["ok"] | 0) ? 200 : -5;
 }
 
+// 3.4.0 (memo.h) : texte brut toujours vide dans le simulateur, donc rien
+// n'est gardé et chaque écran montre la donnée d'exemple du moment
+// (comportement testé à part dans test_memo.cpp).
+int gwGetBrut(const String& path, JsonDocument& doc, String& brut) {
+  brut = String();
+  return gwGet(path, doc, nullptr, false);
+}
+
+int gwRelire(JsonDocument& doc, const String& texte) {   // 3.4.0 (memo.h)
+  return deserializeJson(doc, texte.c_str(), texte.length()) ? -4 : 200;
+}
+
 // Images : converties par genimg.py avec le code de la passerelle (images.py)
 int imagesDemandees = 0, imagesAbsentes = 0;
 bool gwImage(const char* jeton, int x, int y, int w, int h, uint16_t fond, int rayon, bool ajuster) {

@@ -2,6 +2,7 @@
 #include "app.h"
 #include "config.h"
 #include "diag.h"
+#include "memo.h"
 #include "net.h"
 #include "sante.h"
 
@@ -975,6 +976,7 @@ static void handleDebugJson() {
   server.send(200, F("application/json; charset=utf-8"), "");
   Chunks c;
   uint32_t okSondes = k.sondes - k.sondesKo;
+  const MemoStats m = memoStats();   // 3.4.0 : réponses gardées (memo.h)
   c << F("{\"diag\":") << (long)diagActif() << F(",\"version\":\"") << FW_VERSION << F("\",\"depuis_s\":") << (long)(millis() / 1000)
     << F(",\"rssi\":") << (long)WiFi.RSSI() << F(",\"canal\":") << (long)WiFi.channel()
     << F(",\"ip\":\"") << WiFi.localIP().toString() << F("\",\"tas\":") << (long)ESP.getFreeHeap()
@@ -986,6 +988,9 @@ static void handleDebugJson() {
     << F(",\"bloc_min\":") << (long)(gMesurePages.ouvertures ? gMesurePages.bloc : 0)
     << F(",\"tas_min_depuis_demarrage\":") << (long)(gMesurePages.ouvertures ? gMesurePages.tasMin : 0)
     << F(",\"bloc_min_depuis_demarrage\":") << (long)(gMesurePages.ouvertures ? gMesurePages.blocMin : 0) << F("}")
+    << F(",\"memo\":{\"entrees\":") << (long)m.entrees << F(",\"octets\":") << (long)m.octets
+    << F(",\"servies\":") << (long)m.servies << F(",\"secours\":") << (long)m.secours
+    << F(",\"demandees\":") << (long)m.demandees << F("}")
     << F(",\"compteurs\":{\"json\":") << (long)k.requetes[DG_JSON] << F(",\"images\":") << (long)k.requetes[DG_IMG]
     << F(",\"sondes\":") << (long)k.sondes << F(",\"reussies\":") << (long)k.reussies
     << F(",\"connexion\":") << (long)k.connexion << F(",\"delai\":") << (long)k.delai << F(",\"perdue\":") << (long)k.perdue

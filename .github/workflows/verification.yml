@@ -72,20 +72,23 @@ jobs:
           mkdir -p out_web
           g++ -std=gnu++17 -O0 -w -DSHIM_WEB -I shim_web -I shim -I ../../src \
             -I ../../.pio/libdeps/smalltv/ArduinoJson/src \
-            test_web.cpp ../../src/config.cpp ../../src/diag.cpp ../../src/app.cpp -o test_web
+            test_web.cpp ../../src/config.cpp ../../src/diag.cpp ../../src/app.cpp ../../src/memo.cpp -o test_web
           ./test_web
 
-      - name: Tests de l'écran de nuit et des personnages du firmware
+      - name: Tests de l'écran de nuit, des personnages et des réponses gardées du firmware
         working-directory: firmware/tools/simulateur
         run: |
           AJ=../../.pio/libdeps/smalltv/ArduinoJson/src
           g++ -std=gnu++17 -O1 -w -I shim -I ../../src -I $AJ -c sim.cpp -Dmain=sim_main -o sim_lib.o
           g++ -std=gnu++17 -O1 -w -I shim -I ../../src -I $AJ test_nuit.cpp sim_lib.o \
-            ../../src/ui.cpp ../../src/pages.cpp ../../src/persos.cpp ../../src/app.cpp ../../src/config.cpp -o test_nuit
+            ../../src/ui.cpp ../../src/pages.cpp ../../src/persos.cpp ../../src/app.cpp ../../src/config.cpp ../../src/memo.cpp -o test_nuit
           ./test_nuit
           g++ -std=gnu++17 -O1 -w -I shim -I ../../src -I $AJ test_persos.cpp sim_lib.o \
-            ../../src/ui.cpp ../../src/pages.cpp ../../src/persos.cpp ../../src/app.cpp ../../src/config.cpp -o test_persos
+            ../../src/ui.cpp ../../src/pages.cpp ../../src/persos.cpp ../../src/app.cpp ../../src/config.cpp ../../src/memo.cpp -o test_persos
           ./test_persos
+          # Réponses gardées 10 min (3.4.0) : fraîcheur, secours 30 min, limites
+          g++ -std=gnu++17 -O1 -w -I shim -I ../../src -I $AJ test_memo.cpp ../../src/memo.cpp -o test_memo
+          ./test_memo
 
       - uses: actions/upload-artifact@v4
         with:

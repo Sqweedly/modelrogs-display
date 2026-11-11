@@ -12,6 +12,63 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.4.0] — 2026-11-11
+
+### Modifié
+- **Moins de requêtes pour les données « non dynamiques »** : la météo (pages Heure et Météo), les pages de cours (Crypto, Actions, Indices, Devises, Commodities, Custom) et les pages 30 jours d'une valeur.
+  - **Afficheur** : la réponse brute de la passerelle est gardée **10 minutes** et réutilisée sans requête (nouveau `src/memo.cpp`). Avant, elle était redemandée à chaque affichage de la page. La page Heure et la page Météo partagent la même copie de `/meteo`.
+  - **Passerelle sans réponse** (injoignable, en erreur ou en temporisation) : la dernière copie reste affichée, avec la marque « données périmées » (point ambre), jusqu'à **30 minutes** après sa réception. Au-delà, la page d'erreur s'affiche comme avant. Avant, la page d'erreur s'affichait tout de suite.
+  - **Passerelle** : toutes ses durées de cache de ces données passent à **10 minutes** (constante commune `TTL_DONNEES`, `app/cache.py`) :
+    - météo : 15 min avant ;
+    - cours Yahoo et BCE : 5 min avant ;
+    - courbes 30 jours des cryptos : 30 min avant ;
+    - cryptos et listes de photos Immich : 10 min, inchangé.
+  - **Âge maximal d'une valeur à l'écran** : environ 20 minutes (10 min sur la passerelle, puis 10 min sur l'afficheur), et 30 minutes de plus au plus quand la passerelle ne répond pas, avec la marque « périmée ».
+  - **Inchangés**, parce qu'ils doivent rester réactifs : Discord, Supervision, Plex, Tesla, Photos (nouvelle photo à chaque passage), heure et liste des modules.
+  - **Exemple** : avec 10 pages de 10 s, une page de cours revient toutes les 100 s environ. Elle faisait environ 9 requêtes en 15 minutes, contre 1 ou 2 maintenant.
+- **Clé de la copie** : le chemin complet, paramètres compris. Changer les valeurs d'une page dans l'interface change le chemin : la nouvelle sélection est demandée tout de suite.
+- **Limites des copies** : 12 réponses et 6 Ko au plus en tout ; une réponse de plus de 1 536 octets n'est pas gardée (elle est redemandée à chaque affichage, comme avant). Les copies de plus de 30 minutes sont rendues à la mémoire.
+- **Réponses gardées** : elles sont lues en entier puis analysées avec le même analyseur JSON que les réponses réseau (flux `Stream`), pour ne pas embarquer un second analyseur dans le firmware (environ 2,5 Ko de flash économisés par rapport à une analyse directe du texte).
+
+### Ajouté
+- `/debug.json`, clé `memo` :
+  - `entrees` et `octets` : réponses gardées et mémoire qu'elles occupent ;
+  - `servies` : affichages servis depuis la mémoire ;
+  - `secours` : copies périmées affichées ;
+  - `demandees` : requêtes réellement envoyées à la passerelle.
+- Analyse approfondie du firmware 3.3.0 (`docs/ANALYSE-FIRMWARE-3.3.0.md`) : constats sourcés et propositions, reportées au backlog (n° 31 à 39). Son point P2 (`/meteo` redemandé par la page Heure) est traité par cette version.
+
+### Limite connue
+- **Wi-Fi perdu** : quand il se coupe, l'afficheur garde l'écran en cours tant que la dernière réponse de la passerelle a moins de 60 s, puis montre l'écran de connexion. Les pages servies depuis la mémoire n'envoient pas de requête : si seules ces pages sont actives (sans Supervision, Discord, Plex ni Tesla), cette dernière réponse peut être plus ancienne. L'écran de connexion apparaît alors dès la coupure, au lieu d'attendre 60 s. Rien ne change dans les autres cas.
+
+### Compatibilité
+- Afficheur et passerelle restent compatibles dans les deux sens : aucun format de réponse ne change. Mise à jour dans n'importe quel ordre.
+
+### Outils
+- `test_memo` (nouveau, 19 cas) :
+  - copie réutilisée avant 10 min, redemandée à 10 min ;
+  - secours marqué périmé jusqu'à 29 min, erreur à 30 min ;
+  - secours aussi sur une erreur `ok:0` ;
+  - une copie par chemin ;
+  - marque « périmée » de la passerelle conservée ;
+  - réponse trop grande non gardée ;
+  - plafonds de nombre et de taille ;
+  - purge ;
+  - compteurs.
+
+  Lancé par `apercu.sh` et sur GitHub.
+- `test_passerelle` : durées de cache des données à 10 minutes (météo, cryptos, courbes 30 jours, cours, listes de photos).
+- **Simulateur** : il ne garde aucune copie, pour que chaque écran montre la donnée d'exemple du moment. Écrans identiques à la 3.3.0 (67 écrans, 0 différence) ; `test_web`, `test_nuit`, `test_persos` et `test_fit` passés.
+
+### Mesures (compilation locale, PlatformIO 6.1.16)
+- Flash +1 964 octets (624 175), RAM statique +352 octets (38 364 ; table des 12 copies), code en IRAM inchangé (27 735 octets).
+- **À mesurer sur l'afficheur** (beta), dans `/debug.json` : les minimums de mémoire libre et du plus grand bloc, et la clé `memo`. Pendant la réception d'une réponse gardée, le texte est brièvement présent deux fois (copie de HTTPClient et copie gardée, 1,5 Ko au plus chacune).
+
+### Essai
+- À tester sur la branche `beta` avant publication (règle n° 9).
+
+---
+
 ## [3.3.0] — 2026-11-11
 
 ### Modifié

@@ -24,6 +24,10 @@ log = logging.getLogger("cache")
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/cache"))
 MAX_ENTREES = int(os.environ.get("CACHE_MAX_ENTREES", "200"))
+# 3.4.0 : durée commune des données « non dynamiques » (météo, cours,
+# courbes 30 jours, listes de photos). L'afficheur garde lui aussi ces
+# réponses 10 minutes : une valeur affichée a donc au plus 20 minutes environ.
+TTL_DONNEES = 10 * 60
 AGE_MAX_DISQUE = 365 * 86400
 
 

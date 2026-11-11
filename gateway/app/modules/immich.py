@@ -48,14 +48,14 @@ from zoneinfo import ZoneInfo
 import aiohttp
 
 from .. import images
-from ..cache import SourceIndisponible, cache
+from ..cache import TTL_DONNEES, SourceIndisponible, cache
 from ..http import get_json
 from ..text import ecran
 from . import Module
 
 log = logging.getLogger("immich")
 
-TTL_LISTE = 10 * 60          # liste d'un album ou des favoris gardée 10 minutes
+TTL_LISTE = TTL_DONNEES         # liste d'un album ou des favoris gardée 10 minutes
 HISTORIQUE = 20              # photos récentes à ne pas remontrer
 DUREES = [10, 20, 30, 45, 60, 90, 120, 300]
 DUREE_DEFAUT = 30

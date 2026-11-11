@@ -1,4 +1,5 @@
 #include "pages.h"
+#include "memo.h"
 #include "persos.h"
 #include "app.h"
 #include "config.h"
@@ -291,7 +292,7 @@ void drawHeure(uint8_t dotIndex, uint8_t dotCount) {
   FontId fe = textW(entete, F_18) > 216 ? F_16 : F_18;
   drawText(entete, 120, Y_ENTETE, fe, TXT, BG, TC_DATUM);
   JsonDocument doc;
-  const int code = gwGet("/meteo", doc);
+  const int code = memoGet("/meteo", doc);   // 3.4.0 : copie gardée 10 min (memo.h)
   const bool ok = code == 200;             // sinon l'horloge reste seule
   retenirMeteo(code, doc);
   placerChiffres(carteMeteoDuJour(doc, ok));
@@ -361,7 +362,7 @@ static void minMaxCentre(JsonObject j, int cx, int y, FontId f, uint16_t bg) {
 
 void drawMeteo(uint8_t dotIndex, uint8_t dotCount) {
   JsonDocument doc;
-  int code = gwGet("/meteo", doc);
+  int code = memoGet("/meteo", doc);
   tft.fillScreen(BG);
   retenirMeteo(code, doc);
   if (code != 200) {
@@ -1134,7 +1135,7 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   nbDediees = prochaineDediee = 0;
   pageDediees = page;
   JsonDocument doc;
-  int code = gwGet(modulePath(page), doc);
+  int code = memoGet(modulePath(page), doc);
   if (code != 200 || doc["c"].as<JsonArray>().size() == 0) {
     tft.fillScreen(BG);
     errorPage(PAGE_NAMES[page], code == -5 ? String(doc["err"] | "")
@@ -1165,7 +1166,7 @@ bool coursEcranSuivant(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   while (prochaineDediee < nbDediees) {
     const char* id = dediees[prochaineDediee++];
     JsonDocument doc;
-    if (gwGet(String("/") + PAGE_IDS[page] + "/30j?id=" + urlEncode(id), doc) != 200) {
+    if (memoGet(String("/") + PAGE_IDS[page] + "/30j?id=" + urlEncode(id), doc) != 200) {
       continue;                 // indisponible : page suivante
     }
     JsonArray cs = doc["c"].as<JsonArray>();

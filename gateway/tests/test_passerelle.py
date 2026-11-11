@@ -24,6 +24,7 @@ MAINTENANT = datetime.now(timezone.utc)
 APPELS_GEO: list[str] = []
 APPELS_YAHOO: list[str] = []
 SOUVENIRS_REFUSES = [False]
+SOUVENIRS_VIDES = [False]       # 3.4.0 : Immich ne renvoie aucun souvenir ce jour-là
 BEAUCOUP_ALBUMS = [False]
 PLEX: list[dict] = []
 base_faux = ""
@@ -223,6 +224,8 @@ def faux_internet() -> web.Application:
             return web.Response(status=403)
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", r.query.get("for", "")):
             return web.Response(status=400, text="Bad Request")
+        if SOUVENIRS_VIDES[0]:              # 3.4.0 : aucun souvenir ce jour-là
+            return web.json_response([])
         annee = datetime.now().year - 3
         return web.json_response([{"type": "on_this_day", "data": {"year": annee}, "assets": [actif("p1")]},
                                   {"type": "birthday", "data": {"year": annee}, "assets": [actif("p2")]}])
@@ -722,6 +725,27 @@ async def principal() -> int:
         ok = d["ok"] == 1 and d["i"] and "b" not in d
         echecs += not ok
         print(f"{'OK ' if ok else 'ÉCHEC'} Immich : souvenirs refusés -> photo au hasard {d}")
+        # 3.4.0 (backlog n° 30) : avec v=1, souvenirs refusés -> rien à montrer
+        SOUVENIRS_REFUSES[0] = True
+        d = await (await c.get("/immich?s=souvenirs&duree=30&v=1")).json()
+        SOUVENIRS_REFUSES[0] = False
+        ok = d == {"ok": 1, "v": 1}
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : souvenirs refusés, v=1 -> rien à montrer {d}")
+        # Aucun souvenir ce jour-là : rien à montrer avec v=1, photo au hasard sans v=1
+        CACHE._valeurs.pop(f"immich-souvenirs-{IMM._aujourdhui().isoformat()}", None)
+        SOUVENIRS_VIDES[0] = True
+        d = await (await c.get("/immich?s=souvenirs&v=1")).json()
+        d2 = await (await c.get("/immich?s=souvenirs")).json()
+        SOUVENIRS_VIDES[0] = False
+        CACHE._valeurs.pop(f"immich-souvenirs-{IMM._aujourdhui().isoformat()}", None)
+        ok = d == {"ok": 1, "v": 1} and d2["ok"] == 1 and d2["i"] and "b" not in d2
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : aucun souvenir -> rien à montrer (v=1), au hasard sinon {d} {d2}")
+        d = await (await c.get("/immich?s=souvenirs&v=1")).json()
+        ok = d["ok"] == 1 and d["b"] == "Il y a 3 ans" and "v" not in d
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} Immich : souvenir présent, v=1 -> photo et pastille {d}")
         BEAUCOUP_ALBUMS[0] = True
         r = await c.get("/immich/sources")
         texte = await r.text()

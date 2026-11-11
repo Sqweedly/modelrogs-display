@@ -199,7 +199,9 @@ bool gatewayDown = false;
 String urlEncode(const char* s) { return String(s); }
 const char* gwErrorText(int code) { return code == -3 ? "Passerelle injoignable" : "Erreur"; }
 
+std::string dernierChemin;   // 3.4.0 : dernier chemin demandé (test de « v=1 »)
 int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
+  dernierChemin = path.s;
   if (gatewayDown) return gwLastCode = -3;
   // Réponse du plus long préfixe correspondant (« /btc/30j » avant « /btc »)
   const std::string* trouve = nullptr;
@@ -338,6 +340,21 @@ int main(int argc, char** argv) {
   fixtures["/immich"] = FX("photos");          drawPhotos(6, 7); save("31_photos");
   fixtures["/immich"] = FX("photos_souvenir"); drawPhotos(6, 7); save("31b_photos_souvenir");
   fixtures["/immich"] = FX("photos_haute");    drawPhotos(6, 7); save("31c_photos_hauteur");
+  // 3.4.0 (backlog n° 30) : souvenirs sans photo ce jour-là -> rien dessiné, false ;
+  // « v=1 » envoyé à la passerelle
+  {
+    fixtures["/immich"] = R"({"ok":1,"v":1})";
+    tft.fillScreen(0x1234);
+    const bool dessine = drawPhotos(6, 7);
+    bool intact = true;
+    for (uint16_t c : tft.fb) intact = intact && c == 0x1234;
+    if (dessine || !intact || dernierChemin.find("v=1") == std::string::npos) {
+      fprintf(stderr, "ÉCHEC : Photos sans souvenir (dessine=%d, intact=%d, chemin=%s)\n", dessine, intact,
+              dernierChemin.c_str());
+      return 1;
+    }
+    fprintf(stderr, "Photos sans souvenir : page masquée, rien dessiné, v=1 envoyé.\n");
+  }
   // Tesla : 4 états (branchée : point ambre, serveur MQTT perdu ; charge : ligne la plus longue)
   for (const char* e : {"route", "stationnee", "branchee", "charge"}) {
     fixtures["/tesla"] = FX((std::string("tesla_") + e).c_str()); pollTesla();

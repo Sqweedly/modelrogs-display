@@ -30,6 +30,10 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 - **Limites des copies** : 12 réponses et 6 Ko au plus en tout ; une réponse de plus de 1 536 octets n'est pas gardée (elle est redemandée à chaque affichage, comme avant). Les copies de plus de 30 minutes sont rendues à la mémoire.
 - **Réponses gardées** : elles sont lues en entier puis analysées avec le même analyseur JSON que les réponses réseau (flux `Stream`), pour ne pas embarquer un second analyseur dans le firmware (environ 2,5 Ko de flash économisés par rapport à une analyse directe du texte).
 
+- **Photos, source « souvenirs »** (backlog n° 30) : un jour sans souvenir, ou si Immich refuse les souvenirs (droit `memory.read` manquant), **la page Photos n'est plus affichée**. Avant, une photo au hasard s'affichait à la place.
+  - **Passerelle** : l'afficheur ajoute `v=1` à `/immich` pour annoncer qu'il sait masquer la page. La passerelle répond alors `{"ok":1,"v":1}`, « rien à montrer ». La cause d'un refus reste écrite dans le log.
+  - **Afficheur** : la page est retirée de la rotation sans rien dessiner, puis redemandée **30 minutes** plus tard, ou dès qu'un réglage est enregistré. Ce n'est pas compté comme une panne. Un souvenir apparu dans la journée est donc montré au plus 30 minutes plus tard (la passerelle garde la liste des souvenirs 10 minutes).
+
 ### Ajouté
 - `/debug.json`, clé `memo` :
   - `entrees` et `octets` : réponses gardées et mémoire qu'elles occupent ;
@@ -42,7 +46,9 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 - **Wi-Fi perdu** : quand il se coupe, l'afficheur garde l'écran en cours tant que la dernière réponse de la passerelle a moins de 60 s, puis montre l'écran de connexion. Les pages servies depuis la mémoire n'envoient pas de requête : si seules ces pages sont actives (sans Supervision, Discord, Plex ni Tesla), cette dernière réponse peut être plus ancienne. L'écran de connexion apparaît alors dès la coupure, au lieu d'attendre 60 s. Rien ne change dans les autres cas.
 
 ### Compatibilité
-- Afficheur et passerelle restent compatibles dans les deux sens : aucun format de réponse ne change. Mise à jour dans n'importe quel ordre.
+- Afficheur et passerelle restent compatibles dans les deux sens. Mise à jour dans n'importe quel ordre :
+  - sans `v=1` (afficheur plus ancien), la passerelle 3.4.0 garde la photo au hasard ;
+  - une passerelle plus ancienne ignore `v=1` et envoie une photo au hasard, que l'afficheur 3.4.0 affiche comme avant.
 
 ### Outils
 - `test_memo` (nouveau, 19 cas) :
@@ -58,10 +64,14 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
   Lancé par `apercu.sh` et sur GitHub.
 - `test_passerelle` : durées de cache des données à 10 minutes (météo, cryptos, courbes 30 jours, cours, listes de photos).
+- `test_passerelle`, souvenirs : avec `v=1`, rien à montrer quand il n'y a aucun souvenir ou quand ils sont refusés ; photo et pastille quand un souvenir existe ; sans `v=1`, photo au hasard comme avant.
+- Simulateur : `drawPhotos` ne dessine rien et renvoie `false` sur « rien à montrer », et `v=1` est bien envoyé. La rotation de l'afficheur (`main.cpp`) n'est pas exécutable sur PC : à vérifier sur la beta.
 - **Simulateur** : il ne garde aucune copie, pour que chaque écran montre la donnée d'exemple du moment. Écrans identiques à la 3.3.0 (67 écrans, 0 différence) ; `test_web`, `test_nuit`, `test_persos` et `test_fit` passés.
 
 ### Mesures (compilation locale, PlatformIO 6.1.16)
-- Flash +1 964 octets (624 175), RAM statique +352 octets (38 364 ; table des 12 copies), code en IRAM inchangé (27 735 octets).
+- Flash +2 144 octets (624 355), RAM statique +372 octets (38 384), code en IRAM inchangé (27 735 octets). Détail :
+  - données gardées 10 min : +1 964 octets de flash, +352 de RAM (table des 12 copies) ;
+  - souvenirs : +180 octets de flash, +20 de RAM.
 - **À mesurer sur l'afficheur** (beta), dans `/debug.json` : les minimums de mémoire libre et du plus grand bloc, et la clé `memo`. Pendant la réception d'une réponse gardée, le texte est brièvement présent deux fois (copie de HTTPClient et copie gardée, 1,5 Ko au plus chacune).
 
 ### Essai

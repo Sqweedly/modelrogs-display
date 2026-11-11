@@ -1407,16 +1407,20 @@ void drawPlex(uint8_t dotIndex, uint8_t dotCount) {
 // (recadrée, ou entière sur un fond flou d'elle-même si elle est en hauteur).
 // Pas de texte ni de points de pagination : la photo seule. Pour un souvenir,
 // une pastille « Il y a N ans » en haut à gauche.
-void drawPhotos(uint8_t dotIndex, uint8_t dotCount) {
+// 3.4.0 (backlog n° 30) : « v=1 » annonce à la passerelle que l'afficheur sait
+// masquer la page. Source « souvenirs » sans photo ce jour-là : réponse
+// {"ok":1,"v":1}, rien n'est dessiné et la fonction renvoie false.
+bool drawPhotos(uint8_t dotIndex, uint8_t dotCount) {
   JsonDocument doc;
-  const int code = gwGet(modulePath(PG_PHOTOS), doc);
+  const int code = gwGet(modulePath(PG_PHOTOS) + "&v=1", doc);
+  if (code == 200 && (doc["v"] | 0)) return false;   // rien à montrer : page masquée
   const char* jeton = doc["i"] | "";
   if (code != 200 || !jeton[0] || !gwImage(jeton, 0, 0, 240, 240, BG, 0, false)) {
     tft.fillScreen(BG);
     errorPage("Photos", code == -5 ? String(doc["err"] | "") : code != 200 ? String(gwErrorText(code))
                                    : String("Photo indisponible"));
     pageDots(dotIndex, dotCount, ETH);
-    return;
+    return true;
   }
   const char* badge = doc["b"] | "";
   if (badge[0]) {
@@ -1425,6 +1429,7 @@ void drawPhotos(uint8_t dotIndex, uint8_t dotCount) {
     tft.fillRoundRect(10, 10, w, h, h / 2, VIOLET);
     drawText(badge, 10 + w / 2, 10 + h / 2 + 1, F_13, TXT, VIOLET, MC_DATUM);
   }
+  return true;
 }
 
 // ------------------------------------------------------------------ Tesla

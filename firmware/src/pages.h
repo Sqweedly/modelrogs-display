@@ -20,7 +20,7 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount);
 bool coursEcranSuivant(uint8_t page, uint8_t dotIndex, uint8_t dotCount);
 void drawPlex(uint8_t dotIndex, uint8_t dotCount);
 // Photos Immich : photo en plein écran (+ pastille « Il y a N ans » pour un souvenir)
-void drawPhotos(uint8_t dotIndex, uint8_t dotCount);
+bool drawPhotos(uint8_t dotIndex, uint8_t dotCount);   // false : rien à montrer (3.4.0)
 void plexProgress();          // Plex affichée : ne redessine que la progression
 // Tesla : bandeau (batterie, état, ligne) + photo de l'état ; teslaBandeau() : bandeau seul
 void drawTesla();

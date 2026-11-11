@@ -87,6 +87,12 @@ static uint8_t  lastBrightness = 255;
 static uint32_t drawnDiscVersion = 0, drawnSupVersion = 0;
 static uint32_t drawnPlexVersion = 0, drawnPlexProgres = 0;
 static uint32_t drawnTeslaVersion = 0, drawnTeslaInfos = 0;
+// Photos « souvenirs » sans photo ce jour-là (3.4.0, backlog n° 30) : page
+// retirée de la rotation, puis redemandée au bout de 30 minutes (ou dès un
+// changement de réglages).
+static const uint32_t PHOTOS_VIDE_MS = 30UL * 60 * 1000;
+static bool     photosVide = false;
+static uint32_t photosVideDepuis = 0;
 
 // Mode secours, redémarrage préventif et mesures mémoire : voir sante.cpp
 
@@ -124,6 +130,10 @@ static bool pageAvailable(uint8_t p) {
   if (p == PG_DISCORD) return gDisc.ok && gDisc.n > 0;     // masquée si personne
   if (p == PG_PLEX) return gPlex.ok && gPlex.n > 0;        // masquée sans lecture
   if (p == PG_TESLA) return gTesla.ok;                     // masquée tant que rien n'est reçu
+  if (p == PG_PHOTOS && photosVide) {                      // rien à montrer : nouvel essai après 30 min
+    if (millis() - photosVideDepuis < PHOTOS_VIDE_MS) return false;
+    photosVide = false;
+  }
   // Supervision : pendant une panne, elle passe dans le bloc « PANNE +
   // Supervision » (hors rotation). Sans panne, elle n'est dans la rotation que
   // si un service est instable ou si Kuma / la passerelle ne répond pas.
@@ -159,6 +169,8 @@ static uint32_t dureeDe(int p) {
   return (uint32_t)cfg.pageSec * 1000UL;
 }
 
+static void nextPage();
+
 static void showPage(uint8_t p, bool restartTimer = true) {
   curPage = p;
   persoEcran = PERSO_AUCUN;
@@ -179,7 +191,13 @@ static void showPage(uint8_t p, bool restartTimer = true) {
     case PG_COMMO:
     case PG_INDICES:
     case PG_CUSTOM:  drawCours(p, idx, cnt); break;
-    case PG_PHOTOS:  drawPhotos(idx, cnt); break;
+    case PG_PHOTOS:
+      if (!drawPhotos(idx, cnt)) {   // rien à montrer : page suivante, sans rien dessiner
+        photosVide = true;
+        photosVideDepuis = millis();
+        nextPage();
+      }
+      break;
     case PG_TESLA:
       drawTesla();
       drawnTeslaVersion = gTesla.version;
@@ -262,6 +280,7 @@ void schedulerForce(int8_t page) { forcedPage = page; }
 
 void schedulerConfigChanged(bool villeChanged) {
   configChanged = true;
+  photosVide = false;                      // source des photos peut-être changée
   if (villeChanged) {                      // resynchroniser l'heure de la nouvelle ville
     gTime.valid = false;
     gTime.lastTry = 0;

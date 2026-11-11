@@ -226,8 +226,14 @@ def _image(asset: dict) -> str:
 
 
 async def photo(session: aiohttp.ClientSession, q: dict) -> dict:
-    """Une photo de la source choisie : {"ok": 1, "i": jeton, "b": pastille éventuelle}."""
+    """Une photo de la source choisie : {"ok": 1, "i": jeton, "b": pastille éventuelle}.
+
+    Souvenirs sans photo ce jour-là (ou souvenirs indisponibles) : avec « v=1 »
+    (afficheur 3.4.0 et suivants), {"ok": 1, "v": 1}, « rien à montrer » : la
+    page Photos n'est pas affichée. Sans « v=1 » (afficheur plus ancien), une
+    photo au hasard, comme avant la 3.4.0."""
     source = (q.get("s") or "").strip()
+    vide_permis = q.get("v") == "1"
     try:
         if source == "souvenirs":
             try:
@@ -235,13 +241,16 @@ async def photo(session: aiohttp.ClientSession, q: dict) -> dict:
             except (aiohttp.ClientError, SourceIndisponible, TimeoutError) as exc:
                 origine = exc.__cause__ if isinstance(exc, SourceIndisponible) and exc.__cause__ else exc
                 statut = getattr(origine, "status", 0)
-                log.warning("souvenirs indisponibles (%s)%s : photo au hasard", origine,
-                            " ; vérifier le droit memory.read de la clé" if statut in (401, 403) else "")
+                log.warning("souvenirs indisponibles (%s)%s : %s", origine,
+                            " ; vérifier le droit memory.read de la clé" if statut in (401, 403) else "",
+                            "page Photos masquée" if vide_permis else "photo au hasard")
                 candidats = []
             if candidats:
                 a, n = _choisir(source, candidats)
                 return {"ok": 1, "i": _image(a), "b": f"Il y a {n} an{'s' if n > 1 else ''}"}
-            source = ""                                    # aucun souvenir aujourd'hui : au hasard
+            if vide_permis:                                # 3.4.0 : rien à montrer, page masquée
+                return {"ok": 1, "v": 1}
+            source = ""                                    # afficheur plus ancien : au hasard
         if source == "favoris":
             candidats = await _favoris(session)
         elif source.startswith("a:"):

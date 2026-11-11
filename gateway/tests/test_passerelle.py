@@ -340,7 +340,11 @@ async def principal() -> int:
                 and not ({"p", "nt", "o"} & set(m)) and m["df"]
                 for m in d["m"] if m["id"] in ("btc", "actions", "indices", "devises", "commodities", "custom"))
                 and next(m for m in d["m"] if m["id"] == "actions")["ph"] == "ex. BNP.PA, ^FCHI"
+                # 3.3.0 : champs vides absents ; durées des Photos envoyées par la passerelle, comme ailleurs
                 and next(m for m in d["m"] if m["id"] == "immich")["p"][1]["k"] == "duree"
+                and len(next(m for m in d["m"] if m["id"] == "immich")["p"][1]["o"]) == 8
+                and all("err" not in m or m["err"] for m in d["m"]) and all("p" not in m or m["p"] for m in d["m"])
+                and "p" not in next(m for m in d["m"] if m["id"] == "heure")
                 and next(m for m in d["m"] if m["id"] == "discord")["p"][0]["src"] == "/discord/salons"
                 and next(m for m in d["m"] if m["id"] == "meteo")["v"]),
             ("/actions/liste", lambda d: d["ok"] and len(d["s"]) == 10 and d["s"][0] == {"id": "AAPL", "n": "Apple"}),

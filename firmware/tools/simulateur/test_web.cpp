@@ -52,6 +52,7 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   else if (p == "/time") nom = "time";
   std::string json = nom.empty() ? "" : lire(dossier + nom + ".json");
   if (json.empty()) return gwLastCode = -3;
+  diagRequete(DG_JSON, 0, p.c_str(), 200, 0, 0, json.size());   // comme net.cpp : taille annoncée
   if (deserializeJson(doc, json)) return gwLastCode = -4;
   return gwLastCode = (doc["ok"] | 0) ? 200 : -5;
 }
@@ -111,6 +112,8 @@ int main() {
   verifier("Pages : Commodities décochée", contient(h, "name='pg8'>") || contient(h, "name='pg8'><b>"));
   verifier("Pages : Actions, listes de /actions/liste (format compact)", contient(h, "name='p6_s1'")
            && contient(h, "<option value='MC.PA'>LVMH</option>") && contient(h, "placeholder='ex. BNP.PA, ^FCHI'"));
+  verifier("Pages : durées des Photos, liste de la passerelle (format compact)",
+           contient(h, "<option value='90'>1 min 30 s</option>") && contient(h, "<option value='300'>5 min</option>"));
   verifier("Pages : note des pages de cours construite par l'afficheur",
            contient(h, "<p class='note'>3 au plus, dans l&#39;ordre : listes 1 à 3, puis saisie</p>"));
   // Passerelle plus ancienne (format d'origine) : exactement la même page
@@ -138,6 +141,10 @@ int main() {
   h = appeler("/debug.json");
   verifier("debug.json : inchangé (clés relances en plus)", contient(h, "\"diag\":1") && contient(h, "\"relances\":0")
            && contient(h, "\"sautes_appels\":"));
+  verifier("debug.json : mémoire de l'onglet Pages (2 ouvertures ; taille de /modules de la dernière, format d'origine, et non de la dernière liste)",
+           contient(h, ("\"pages\":{\"ouvertures\":2,\"modules_octets\":" + std::to_string(lire(dossier + "modules_v1.json").size()) + ",").c_str())
+           && contient(h, "\"tas_min\":30216,\"bloc_min\":28896,")
+           && contient(h, "\"bloc_min_depuis_demarrage\":28896}"));
 
   // --- Enregistrements : seuls les champs de l'onglet changent
   Config avant = cfg;

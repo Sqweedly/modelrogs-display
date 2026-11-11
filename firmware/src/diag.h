@@ -76,6 +76,7 @@ void diagRequete(uint8_t type, uint32_t id, const char* chemin, int16_t code,
 void diagTempo(const char* chemin, int16_t code);
 void diagSaute(bool image);
 void diagRelance(bool reussie);           // nouvel essai immédiat (net.cpp)
+uint32_t diagDerniersOctets();            // taille annoncée de la dernière réponse JSON (3.3.0)
 bool diagActif();
 bool diagActiver(bool actif);             // false si la mémoire manque
 const DiagCompteurs& diagCompteurs();

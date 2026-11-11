@@ -125,7 +125,7 @@ Pour tester la passerelle d'une branche sans créer de version : pousser la bran
 
 ### Ajouter une page
 
-Une page = un module dans `gateway/app/modules/` (fiche `MODULE` : nom, variables requises, réglages proposés à l'afficheur, routes) **et** un écran dans `firmware/src/pages.cpp`, appelé par la rotation de `main.cpp`. Côté firmware, une page ajoutée prend un identifiant dans `PageId` (`config.h`), un nom et un identifiant de module (`PAGE_NAMES`, `PAGE_IDS`), une place dans l'ordre d'affichage (`ROTATION`) et, si elle a des réglages, un tampon dans `Config` : toute modification de `Config` augmente `CONFIG_VERSION` et ajoute une migration dans `config.cpp`, vérifiée par `test_config.cpp`. Le format des réponses et des réglages est décrit dans `docs/PASSERELLE.md`.
+Une page = un module dans `gateway/app/modules/` (fiche `MODULE` : nom, variables requises, réglages proposés à l'afficheur, routes) **et** un écran dans `firmware/src/pages.cpp`, appelé par la rotation de `main.cpp`. Côté firmware, une page ajoutée prend un identifiant dans `PageId` (`config.h` ; 32 pages au plus depuis la 3.3.0 : pages 0 à 15 dans `cfg.pages`, 16 à 31 dans `reserve[2]` et `reserve[3]`, toujours lues et écrites par `pagesMask`, `pageEnabled` et `setPageEnabled` ; `PG_ICONES` et `PG_FONDS` de `web.cpp` prennent une entrée de plus), un nom et un identifiant de module (`PAGE_NAMES`, `PAGE_IDS`), une place dans l'ordre d'affichage (`ROTATION`) et, si elle a des réglages, un tampon dans `Config` : toute modification de `Config` augmente `CONFIG_VERSION` et ajoute une migration dans `config.cpp`, vérifiée par `test_config.cpp`. Le format des réponses et des réglages est décrit dans `docs/PASSERELLE.md`.
 
 ## 5. Simulateur d'écrans
 

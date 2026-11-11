@@ -3,7 +3,7 @@
 
 Config cfg;
 static_assert(sizeof(Config) <= EEPROM_SIZE, "Config trop grande pour l'EEPROM");
-static_assert(PG_COUNT <= 16, "pages : masque de 16 bits");
+static_assert(PG_COUNT <= 32, "pages : masque de 32 bits (cfg.pages + reserve[2], reserve[3])");
 
 const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Crypto", "Plex",
                                            "Actions", "Devises", "Commodities", "Indices", "Custom", "Photos",
@@ -125,7 +125,7 @@ static void setDefaults() {
   cfg.magic = PRODUCT_MAGIC;
   cfg.version = CONFIG_VERSION;
   copyStr(cfg.apSsid, sizeof(cfg.apSsid), AP_DEFAUT);
-  cfg.pages = (1 << PG_COUNT) - 1;
+  setPagesMask(PG_COUNT >= 32 ? 0xFFFFFFFFu : (1u << PG_COUNT) - 1);
   cfg.pageSec = 10;
   cfg.nightStart = 23 * 60;
   cfg.nightEnd = 7 * 60;
@@ -184,9 +184,10 @@ static void sanitize() {
     cfg.pages |= 1u << PG_TESLA;
     cfg.reserve[0] |= RES_PAGE_TESLA;
   }
-  cfg.pages &= (1u << PG_COUNT) - 1;
-  cfg.reserve[1] &= 0x07;          // 3.1.0 : bits des personnages (Météo, Tesla, Supervision)
-  cfg.pages |= 1u << PG_HEURE;   // 3.0.0 : la page Heure est toujours active (interface)
+  // Pages 0 à 31 (3.3.0) : bits au-delà des pages existantes effacés
+  setPagesMask(pagesMask() & (PG_COUNT >= 32 ? 0xFFFFFFFFu : (1u << PG_COUNT) - 1));
+  cfg.reserve[1] &= 0x07;          // 3.1.0 : bits des personnages (Heure, Tesla, Supervision)
+  setPageEnabled(PG_HEURE, true);  // 3.0.0 : la page Heure est toujours active (interface)
   cfg.pageSec = constrain(cfg.pageSec, 5, 120);
   cfg.nightStart %= 1440;
   cfg.nightEnd %= 1440;
@@ -374,8 +375,27 @@ void saveConfig() {
   Serial.println(F("EEPROM : configuration sauvegardee."));
 }
 
+// Masque des pages (3.3.0) : pages 0 à 15 dans cfg.pages, 16 à 31 dans
+// reserve[2] (16 à 23) et reserve[3] (24 à 31). Structure de Config inchangée :
+// une configuration 3.2.0 ou plus ancienne (reserve[2..3] à 0) se relit telle quelle.
+uint32_t pagesMask() {
+  return (uint32_t)cfg.pages | (uint32_t)cfg.reserve[2] << 16 | (uint32_t)cfg.reserve[3] << 24;
+}
+
+void setPagesMask(uint32_t m) {
+  cfg.pages = (uint16_t)m;
+  cfg.reserve[2] = (uint8_t)(m >> 16);
+  cfg.reserve[3] = (uint8_t)(m >> 24);
+}
+
 bool pageEnabled(uint8_t page) {
-  return page < PG_COUNT && (cfg.pages & (1u << page));
+  return page < PG_COUNT && (pagesMask() & ((uint32_t)1 << page));
+}
+
+void setPageEnabled(uint8_t page, bool actif) {
+  if (page >= 32) return;
+  const uint32_t b = (uint32_t)1 << page;
+  setPagesMask(actif ? pagesMask() | b : pagesMask() & ~b);
 }
 
 // reserve[1] : un bit par domaine, à 1 quand le personnage est MASQUÉ

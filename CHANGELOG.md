@@ -12,6 +12,31 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.3.0] — 2026-11-11
+
+### Modifié
+- **32 pages au lieu de 16** (backlog n° 23). Les pages 0 à 15 restent dans `cfg.pages`, les pages 16 à 31 vont dans la zone réservée (`reserve[2]`, `reserve[3]`) : structure de la configuration inchangée, pas de migration, réglages conservés. Tout le code passe par `pagesMask`, `pageEnabled` et `setPageEnabled` ; l'état des modules reçu de la passerelle passe à 32 bits. Rien de visible tant qu'il y a 13 pages : c'est le prérequis aux nouvelles pages du backlog (il n'en restait que 3 libres).
+- **Allègement de `/modules`, suite** (backlog n° 28), au format compact (`?f=2`) seulement : les champs vides (`"err":""`, `"p":[]`) ne sont plus envoyés. Le champ « Durée d'affichage » des Photos garde le principe commun à toutes les pages : la passerelle envoie sa liste, l'afficheur l'affiche (une reconstruction de la liste par l'afficheur a été écartée : −193 octets dans `/modules` pour +708 octets de flash et une liste en double). **Taille dans les tests : 1 522 octets au lieu de 1 665** (−9 % ; 4 077 avant la 3.2.0). Mémoire de l'analyse JSON mesurée sur PC (64 bits) avec les données de l'interface : 6 113 octets au lieu de 6 128.
+
+### Ajouté
+- **Mesure de la mémoire pendant la construction de l'onglet Pages** (backlog n° 24), dans `/debug.json`, clé `pages` : nombre d'ouvertures, taille annoncée de `/modules`, mémoire libre et plus grand bloc les plus bas pendant la dernière ouverture et depuis le démarrage. Relevée après la lecture de `/modules` puis à chaque page, quand `/modules`, les champs et une liste sont en mémoire ensemble : le pic que les minimums généraux, relevés une fois par seconde entre deux tâches, ne voient pas. Pour la lire : ouvrir l'onglet Pages, puis `/debug.json`.
+
+### Compatibilité
+- Afficheur et passerelle restent compatibles dans les deux sens, comme en 3.2.0 : sans `?f=2`, la passerelle garde le format d'origine ; une passerelle plus ancienne envoie les champs vides, que l'afficheur 3.3.0 lit comme avant. Mise à jour dans n'importe quel ordre.
+
+### Outils
+- `test_config` : configuration 3.2.x relue à l'identique, pages 16 à 31 rangées dans `reserve[2]` et `reserve[3]`, bits au-delà des pages existantes effacés, page Heure toujours active.
+- `test_web` : onglet Pages toujours identique à l'octet avec les deux formats ; clé `pages` de `/debug.json`, dont `modules_octets` égal à la taille de `/modules` (et non à celle de la dernière liste demandée ensuite).
+- `test_passerelle` : format compact sans champs vides, durées des Photos toujours envoyées.
+
+### Mesures (compilation locale, PlatformIO 6.1.16)
+- Flash +548 octets (622 211), RAM statique +40 octets (38 012), code en IRAM inchangé (27 735 octets).
+
+### Mise à jour
+- Afficheur par `/update` (`.bin.gz` de la Release) et passerelle avec l'image `:3` (`docker compose pull && docker compose up -d`), dans n'importe quel ordre. Version publiée sans passage par `beta`, à la demande du propriétaire.
+
+---
+
 ## [3.2.0] — 2026-11-11
 
 ### Modifié

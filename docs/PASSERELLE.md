@@ -77,10 +77,10 @@ L'afficheur ne connaît ni Yahoo ni Kuma : il affiche les champs décrits par la
 **Format compact `/modules?f=2`** (3.2.0, demandé par l'afficheur à partir de la 3.2.0). Les 6 pages de cours (Crypto, Actions, Indices, Devises, Commodities, Custom) ont toutes les mêmes champs (3 listes et une saisie) et la même consigne : la passerelle ne les envoie plus, seulement `"f":"c"` (page de cours) et l'exemple de saisie `ph`, et la liste des listes déroulantes passe toujours par une route `src` (`/btc/liste`, `/actions/liste`, `/indices/liste`, `/devises/liste`, `/commodities/liste`, `/custom/liste`), demandée à l'ouverture de l'interface :
 
 ```json
-{"id":"actions","n":"Actions","ok":1,"err":"","df":"AAPL, MC.PA","f":"c","ph":"ex. BNP.PA, ^FCHI","src":"/actions/liste"}
+{"id":"actions","n":"Actions","ok":1,"df":"AAPL, MC.PA","f":"c","ph":"ex. BNP.PA, ^FCHI","src":"/actions/liste"}
 ```
 
-L'afficheur construit lui-même les 3 listes, la saisie et la consigne, à l'identique (même page HTML, vérifié par `test_web`). Les autres modules sont envoyés tels quels. Sans `?f=2`, `/modules` garde le format d'origine : un afficheur plus ancien fonctionne avec une passerelle 3.2.0, et un afficheur 3.2.0 avec une passerelle plus ancienne (qui ignore `?f=2`). Taille dans les tests : 1 665 octets au lieu de 4 077.
+L'afficheur construit lui-même les 3 listes, la saisie et la consigne, à l'identique (même page HTML, vérifié par `test_web`). Depuis la 3.3.0, le format compact omet aussi les champs vides (`"err":""`, `"p":[]`). Les autres champs sont envoyés tels quels. Sans `?f=2`, `/modules` garde le format d'origine : un afficheur plus ancien fonctionne avec une passerelle récente, et un afficheur récent avec une passerelle plus ancienne (qui ignore `?f=2`). Taille dans les tests : 1 522 octets en 3.3.0 (1 665 en 3.2.0) au lieu de 4 077.
 
 **Où vont les réglages :**
 - **les secrets et les accès** (jeton Discord, adresse de Kuma) sont dans le `docker-compose.yml`, côté serveur ;
@@ -420,6 +420,7 @@ INFO diagnostic : 192.168.1.50 /meteo?ville=Lyon -> 200, 250 o, 312.4 ms, X-Req=
 
 **Côté afficheur** (page **Diagnostic** de l'interface, `/debug` ; données brutes sur `/debug.json`) :
 - toujours tenus : requêtes par type et pire durée, réussites, échecs par cause (connexion impossible, délai dépassé, connexion perdue, code HTTP, JSON illisible, image incomplète), temporisations déclenchées, appels et images sautés pendant une temporisation, déconnexions Wi-Fi et leur raison (code du SDK), dernier échec et dernière temporisation ;
+- mémoire pendant la construction de l'onglet Pages (3.3.0, `/debug.json`, clé `pages`) : nombre d'ouvertures, taille annoncée de `/modules`, mémoire libre et plus grand bloc les plus bas relevés pendant la dernière ouverture (`tas_min`, `bloc_min`) et depuis le démarrage (`tas_min_depuis_demarrage`, `bloc_min_depuis_demarrage`). C'est là que `/modules` entier, les champs et une liste sont en mémoire ensemble ; les minimums généraux (`tas_min`, `bloc_min` hors de `pages`), relevés une fois par seconde entre deux tâches, ne voient pas ce pic ;
 - en mode diagnostic (bouton « Activer », gardé en mémoire vive, arrêté au redémarrage) : journal des 32 dernières requêtes (numéro `X-Req`, route, résultat, temps jusqu'aux en-têtes, temps total, octets, signal Wi-Fi) et sonde `/ping` toutes les 30 s (temps de base du réseau).
 
 **Lecture croisée** :

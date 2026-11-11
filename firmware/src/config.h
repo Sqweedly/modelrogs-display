@@ -86,6 +86,7 @@ struct Config {
   uint8_t reserve[8];   // place libre pour de futurs réglages (initialisée à 0)
                         // reserve[0] : pages apparues sans changement de structure, déjà
                         // activées une fois (bit RES_PAGE_TESLA, 2.15)
+                        // reserve[2], reserve[3] : pages 16 à 31 (3.3.0, voir pagesMask)
                         // reserve[1] : personnages masqués (3.1.0) ; bit à 0 = affiché,
                         // donc activés d'office à la mise à jour (voir persoActif)
 
@@ -100,7 +101,11 @@ extern Config cfg;
 
 void loadConfig();
 void saveConfig();
+// Pages actives (3.3.0 : jusqu'à 32 pages, voir pagesMask dans config.cpp)
+uint32_t pagesMask();
+void setPagesMask(uint32_t m);
 bool pageEnabled(uint8_t page);
+void setPageEnabled(uint8_t page, bool actif);
 // Personnage du domaine (3.1.0) : Heure (Nimbus et Pousse), Tesla (Volta),
 // Supervision (Bip). Autres pages : false.
 bool persoActif(uint8_t page);

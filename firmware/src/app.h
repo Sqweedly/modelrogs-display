@@ -115,8 +115,8 @@ struct SupState {
 // Modules annoncés par la passerelle (/modules)
 struct ModulesState {
   bool     known = false;   // manifeste lu au moins une fois
-  uint16_t present = 0;     // bit n : module de la page n activé sur la passerelle
-  uint16_t ok = 0;          // bit n : module activé ET configuré
+  uint32_t present = 0;     // bit n : module de la page n activé sur la passerelle (32 pages, 3.3.0)
+  uint32_t ok = 0;          // bit n : module activé ET configuré
   uint32_t lastFetch = 0;
   char     version[12] = "";
 };

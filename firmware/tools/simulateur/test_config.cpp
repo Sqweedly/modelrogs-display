@@ -132,6 +132,27 @@ int main() {
     CHECK(modParams(PG_TESLA) == cfg.pPlex && modParam(PG_TESLA, "x") == "", "page Tesla : aucun reglage");
   }
 
+  // 4b2. 3.2.x -> 3.3.0 : pages sur 32 bits (cfg.pages + reserve[2], reserve[3])
+  {
+    Config v{};
+    memcpy(&v, &cfg, sizeof(cfg));
+    v.pages = (uint16_t)((1u << PG_HEURE) | (1u << PG_PLEX) | (1u << PG_TESLA));
+    v.reserve[2] = v.reserve[3] = 0;
+    ecrire(v); loadConfig();
+    CHECK(pagesMask() == v.pages && cfg.reserve[2] == 0 && cfg.reserve[3] == 0 && pageEnabled(PG_PLEX)
+          && !pageEnabled(PG_METEO), "3.2.x -> 3.3.0 : pages relues a l'identique");
+    setPagesMask(0xA5C30000u | pagesMask());
+    CHECK(pagesMask() >> 16 == 0xA5C3 && cfg.reserve[2] == 0xC3 && cfg.reserve[3] == 0xA5 && (uint16_t)pagesMask() == v.pages,
+          "pages 16 a 31 : rangees dans reserve[2] et reserve[3]");
+    saveConfig(); loadConfig();
+    CHECK(pagesMask() == v.pages, "pages au-dela des pages existantes : effacees a la relecture");
+    setPageEnabled(PG_METEO, true); setPageEnabled(PG_PLEX, false); setPageEnabled(40, true);
+    CHECK(pageEnabled(PG_METEO) && !pageEnabled(PG_PLEX) && !pageEnabled(40) && !pageEnabled(PG_COUNT),
+          "setPageEnabled : page cochee, decochee, hors limites sans effet");
+    setPageEnabled(PG_HEURE, false); saveConfig(); loadConfig();
+    CHECK(pageEnabled(PG_HEURE), "page Heure toujours active (masque 32 bits)");
+  }
+
   // 4c. 3.0.x (reserve[1] vide) -> 3.1.0 : personnages affiches, reglage conserve
   {
     Config v{};

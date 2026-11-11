@@ -29,10 +29,14 @@ void diagBegin() {
 uint32_t diagNouvelId() { return ++prochainId; }
 uint32_t diagDernierId() { return prochainId; }
 
+static uint32_t derniersOctetsJson = 0;   // 3.3.0 : taille annoncée de la dernière réponse JSON
+uint32_t diagDerniersOctets() { return derniersOctetsJson; }
+
 void diagRequete(uint8_t type, uint32_t id, const char* chemin, int16_t code,
                  uint32_t enTetesMs, uint32_t totalMs, uint32_t octets) {
   if (type >= DG_NB) return;
   cpt.requetes[type]++;
+  if (type == DG_JSON) derniersOctetsJson = octets;
   if (totalMs > cpt.maxMs[type]) cpt.maxMs[type] = totalMs > 0xFFFF ? 0xFFFF : totalMs;
   if (code == 200 || code == DG_SOURCE) {
     cpt.reussies++;

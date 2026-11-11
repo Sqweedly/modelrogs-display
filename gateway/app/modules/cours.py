@@ -187,19 +187,26 @@ def params(exemple: str) -> list[dict]:
 
 
 def compacter(entree: dict) -> dict:
-    """Entrée de /modules au format compact (3.2.0, afficheur qui demande
-    /modules?f=2) pour une page de cours : les 3 listes, la saisie et la note sont
-    construites par l'afficheur ; restent la marque « f »: « c » et l'exemple de
-    saisie « ph ». Les options « o » sont remplacées par la route /<id>/liste.
-    Les autres modules sont rendus tels quels."""
+    """Entrée de /modules au format compact (afficheur 3.2.0 et suivants, qui
+    demande /modules?f=2) :
+    - page de cours (3.2.0) : les 3 listes, la saisie et la note sont construites
+      par l'afficheur ; restent la marque « f »: « c » et l'exemple de saisie
+      « ph » ; les options « o » sont remplacées par la route /<id>/liste ;
+    - champs vides (3.3.0) : « err » vide et « p » vide ne sont pas envoyés.
+    Les autres champs sont rendus tels quels."""
     p = entree.get("p") or []
-    if [x.get("k") for x in p] != ["s1", "s2", "s3", "m"]:
-        return entree
-    compacte = {k: v for k, v in entree.items() if k not in ("p", "nt", "o")}
-    compacte["f"] = "c"
-    compacte["ph"] = p[3].get("ph", "")
-    if "o" in entree:
-        compacte["src"] = f"/{entree['id']}/liste"
+    if [x.get("k") for x in p] == ["s1", "s2", "s3", "m"]:
+        compacte = {k: v for k, v in entree.items() if k not in ("p", "nt", "o")}
+        compacte["f"] = "c"
+        compacte["ph"] = p[3].get("ph", "")
+        if "o" in entree:
+            compacte["src"] = f"/{entree['id']}/liste"
+    else:
+        compacte = dict(entree)
+    if compacte.get("err") == "":
+        del compacte["err"]
+    if compacte.get("p") == []:
+        del compacte["p"]
     return compacte
 
 

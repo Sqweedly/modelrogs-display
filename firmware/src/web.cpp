@@ -462,6 +462,7 @@ static String libelleOption(JsonArray options, const String& id) {
 static bool pageDeCours(JsonObject mod) { return strcmp(mod["f"] | "", "c") == 0; }
 
 static JsonArray champsModule(JsonObject mod, JsonDocument& tmp) {
+  // Autres modules : champs envoyés par la passerelle (absents au format compact s'ils sont vides)
   if (!pageDeCours(mod)) return mod["p"].as<JsonArray>();
   JsonArray a = tmp.to<JsonArray>();
   for (uint8_t i = 1; i <= 3; i++) {
@@ -503,9 +504,30 @@ static String resumeReglages(uint8_t p, JsonArray champs, JsonObject mod, JsonAr
   return r;
 }
 
+// Mémoire pendant la construction de l'onglet Pages (3.3.0, /debug « pages ») :
+// c'est là que /modules entier, les champs construits et une liste sont en
+// mémoire ensemble. Relevé après la lecture de /modules et à chaque page.
+struct MesurePages {
+  uint32_t ouvertures = 0, octets = 0;
+  uint32_t tas = 0, bloc = 0;                       // dernière ouverture : minimums
+  uint32_t tasMin = UINT32_MAX, blocMin = UINT32_MAX;   // depuis le démarrage
+};
+static MesurePages gMesurePages;
+static uint32_t mesTas, mesBloc;
+
+static void mesurer() {
+  mesTas = min(mesTas, (uint32_t)ESP.getFreeHeap());
+  mesBloc = min(mesBloc, (uint32_t)ESP.getMaxFreeBlockSize());
+}
+
 static void renderModules(Chunks& c) {
   JsonDocument man;
+  mesTas = mesBloc = UINT32_MAX;
   int code = gwGet("/modules?f=2", man, nullptr, true);   // ?f=2 : voir champsModule
+  // Taille annoncée de /modules, relevée tout de suite : les listes demandées
+  // ensuite pour chaque page deviennent à leur tour « la dernière réponse »
+  const uint32_t octetsModules = code == 200 ? diagDerniersOctets() : 0;
+  mesurer();
   auto trouver = [&](uint8_t p) {
     JsonObject mod;
     if (code == 200)
@@ -607,8 +629,15 @@ static void renderModules(Chunks& c) {
     renderPerso(c, p);
     if (moduleUsable(p)) c << F("<a class='sm' href='/show?p=") << (long)p << F("'>Afficher maintenant</a>");
     c << F("</div></details>");
+    mesurer();   // liste du module et champs encore en mémoire
     c.flush();
   }
+  gMesurePages.ouvertures++;
+  gMesurePages.octets = octetsModules;
+  gMesurePages.tas = mesTas;
+  gMesurePages.bloc = mesBloc;
+  gMesurePages.tasMin = min(gMesurePages.tasMin, mesTas);
+  gMesurePages.blocMin = min(gMesurePages.blocMin, mesBloc);
   c << F("</div><div class='carte' style='margin-top:12px'>");
   curseur(c, "duree", "Durée de chaque page", 5, 120, 5, cfg.pageSec, "s");
   c << F("</div><p class='note'>Discord, Plex et Tesla passent en tête quand quelqu'un arrive dans le salon, "
@@ -826,8 +855,7 @@ static void handleSave() {
     for (uint8_t p = 0; p < PG_COUNT; p++) {
       // Seules les pages affichées dans le formulaire sont modifiées.
       if (server.hasArg(String("pk") + p)) {
-        if (server.hasArg(String("pg") + p)) cfg.pages |= 1u << p;
-        else cfg.pages &= ~(1u << p);
+        setPageEnabled(p, server.hasArg(String("pg") + p));
       }
       if (server.hasArg(String("pm") + p)) saveModuleParams(p);
       if (server.hasArg(String("pp") + p)) persoRegler(p, server.hasArg(String("ps") + p));
@@ -952,6 +980,12 @@ static void handleDebugJson() {
     << F(",\"ip\":\"") << WiFi.localIP().toString() << F("\",\"tas\":") << (long)ESP.getFreeHeap()
     << F(",\"tas_min\":") << (long)santeMinTasLibre() << F(",\"bloc\":") << (long)ESP.getMaxFreeBlockSize()
     << F(",\"bloc_min\":") << (long)santeMinBlocLibre() << F(",\"frag\":") << (long)ESP.getHeapFragmentation()
+    << F(",\"pages\":{\"ouvertures\":") << (long)gMesurePages.ouvertures
+    << F(",\"modules_octets\":") << (long)gMesurePages.octets
+    << F(",\"tas_min\":") << (long)(gMesurePages.ouvertures ? gMesurePages.tas : 0)
+    << F(",\"bloc_min\":") << (long)(gMesurePages.ouvertures ? gMesurePages.bloc : 0)
+    << F(",\"tas_min_depuis_demarrage\":") << (long)(gMesurePages.ouvertures ? gMesurePages.tasMin : 0)
+    << F(",\"bloc_min_depuis_demarrage\":") << (long)(gMesurePages.ouvertures ? gMesurePages.blocMin : 0) << F("}")
     << F(",\"compteurs\":{\"json\":") << (long)k.requetes[DG_JSON] << F(",\"images\":") << (long)k.requetes[DG_IMG]
     << F(",\"sondes\":") << (long)k.sondes << F(",\"reussies\":") << (long)k.reussies
     << F(",\"connexion\":") << (long)k.connexion << F(",\"delai\":") << (long)k.delai << F(",\"perdue\":") << (long)k.perdue

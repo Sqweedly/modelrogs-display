@@ -6,6 +6,7 @@
 
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
+#include <lwip/priv/tcp_priv.h>   // listes des connexions TCP de lwIP (3.5.0, lecture seule)
 
 int gwLastCode = 0;
 uint32_t gwLastOkMs = 0;
@@ -332,4 +333,21 @@ const char* gwErrorText(int code) {
     case -5:  return "Source indisponible";
     default:  return "Erreur HTTP";
   }
+}
+
+// ------------------------------------------------------------ Mesures réseau (3.5.0)
+// lwIP tient ses connexions dans des listes chaînées globales (tcp_priv.h) ;
+// tcp_tw_pcbs : connexions fermées encore en TIME_WAIT, qui gardent leur
+// mémoire quelques minutes (PR esp8266/Arduino #8738). On les compte
+// seulement, depuis loop() : lwIP tourne dans le même contexte, sans fil
+// d'exécution concurrent.
+static uint8_t compter(const struct tcp_pcb* p) {
+  uint8_t n = 0;
+  for (; p && n < 255; p = p->next) n++;
+  return n;
+}
+
+void reseauReleve() {
+  diagTcp(compter(tcp_tw_pcbs), compter(tcp_active_pcbs), (uint16_t)sizeof(struct tcp_pcb),
+          (uint8_t)WiFi.getSleepMode());
 }

@@ -389,6 +389,11 @@ void loop() {
   // --- Redémarrage préventif (2 h 15), filet de sécurité mémoire, mesures
   santeTick(timeValid(), localMinuteOfDay(), nuit);
   memoPurger();   // 3.4.0 : copies de plus de 30 min rendues
+  static uint32_t releveMs = 0;   // 3.5.0 : connexions TCP et veille, une fois par seconde
+  if (millis() - releveMs >= 1000) {
+    releveMs = millis();
+    reseauReleve();
+  }
 
   applyBacklight(brightness);
 
@@ -410,6 +415,12 @@ void loop() {
   uint32_t now = millis();
 
   // --- Données de fond
+  // 3.5.0 (backlog n° 32) : durée du tour et mémoire libre avant et après, si
+  // au moins une requête est partie (numéro X-Req avancé). Relevé seulement ;
+  // getFreeHeap() est une simple lecture, getMaxFreeBlockSize() parcourt le
+  // tas : appelé seulement après un tour avec requêtes.
+  const uint32_t idFond = diagDernierId();
+  const uint32_t tasFond = ESP.getFreeHeap();
   if (gMods.lastFetch == 0 || now - gMods.lastFetch > (gMods.known ? MODULES_MS : TIME_RETRY_MS)) {
     fetchModules();
   }
@@ -435,6 +446,11 @@ void loop() {
   if (!nuit && pageEnabled(PG_TESLA) && moduleUsable(PG_TESLA) &&
       (gTesla.lastPoll == 0 || now - gTesla.lastPoll > TESLA_POLL_MS)) {
     if (pollTesla()) priorityTesla = true;
+  }
+  if (diagDernierId() != idFond) {
+    const uint32_t n = diagDernierId() - idFond;
+    diagFond(n > 255 ? 255 : (uint8_t)n, millis() - now, tasFond, ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+    reseauReleve();
   }
   bool supAlert = pageEnabled(PG_SUP) && moduleUsable(PG_SUP) && gSup.alert;
 

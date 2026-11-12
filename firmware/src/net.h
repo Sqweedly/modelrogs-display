@@ -37,6 +37,9 @@ const char* gwErrorText(int code);
 // Sonde réseau du mode diagnostic (diag.h) : GET /ping toutes les 30 s, sans
 // effet sur la temporisation des autres appels. À appeler dans loop().
 void netSonde();
+// 3.5.0 (backlog n° 32) : relève les connexions TCP (TIME_WAIT, actives) et le
+// mode de veille du Wi-Fi dans diagReseau(). Lecture seule.
+void reseauReleve();
 
 String urlEncode(const char* s);
 

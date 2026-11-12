@@ -977,6 +977,7 @@ static void handleDebugJson() {
   Chunks c;
   uint32_t okSondes = k.sondes - k.sondesKo;
   const MemoStats m = memoStats();   // 3.4.0 : réponses gardées (memo.h)
+  const DiagReseau& r = diagReseau();   // 3.5.0 : mesures réseau (backlog n° 32)
   c << F("{\"diag\":") << (long)diagActif() << F(",\"version\":\"") << FW_VERSION << F("\",\"depuis_s\":") << (long)(millis() / 1000)
     << F(",\"rssi\":") << (long)WiFi.RSSI() << F(",\"canal\":") << (long)WiFi.channel()
     << F(",\"ip\":\"") << WiFi.localIP().toString() << F("\",\"tas\":") << (long)ESP.getFreeHeap()
@@ -991,6 +992,21 @@ static void handleDebugJson() {
     << F(",\"memo\":{\"entrees\":") << (long)m.entrees << F(",\"octets\":") << (long)m.octets
     << F(",\"servies\":") << (long)m.servies << F(",\"secours\":") << (long)m.secours
     << F(",\"demandees\":") << (long)m.demandees << F("}")
+    << F(",\"reseau\":{\"veille\":") << (long)(r.veille == 255 ? -1 : r.veille)
+    << F(",\"fond\":{\"tours\":") << (long)r.tours << F(",\"requetes\":") << (long)r.requetes
+    << F(",\"moyenne_ms\":") << (long)(r.tours ? r.sommeMs / r.tours : 0)
+    << F(",\"dernier_ms\":") << (long)r.dernierMs << F(",\"dernier_n\":") << (long)r.dernierN
+    << F(",\"max_ms\":") << (long)r.maxMs << F(",\"max_n\":") << (long)r.maxN
+    << F(",\"max_il_y_a_s\":") << (r.maxQuandMs ? (long)((millis() - r.maxQuandMs) / 1000) : -1L)
+    << F(",\"tas_avant\":") << (long)r.tasAvant << F(",\"tas_apres\":") << (long)r.tasApres
+    << F(",\"bloc_apres\":") << (long)r.blocApres
+    << F(",\"pire_baisse_tas\":") << (long)r.pireBaisseTas
+    << F(",\"pire_baisse_il_y_a_s\":") << (r.pireBaisseQuandMs ? (long)((millis() - r.pireBaisseQuandMs) / 1000) : -1L)
+    << F("},\"tcp\":{\"time_wait\":") << (long)r.timeWait << F(",\"time_wait_max\":") << (long)r.timeWaitMax
+    << F(",\"actives\":") << (long)r.actives << F(",\"octets_par_connexion\":") << (long)r.pcbOctets
+    << F("},\"web\":{\"pause_max_ms\":") << (long)r.pauseMaxMs
+    << F(",\"pause_max_il_y_a_s\":") << (r.pauseMaxQuandMs ? (long)((millis() - r.pauseMaxQuandMs) / 1000) : -1L)
+    << F(",\"pauses_1s\":") << (long)r.pauses1s << F(",\"pauses_5s\":") << (long)r.pauses5s << F("}}")
     << F(",\"compteurs\":{\"json\":") << (long)k.requetes[DG_JSON] << F(",\"images\":") << (long)k.requetes[DG_IMG]
     << F(",\"sondes\":") << (long)k.sondes << F(",\"reussies\":") << (long)k.reussies
     << F(",\"connexion\":") << (long)k.connexion << F(",\"delai\":") << (long)k.delai << F(",\"perdue\":") << (long)k.perdue
@@ -1060,6 +1076,11 @@ void webBegin() {
 }
 
 void webTick() {
+  // 3.5.0 (backlog n° 32) : temps écoulé depuis le passage précédent, pendant
+  // lequel l'interface web ne pouvait pas répondre
+  static uint32_t finPrecedent = 0;
+  if (finPrecedent) diagPause(millis() - finPrecedent);
   dnsServer.processNextRequest();
   server.handleClient();
+  finPrecedent = millis();
 }

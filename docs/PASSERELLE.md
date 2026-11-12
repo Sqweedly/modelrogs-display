@@ -425,6 +425,12 @@ INFO diagnostic : 192.168.1.50 /meteo?ville=Lyon -> 200, 250 o, 312.4 ms, X-Req=
 **Côté afficheur** (page **Diagnostic** de l'interface, `/debug` ; données brutes sur `/debug.json`) :
 - toujours tenus : requêtes par type et pire durée, réussites, échecs par cause (connexion impossible, délai dépassé, connexion perdue, code HTTP, JSON illisible, image incomplète), temporisations déclenchées, appels et images sautés pendant une temporisation, déconnexions Wi-Fi et leur raison (code du SDK), dernier échec et dernière temporisation ;
 - mémoire pendant la construction de l'onglet Pages (3.3.0, `/debug.json`, clé `pages`) : nombre d'ouvertures, taille annoncée de `/modules`, mémoire libre et plus grand bloc les plus bas relevés pendant la dernière ouverture (`tas_min`, `bloc_min`) et depuis le démarrage (`tas_min_depuis_demarrage`, `bloc_min_depuis_demarrage`). C'est là que `/modules` entier, les champs et une liste sont en mémoire ensemble ; les minimums généraux (`tas_min`, `bloc_min` hors de `pages`), relevés une fois par seconde entre deux tâches, ne voient pas ce pic ;
+- réponses gardées 10 minutes (3.4.0, clé `memo`) : copies gardées et mémoire occupée, affichages servis depuis la mémoire, copies périmées affichées, requêtes envoyées ;
+- mesures réseau (3.5.0, clé `reseau`, relevés seulement, valeurs « max » et « pire » depuis le démarrage) :
+  - `veille` : mode de veille du Wi-Fi (`0` aucune, `1` légère, `2` modem, `-1` pas encore relevé) ;
+  - `fond` : tours de boucle où des requêtes de fond sont parties (liste des modules, heure, Discord, Supervision, Plex, Tesla). On y trouve le nombre de tours et de requêtes, la durée moyenne, celle du dernier tour et celle du plus long avec son nombre de requêtes, la mémoire libre juste avant et juste après le dernier tour, le plus grand bloc après, et la pire baisse de mémoire libre pendant un tour ;
+  - `tcp` : connexions fermées encore en TIME_WAIT (actuel et maximum), connexions ouvertes, mémoire d'une connexion (relevé une fois par seconde) ;
+  - `web` : la plus longue pause entre deux passages de l'interface web (pendant laquelle elle ne répond pas : requêtes, dessin d'une page, réception d'une photo), et le nombre de pauses de plus de 1 s et de plus de 5 s ;
 - en mode diagnostic (bouton « Activer », gardé en mémoire vive, arrêté au redémarrage) : journal des 32 dernières requêtes (numéro `X-Req`, route, résultat, temps jusqu'aux en-têtes, temps total, octets, signal Wi-Fi) et sonde `/ping` toutes les 30 s (temps de base du réseau).
 
 **Lecture croisée** :

@@ -145,3 +145,47 @@ const __FlashStringHelper* diagNomType(uint8_t type) {
     default:      return F("?");
   }
 }
+
+// ------------------------------------------------------------ Mesures réseau (3.5.0)
+static DiagReseau res = []() { DiagReseau r{}; r.veille = 255; return r; }();
+
+void diagFond(uint8_t n, uint32_t ms, uint32_t tasAvant, uint32_t tasApres, uint16_t blocApres) {
+  if (!n) return;
+  const uint16_t ms16 = ms > 0xFFFF ? 0xFFFF : (uint16_t)ms;
+  res.tours++;
+  res.requetes += n;
+  res.sommeMs += ms;
+  res.dernierMs = ms16;
+  res.dernierN = n;
+  if (ms16 >= res.maxMs) {
+    res.maxMs = ms16;
+    res.maxN = n;
+    res.maxQuandMs = millis();
+  }
+  res.tasAvant = tasAvant;
+  res.tasApres = tasApres;
+  res.blocApres = blocApres;
+  if (tasAvant > tasApres && tasAvant - tasApres > res.pireBaisseTas) {
+    res.pireBaisseTas = tasAvant - tasApres;
+    res.pireBaisseQuandMs = millis();
+  }
+}
+
+void diagTcp(uint8_t timeWait, uint8_t actives, uint16_t pcbOctets, uint8_t veille) {
+  res.timeWait = timeWait;
+  if (timeWait > res.timeWaitMax) res.timeWaitMax = timeWait;
+  res.actives = actives;
+  res.pcbOctets = pcbOctets;
+  res.veille = veille;
+}
+
+void diagPause(uint32_t ms) {
+  if (ms > 1000) res.pauses1s++;
+  if (ms > 5000) res.pauses5s++;
+  if (ms >= res.pauseMaxMs) {
+    res.pauseMaxMs = ms;
+    res.pauseMaxQuandMs = millis();
+  }
+}
+
+const DiagReseau& diagReseau() { return res; }

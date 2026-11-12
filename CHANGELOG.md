@@ -12,6 +12,41 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.5.0] — 2026-11-12 (beta)
+
+### Ajouté
+- **Mesures réseau dans `/debug.json`** (backlog n° 32), nouvelle clé `reseau`. Ce sont des relevés seulement : rien ne change dans le fonctionnement. Elles servent à décider des n° 31 (une requête de fond par tour), 33 (TIME_WAIT), 34 (veille du Wi-Fi) et 35 (relance du Wi-Fi) sur des chiffres.
+  - **`veille`** : mode de veille réel du Wi-Fi (`WiFi.getSleepMode()` : `0` aucune, `1` légère, `2` modem ; `-1` tant qu'il n'a pas été relevé).
+  - **`fond`** : chaque tour de `loop()` où au moins une requête de fond est partie (liste des modules, heure, Discord, Supervision, Plex, Tesla) :
+    - nombre de tours et de requêtes (nouveaux essais compris), durée moyenne ;
+    - dernier tour (`dernier_ms`, `dernier_n`) et tour le plus long (`max_ms`, `max_n`, `max_il_y_a_s`) ;
+    - mémoire libre juste avant et juste après le dernier tour (`tas_avant`, `tas_apres`), plus grand bloc après (`bloc_apres`) ;
+    - pire baisse de mémoire libre pendant un tour (`pire_baisse_tas`, `pire_baisse_il_y_a_s`).
+
+    Le plus grand bloc n'est relevé qu'après un tour avec requêtes : `getMaxFreeBlockSize()` parcourt tout le tas (`umm_info`, cœur 3.1.2), trop coûteux à chaque tour de boucle.
+  - **`tcp`** : connexions TCP de lwIP, relevées une fois par seconde et après chaque tour de fond. On y trouve les connexions fermées encore en TIME_WAIT (`time_wait`, `time_wait_max`), qui gardent leur mémoire quelques minutes, les connexions ouvertes (`actives`) et la mémoire d'une connexion (`octets_par_connexion`, `sizeof(struct tcp_pcb)`). Ce sont des lectures des listes `tcp_tw_pcbs` et `tcp_active_pcbs` (`lwip/priv/tcp_priv.h`), sans rien modifier.
+  - **`web`** : temps écoulé entre deux passages de l'interface web (`webTick()`). Pendant ce temps, elle ne peut pas répondre (requêtes, dessin d'une page, réception d'une photo). On y trouve la plus longue pause (`pause_max_ms`, `pause_max_il_y_a_s`) et le nombre de pauses de plus de 1 s et de plus de 5 s.
+
+### Compatibilité
+- Passerelle inchangée. Les clés existantes de `/debug.json` sont inchangées.
+
+### Outils
+- `test_web` : mesures vides au départ, puis :
+  - tours de fond (un tour sans requête est ignoré ; moyenne ; plus long tour) ;
+  - pire baisse de mémoire (une remontée n'est pas comptée) ;
+  - TIME_WAIT (le maximum reste) ;
+  - pauses de l'interface.
+- La lecture des listes de lwIP, du mode de veille et le relevé dans `loop()` ne sont pas exécutables sur PC : à vérifier sur l'afficheur.
+- Simulateur : 67 écrans identiques à la 3.4.0 ; `test_memo`, `test_nuit`, `test_persos`, `test_fit` et tests de la passerelle (Python 3.12) passés.
+
+### Mesures (compilation locale, PlatformIO 6.1.16)
+- Flash +1 576 octets (625 931), RAM statique +76 octets (38 460), code en IRAM inchangé (27 735 octets).
+
+### Essai
+- **Branche `beta`** (règle n° 9). Relever `/debug.json` après au moins 1 h de marche avec les pages habituelles, puis une fois en ouvrant l'interface pendant un changement de page Photos.
+
+---
+
 ## [3.4.0] — 2026-11-11
 
 ### Modifié
@@ -75,7 +110,7 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 - **À mesurer sur l'afficheur** (beta), dans `/debug.json` : les minimums de mémoire libre et du plus grand bloc, et la clé `memo`. Pendant la réception d'une réponse gardée, le texte est brièvement présent deux fois (copie de HTTPClient et copie gardée, 1,5 Ko au plus chacune).
 
 ### Essai
-- À tester sur la branche `beta` avant publication (règle n° 9).
+- Publiée par le propriétaire le 2026-11-12, fonctionnelle sur l'afficheur.
 
 ---
 

@@ -154,6 +154,32 @@ int main() {
            contient(h, ("\"pages\":{\"ouvertures\":2,\"modules_octets\":" + std::to_string(lire(dossier + "modules_v1.json").size()) + ",").c_str())
            && contient(h, "\"tas_min\":30216,\"bloc_min\":28896,")
            && contient(h, "\"bloc_min_depuis_demarrage\":28896}"));
+  verifier("debug.json : mesures réseau vides au départ (veille non relevée = -1)",
+           contient(h, "\"reseau\":{\"veille\":-1,\"fond\":{\"tours\":0,\"requetes\":0,\"moyenne_ms\":0,")
+           && contient(h, "\"max_il_y_a_s\":-1,") && contient(h, "\"pire_baisse_il_y_a_s\":-1}"));
+  // 3.5.0 (backlog n° 32) : relevés, puis lecture dans /debug.json
+  diagFond(0, 999, 1, 1, 1);                          // aucun envoi : ignoré
+  diagFond(3, 420, 30000, 29500, 19800);              // tour de 3 requêtes : baisse de 500 octets
+  g_millis += 2000;
+  diagFond(1, 80, 29800, 29900, 19900);               // la mémoire remonte : pas une baisse
+  diagTcp(4, 2, 160, 0);
+  diagTcp(1, 2, 160, 0);                              // le maximum reste à 4
+  diagPause(1500);
+  diagPause(6200);
+  diagPause(30);
+  g_millis += 3000;
+  h = appeler("/debug.json");
+  verifier("debug.json : tours de fond (2 tours, 4 requêtes, moyenne 250 ms, pire 420 ms à 3 requêtes il y a 5 s)",
+           contient(h, "\"fond\":{\"tours\":2,\"requetes\":4,\"moyenne_ms\":250,\"dernier_ms\":80,\"dernier_n\":1,"
+                       "\"max_ms\":420,\"max_n\":3,\"max_il_y_a_s\":5,"));
+  verifier("debug.json : mémoire du dernier tour et pire baisse (500 octets il y a 5 s)",
+           contient(h, "\"tas_avant\":29800,\"tas_apres\":29900,\"bloc_apres\":19900,"
+                       "\"pire_baisse_tas\":500,\"pire_baisse_il_y_a_s\":5}"));
+  verifier("debug.json : connexions TCP (1 en TIME_WAIT, 4 au plus) et veille aucune (0)",
+           contient(h, "\"reseau\":{\"veille\":0,")
+           && contient(h, "\"tcp\":{\"time_wait\":1,\"time_wait_max\":4,\"actives\":2,\"octets_par_connexion\":160}"));
+  verifier("debug.json : pauses de l'interface web (pire 6,2 s il y a 3 s ; 2 de plus de 1 s, 1 de plus de 5 s)",
+           contient(h, "\"web\":{\"pause_max_ms\":6200,\"pause_max_il_y_a_s\":3,\"pauses_1s\":2,\"pauses_5s\":1}}"));
 
   // --- Enregistrements : seuls les champs de l'onglet changent
   Config avant = cfg;

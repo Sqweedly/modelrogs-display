@@ -83,4 +83,44 @@ const DiagCompteurs& diagCompteurs();
 uint8_t diagNbEntrees();
 const DiagEntree* diagEntree(uint8_t rang);   // 0 = la plus récente
 String diagTexteCode(int16_t code);
+
+// =====================================================
+// Mesures réseau (3.5.0, backlog n° 32) : relevés seulement, aucun
+// changement de fonctionnement. Valeurs « max » et « pire » depuis le
+// démarrage. Servent à décider des n° 31, 33, 34 et 35 du backlog.
+// =====================================================
+struct DiagReseau {
+  // Requêtes de fond (liste des modules, heure, Discord, Supervision, Plex,
+  // Tesla) envoyées dans un même tour de loop()
+  uint32_t tours;             // tours avec au moins une requête de fond
+  uint32_t requetes;          // requêtes comptées dans ces tours (nouveaux essais compris)
+  uint32_t sommeMs;           // durée cumulée de ces tours
+  uint16_t dernierMs;         // dernier tour : durée
+  uint8_t  dernierN;          //   nombre de requêtes
+  uint16_t maxMs;             // tour le plus long : durée
+  uint8_t  maxN;              //   nombre de requêtes
+  uint32_t maxQuandMs;        //   millis() ; 0 = aucun
+  // Mémoire libre juste avant et juste après le dernier tour, et pire baisse ;
+  // plus grand bloc après seulement (le relever parcourt tout le tas, on ne
+  // le fait donc pas à chaque tour de loop())
+  uint32_t tasAvant, tasApres;
+  uint16_t blocApres;
+  uint32_t pireBaisseTas;     // tasAvant - tasApres, le plus grand constaté
+  uint32_t pireBaisseQuandMs;
+  // Connexions TCP (lwIP), relevées une fois par seconde et après chaque tour
+  uint8_t  timeWait;          // connexions fermées encore en TIME_WAIT
+  uint8_t  timeWaitMax;
+  uint8_t  actives;           // connexions ouvertes (actives)
+  uint16_t pcbOctets;         // mémoire d'une connexion (sizeof(struct tcp_pcb))
+  uint8_t  veille;            // WiFi.getSleepMode() : 0 aucune, 1 légère, 2 modem ; 255 = non relevé
+  // Interface web : temps écoulé entre deux passages de webTick()
+  uint32_t pauseMaxMs;
+  uint32_t pauseMaxQuandMs;
+  uint32_t pauses1s;          // pauses de plus de 1 s
+  uint32_t pauses5s;          // pauses de plus de 5 s
+};
+void diagFond(uint8_t n, uint32_t ms, uint32_t tasAvant, uint32_t tasApres, uint16_t blocApres);
+void diagTcp(uint8_t timeWait, uint8_t actives, uint16_t pcbOctets, uint8_t veille);
+void diagPause(uint32_t ms);
+const DiagReseau& diagReseau();
 const __FlashStringHelper* diagNomType(uint8_t type);

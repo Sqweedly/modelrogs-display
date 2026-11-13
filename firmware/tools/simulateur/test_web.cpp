@@ -9,6 +9,7 @@
 
 #include "../../src/web.cpp"   // même unité de compilation : accès au serveur (static)
 #include "diag.h"
+#include "memo.h"
 
 uint32_t g_millis = 7123456;   // 1 h 58 de marche
 bool gSafeMode = false;
@@ -61,9 +62,16 @@ int gwRelire(JsonDocument& doc, const String& texte) {   // 3.4.0 (memo.h)
   return deserializeJson(doc, texte.c_str(), texte.length()) ? -4 : 200;
 }
 
+static bool brutPermis = false;   // 3.5.1 : laisse memo.cpp garder la réponse
 int gwGetBrut(const String& path, JsonDocument& doc, String& brut) {   // 3.4.0 (memo.h)
   brut = String();
-  return gwGet(path, doc, nullptr, false);
+  const int code = gwGet(path, doc, nullptr, false);
+  if (brutPermis && code == 200) {
+    std::string t;
+    serializeJson(doc, t);
+    brut = String(t);
+  }
+  return code;
 }
 bool gwImage(const char*, int, int, int, int, uint16_t, int, bool) { return false; }
 
@@ -107,7 +115,17 @@ int main() {
   webBegin();
 
   // --- Rendu des 5 onglets
+  // 3.5.1 : l'onglet Pages rend les réponses gardées 10 min avant de se construire
+  brutPermis = true;
+  {
+    JsonDocument d;
+    memoGet("/modules?f=2", d);
+  }
+  brutPermis = false;
+  const uint8_t gardeesAvant = memoStats().entrees;
   std::string h = appeler("/");
+  verifier("onglet Pages : réponses gardées rendues avant sa construction (1 -> 0)",
+           gardeesAvant == 1 && memoStats().entrees == 0);
   ecrire("pages", h);
   verifier("Pages : 5 onglets, Pages en couleur", contient(h, "<a href='/' class='on'>") && contient(h, "Diagnostic</a>"));
   verifier("Pages : 3 listes et « Autre valeur » pour Crypto", contient(h, "name='p4_s1'") && contient(h, "name='p4_s3'")

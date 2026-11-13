@@ -12,6 +12,38 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.5.1] — 2026-11-13 (beta)
+
+D'après les mesures de la 3.5.0 relevées par le propriétaire (1 h 48 de marche, `/debug.json`).
+
+### Modifié
+- **Veille du Wi-Fi coupée** (`WiFi.setSleepMode(WIFI_NONE_SLEEP)`, backlog n° 34, essai).
+  - **Constat** : la 3.5.0 a relevé `reseau.veille` = 2, veille modem active, malgré le point d'accès. L'analyse supposait le contraire.
+  - **Pourquoi** : en veille LIGHT ou MODEM, les temporisateurs TCP passent de 250 ms à 3 s (documentation du cœur, `generic-class.rst` l.123).
+  - **Effet** : non démontré. C'est à comparer sur la beta avec la 3.5.0 :
+    - délais dépassés (`compteurs.delai` : 3 en 1 h 48, rattrapés par le second essai) ;
+    - pire image (`max_ms.image` : 4 438 ms) ;
+    - pire pause de l'interface (`web.pause_max_ms` : 4 450 ms).
+  - **Coût** : consommation un peu plus élevée ; l'afficheur est sur secteur.
+  - **Vérification** : `reseau.veille` doit valoir 0.
+- **Onglet Pages : les réponses gardées 10 min sont rendues avant sa construction** (`memoVider()`).
+  - **Constat** : la 3.5.0 a relevé, pendant l'ouverture de l'onglet, au plus bas 16 904 octets libres et un plus grand bloc de 15 048 octets. En 3.3.0, on avait relevé 23 240 et 21 080.
+  - **Cause probable** : les copies (4 205 octets en 11 réponses, plus le surcoût de leurs chaînes) et les connexions en TIME_WAIT (6 × 184 octets).
+  - **Effet** : environ 4 Ko de plus pendant ce moment, le plus gourmand en mémoire de l'interface.
+  - **Coût** : chaque page concernée redemande ses données à son prochain affichage, une fois.
+
+### Outils
+- `test_web` : l'onglet Pages rend les réponses gardées. Une requête d'essai de plus apparaît dans `out_web/diagnostic.html` (compteurs JSON 15 → 16).
+- Simulateur : 67 écrans identiques ; `test_memo`, `test_nuit`, `test_persos`, `test_fit` passés.
+
+### Mesures (compilation locale, PlatformIO 6.1.16)
+- Flash +64 octets (625 995), RAM statique inchangée (38 460), code en IRAM inchangé (27 735 octets).
+
+### Essai
+- **Branche `beta`.** Relever `/debug.json` après une durée comparable (environ 2 h), avec les mêmes pages, puis ouvrir l'onglet Pages et relever la clé `pages`.
+
+---
+
 ## [3.5.0] — 2026-11-12 (beta)
 
 ### Ajouté

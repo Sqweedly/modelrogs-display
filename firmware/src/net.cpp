@@ -34,6 +34,11 @@ static void startSta() {
 void netBegin() {
   WiFi.persistent(false);       // la configuration vit dans notre EEPROM
   WiFi.mode(WIFI_AP_STA);       // l'AP ne dépend jamais de la STA
+  // 3.5.1 (backlog n° 34, essai beta) : veille modem relevée active en 3.5.0
+  // (« veille » : 2). En veille LIGHT ou MODEM, les temporisateurs TCP passent
+  // de 250 ms à 3 s (doc du cœur, generic-class.rst). Afficheur sur secteur :
+  // veille coupée. Vérification : « reseau.veille » doit valoir 0.
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
   WiFi.setAutoReconnect(true);
   WiFi.hostname("modelrogs-display");
   startAp();

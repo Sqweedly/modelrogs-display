@@ -523,6 +523,10 @@ static void mesurer() {
 
 static void renderModules(Chunks& c) {
   JsonDocument man;
+  // 3.5.1 : les réponses gardées 10 min (memo.h, ~4 Ko relevés en 3.5.0) sont
+  // rendues avant de construire l'onglet, son moment le plus gourmand en
+  // mémoire ; chaque page concernée les redemande à son prochain affichage.
+  memoVider();
   mesTas = mesBloc = UINT32_MAX;
   int code = gwGet("/modules?f=2", man, nullptr, true);   // ?f=2 : voir champsModule
   // Taille annoncée de /modules, relevée tout de suite : les listes demandées

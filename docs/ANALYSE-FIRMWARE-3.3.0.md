@@ -108,3 +108,18 @@ Sources :
 - PR esp8266/Arduino #2767 (MEMP_NUM_TCP_PCB_TIME_WAIT) : https://github.com/esp8266/Arduino/pull/2767
 - Documentation du cœur ESP8266, generic-class.rst (setSleepMode)
 - ArduinoJson, « How to use ArduinoJson with HTTPClient »
+
+## 7. Mesures sur l'afficheur (3.5.0, 2026-11-12, 1 h 48 de marche)
+
+Relevé `/debug.json` du propriétaire. **V** = mesuré ; **S** = interprétation.
+
+| Mesure | Valeur | Conclusion |
+|---|---|---|
+| `reseau.veille` | 2 (modem) | **V**. Ma supposition de P4 (« veille probablement inactive en AP + STA ») était **fausse**. Essai en 3.5.1 : veille coupée. |
+| Tours de requêtes de fond | 2 270 tours, 2 308 requêtes, 39 ms en moyenne, pire 2 544 ms (2 requêtes) | **V**. Les requêtes ne s'accumulent presque jamais. Le pire tour correspond au délai dépassé sur `/plex` (même date). P1 / n° 31 : gain visible quasi nul aujourd'hui. |
+| Pauses de l'interface web | pire 4 450 ms, 46 de plus de 1 s, 0 de plus de 5 s | **S** : la pire pause égale presque la pire image (4 438 ms) ; ce sont donc les photos qui bloquent l'interface, pas les sondages. |
+| TIME_WAIT | 6 (max 6), 184 octets chacune | **V** : environ 1,1 Ko immobilisé. Sans plafond, on en attendrait une quarantaine (2 min chacune, une requête toutes les 2,8 s) ; il y a donc un plafond. Mécanisme non vérifié. P3 / n° 33 : petit gain. |
+| Onglet Pages, au plus bas | 16 904 octets libres, plus grand bloc 15 048 octets (contre 23 240 et 21 080 en 3.3.0) | **S** : baisse due aux réponses gardées (4 205 octets, 11 copies) et aux TIME_WAIT. Corrigé en 3.5.1 : copies rendues avant la construction de l'onglet. |
+| Réponses gardées | 188 servies depuis la mémoire, 99 demandées, 0 secours | **V** : environ 65 % de requêtes en moins sur ces pages. |
+| Délais dépassés | 3 sur 3 019 requêtes, tous rattrapés au second essai ; 0 déconnexion | **V**. P5 / n° 35 : rien à corriger. |
+

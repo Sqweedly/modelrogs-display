@@ -8,19 +8,19 @@ Légende : **V** = vérifié dans le code ou les sources du cœur ; **NV** = non
 ## Suite donnée (2026-11-11)
 
 - **P2** (`/meteo` redemandé par la page Heure) : traité en **3.4.0**, dans le cadre plus large de la copie gardée 10 minutes des données non dynamiques (`src/memo.cpp`).
-- Les autres propositions sont au backlog (`docs/CONTEXTE.md`) :
+- Les autres propositions ont été reportées au backlog (`docs/CONTEXTE.md`). Le 2026-11-13, le propriétaire a clos sans les traiter les n° 31, 33, 35, 36, 38 et 39 ; seul le n° 37 reste ouvert :
 
 | Proposition | Backlog |
 |---|---|
-| P1 | n° 31 |
-| Mesures sans changement de comportement | n° 32 |
-| P3 | n° 33 |
-| P4 | n° 34 |
-| P5 | n° 35 |
-| P6 | n° 36 |
+| P1 | n° 31, clos (2026-11-13) |
+| Mesures sans changement de comportement | n° 32, fait (3.5.0) |
+| P3 | n° 33, clos (2026-11-13) |
+| P4 | n° 34, fait (3.5.1) |
+| P5 | n° 35, clos (2026-11-13) |
+| P6 | n° 36, clos (2026-11-13) |
 | P7 | n° 37 |
-| P8 | n° 38 |
-| Mot de passe facultatif du point d'accès | n° 39 |
+| P8 | n° 38, clos (2026-11-13) |
+| Mot de passe facultatif du point d'accès | n° 39, clos (2026-11-13) |
 
 ## 1. Ce qui est déjà bien fait (à garder)
 

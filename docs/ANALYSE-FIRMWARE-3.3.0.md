@@ -123,3 +123,18 @@ Relevé `/debug.json` du propriétaire. **V** = mesuré ; **S** = interprétatio
 | Réponses gardées | 188 servies depuis la mémoire, 99 demandées, 0 secours | **V** : environ 65 % de requêtes en moins sur ces pages. |
 | Délais dépassés | 3 sur 3 019 requêtes, tous rattrapés au second essai ; 0 déconnexion | **V**. P5 / n° 35 : rien à corriger. |
 
+## 8. Mesures sur l'afficheur (3.5.1, 2026-11-13, 3 h 20 de marche, veille du Wi-Fi coupée)
+
+| Mesure | 3.5.0 | 3.5.1 | Conclusion |
+|---|---|---|---|
+| `veille` | 2 | 0 | **V** : réglage appliqué. |
+| Onglet Pages, au plus bas (libre / plus grand bloc) | 16 904 / 15 048 | 22 280 / 20 112 | **V** : environ +5 Ko, retour au niveau de la 3.3.0. |
+| Tour de fond : moyenne / pire | 39 / 2 544 ms | 34 / 1 196 ms | Un peu mieux. |
+| Délais dépassés | 1,7 par heure | 0,3 par heure | Mieux, sur 1 à 3 cas : pas significatif. |
+| Pire image / pire pause de l'interface | 4,4 / 4,45 s | 11,2 / 11,3 s | Un seul cas, avec un signal à −78 dBm contre −70 au relevé : cause non établie. |
+| Pauses de plus de 1 s | 25 par heure | 22 par heure | Inchangé : ce sont les photos. |
+
+**Décision** (2026-11-13) : veille coupée gardée. Au backlog :
+- n° 31 et 35 : suspendus ;
+- n° 33 : priorité basse.
+

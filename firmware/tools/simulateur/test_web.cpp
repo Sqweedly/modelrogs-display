@@ -1,3 +1,4 @@
+#include <regex>
 // Banc d'essai de l'interface web (3.0.0) : exécute le vrai web.cpp sur PC.
 // Chaque onglet est écrit dans out_web/<onglet>.html (à ouvrir dans un
 // navigateur), puis les enregistrements sont vérifiés (seuls les champs de
@@ -47,6 +48,7 @@ int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   else if (p == "/btc/liste") nom = "btc_liste";
   else if (p == "/custom/liste") nom = "custom_liste";
   else if (p == "/actions/liste") nom = "actions_liste";
+  else if (p == "/europe/liste") nom = "europe_liste";
   else if (p == "/devises/liste") nom = "devises_liste";
   else if (p == "/commodities/liste") nom = "commodities_liste";
   else if (p == "/immich/sources") nom = "immich_sources";
@@ -137,8 +139,21 @@ int main() {
   verifier("Pages : Discord non configuré signalé", contient(h, "non configuré"));
   verifier("Pages : Heure toujours active, sans champ", contient(h, "toujours active") && !contient(h, "name='pk0'"));
   verifier("Pages : Commodities décochée", contient(h, "name='pg8'>") || contient(h, "name='pg8'><b>"));
-  verifier("Pages : Actions, listes de /actions/liste (format compact)", contient(h, "name='p6_s1'")
-           && contient(h, "<option value='MC.PA'>LVMH</option>") && contient(h, "placeholder='ex. BNP.PA, ^FCHI'"));
+  verifier("Pages : Actions Monde, liste fixe de /actions/liste (format compact)", contient(h, "name='p6_s1'")
+           && contient(h, "<option value='NVDA'>Nvidia (NVDA)</option>") && contient(h, "placeholder='ex. BNP.PA, ADBE'"));
+  // 3.5.0 : section Marchés (seuils, 5 catégories, Personnalisée), puis Autres pages
+  verifier("Pages : sections Marchés et Autres pages, seuils 3 % et 5 %",
+           contient(h, "<h2>Marchés</h2>") && contient(h, "<h2>Autres pages</h2>") && contient(h, "name='sk' value='1'")
+           && contient(h, "name='s24' value='3'") && contient(h, "name='s7' value='5'")
+           && h.find("<h2>Marchés</h2>") < h.find("<b>Crypto</b>") && h.find("<b>Personnalisée</b>") < h.find("<h2>Autres pages</h2>")
+           && h.find("<h2>Autres pages</h2>") < h.find("<b>Photos</b>"));
+  verifier("Pages : catégories des marchés (mosaïque, « Mes 3 valeurs », sans valeurs du docker-compose)",
+           contient(h, "<b>Actions Europe</b><span>mosaïque</span>") && contient(h, "Mes 3 valeurs (page toujours affichée, facultatif)")
+           && contient(h, "parmi les 30 premières capitalisations") && contient(h, "parmi 20 matières premières")
+           && contient(h, "name='p7_s1'") && contient(h, "<option value='ASML.AS'>ASML (ASML)</option>")
+           && contient(h, "<b>Crypto</b><span>mosaïque · Bitcoin, Ethereum, Solana</span>"));
+  verifier("Pages : date des listes fixes (Actions Monde et Europe)",
+           contient(h, "<br><i class='pt'></i> liste mise à jour le 14/11/2026."));
   verifier("Pages : durées des Photos, liste de la passerelle (format compact)",
            contient(h, "<option value='90'>1 min 30 s</option>") && contient(h, "<option value='300'>5 min</option>"));
   verifier("Pages : note des pages de cours construite par l'afficheur",
@@ -147,8 +162,19 @@ int main() {
   modulesFixture = "modules_v1";
   {
     const std::string v1 = appeler("/");
-    verifier("Pages : passerelle d'avant la 3.2.0 (format d'origine), HTML identique", v1 == h);
-    if (v1 != h) ecrire("pages_v1", v1);
+    // 3.5.0 : la passerelle n'annonce pas Actions Europe ni la date des listes au format
+    // d'origine, et n'y donne que 10 options par liste ; le reste est identique
+    auto normaliser = [](std::string x) {
+      x = std::regex_replace(x, std::regex("Rotation · [0-9]+ pages actives"), "Rotation");
+      x = std::regex_replace(x, std::regex("<option[^>]*>[^<]*</option>"), "");
+      x = std::regex_replace(x, std::regex("<br><i class='pt( w)?'></i> liste mise à jour le [^<]*"), "");
+      x = std::regex_replace(x, std::regex("<details><summary class='ligne'><div class='ico' style='background:#162A4A'>.*?</details>"), "");
+      x = std::regex_replace(x, std::regex("<div class='ligne'><div class='ico' style='background:#162A4A'>.*?</label></div>"), "");
+      return x;
+    };
+    verifier("Pages : passerelle d'avant la 3.2.0 (format d'origine), HTML identique hors Actions Europe et dates",
+             normaliser(v1) == normaliser(h) && contient(v1, "<b>Actions Europe</b><span><i class='pt off'></i>module absent"));
+    if (normaliser(v1) != normaliser(h)) ecrire("pages_v1", v1);
   }
   modulesFixture = "modules";
   h = appeler("/ecran");
@@ -201,6 +227,13 @@ int main() {
 
   // --- Enregistrements : seuls les champs de l'onglet changent
   Config avant = cfg;
+  // 3.5.0 : seuils des marchés (virgule ou point, demi-points, plafond 20 %, saisie illisible ignorée)
+  appeler("/save", {{"o", "pages"}, {"sk", "1"}, {"s24", "3,5"}, {"s7", "25"}});
+  const bool seuils1 = seuil24() == 7 && seuil7() == 40;
+  appeler("/save", {{"o", "pages"}, {"sk", "1"}, {"s24", "abc"}, {"s7", "2.3"}});
+  verifier("Enregistrer : seuils 3,5 % et 25 % -> 3,5 et 20 ; « abc » ignoré, 2,3 -> 2,5",
+           seuils1 && seuil24() == 7 && seuil7() == 5);
+  reglerSeuils(6, 10);
   appeler("/save", {{"o", "ecran"}, {"nd", "23:00"}, {"nf", "06:30"}, {"lj", "70"}, {"ln", "0"}});
   verifier("Écran enregistré, nuit décochée = plage arrêtée, Wi-Fi intact", !cfg.nightOn && cfg.nightStart == 23 * 60
            && cfg.nightEnd == 6 * 60 + 30 && cfg.brightDay == 70 && cfg.brightNight == 0

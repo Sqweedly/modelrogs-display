@@ -28,7 +28,7 @@ async def main(dest):
         # modules : format compact (afficheur 3.2.0, ?f=2) ; modules_v1 : format d'origine
         # (passerelle plus ancienne), pour vérifier que l'interface est la même
         for nom, route in [("modules", "/modules?f=2"), ("modules_v1", "/modules"), ("btc_liste", "/btc/liste"),
-                           ("custom_liste", "/custom/liste"), ("actions_liste", "/actions/liste"),
+                           ("custom_liste", "/custom/liste"), ("actions_liste", "/actions/liste"), ("europe_liste", "/europe/liste"),
                            ("devises_liste", "/devises/liste"), ("commodities_liste", "/commodities/liste"),
                            ("immich_sources", "/immich/sources")]:
             d = await (await c.get(route)).json()

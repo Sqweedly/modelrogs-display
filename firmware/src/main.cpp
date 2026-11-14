@@ -187,7 +187,7 @@ static void showPage(uint8_t p, bool restartTimer = true) {
     case PG_SUP:     drawSupervision(idx, cnt); drawnSupVersion = gSup.version; break;
     case PG_BTC:
     case PG_ACTIONS:
-    case PG_DEVISES:
+    case PG_EUROPE:
     case PG_COMMO:
     case PG_INDICES:
     case PG_CUSTOM:  drawCours(p, idx, cnt); break;

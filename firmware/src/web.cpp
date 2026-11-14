@@ -404,8 +404,8 @@ static bool basculerDiag() {
 // Heure, Météo, Discord, Supervision, Crypto, Plex, Actions, Devises, Commodities,
 // Indices, Custom, Photos, Tesla
 // Une chaîne par page, séparée par '|' (en flash)
-static const char PG_ICONES[] PROGMEM = "🕒|⛅|🎧|📡|₿|▶|📈|💱|🛢|📊|⭐|🖼|🚗";
-static const char PG_FONDS[] PROGMEM = "#2B2550|#16324A|#24284A|#13372A|#3A2A12|#3A3212|#13372A|#24284A|#3A2F12|#16324A|#2B2550|#3A1D33|#3A1A1E";
+static const char PG_ICONES[] PROGMEM = "🕒|⛅|🎧|📡|₿|▶|🌍|🇪🇺|🛢|📊|⭐|🖼|🚗";   // 3.5.0 : Monde, Europe
+static const char PG_FONDS[] PROGMEM = "#2B2550|#16324A|#24284A|#13372A|#3A2A12|#3A3212|#13372A|#162A4A|#3A2F12|#16324A|#2B2550|#3A1D33|#3A1A1E";
 static_assert(PG_COUNT == 13, "PG_ICONES et PG_FONDS : une entrée par page");
 
 
@@ -482,7 +482,8 @@ static JsonArray champsModule(JsonObject mod, JsonDocument& tmp) {
 }
 
 // Résumé des réglages d'une page (« Bitcoin, Ethereum, Solana », « Au hasard · 30 s »)
-static String resumeReglages(uint8_t p, JsonArray champs, JsonObject mod, JsonArray optionsModule) {
+static String resumeReglages(uint8_t p, JsonArray champs, JsonObject mod, JsonArray optionsModule,
+                             bool avecDefaut = true) {
   String r;
   for (JsonObject param : champs) {
     const char* key = param["k"] | "";
@@ -501,8 +502,55 @@ static String resumeReglages(uint8_t p, JsonArray champs, JsonObject mod, JsonAr
     if (r.length()) r += param["g"] | 0 ? ", " : " · ";
     r += l;
   }
-  if (!r.length() && mod["df"].is<const char*>()) r = (const char*)(mod["df"] | "");
+  if (avecDefaut && !r.length() && mod["df"].is<const char*>()) r = (const char*)(mod["df"] | "");
   return r;
+}
+
+// Marchés (3.5.0) : contenu de la mosaïque d'une catégorie
+static const __FlashStringHelper* texteMosaique(uint8_t p) {
+  switch (p) {
+    case PG_BTC:     return F("Mosaïque : les 12 plus fortes variations sur 24 h parmi les 30 premières "
+                              "capitalisations (CoinGecko, sans stablecoins).");
+    case PG_INDICES: return F("Mosaïque : les 12 plus fortes variations sur 24 h parmi 20 indices.");
+    case PG_COMMO:   return F("Mosaïque : les 12 plus fortes variations sur 24 h parmi 20 matières premières.");
+    default:         return F("Mosaïque : les 12 plus fortes variations sur 24 h parmi 30 valeurs.");
+  }
+}
+
+// « 14/11/2026 » à partir de « 2026-11-14 »
+static String dateListe(const char* iso) {
+  if (strlen(iso) != 10) return "";
+  return String(iso + 8).substring(0, 2) + "/" + String(iso + 5).substring(0, 2) + "/" + String(iso).substring(0, 4);
+}
+
+// Seuils communs aux catégories des marchés (3.5.0)
+static void renderSeuils(Chunks& c) {
+  c << F("<details><summary class='ligne'><div class='ico' style='background:#1E2A44'>📏</div><div class='lib'>"
+         "<b>Seuils des marchés</b><span>24 h : ") << texteSeuil(seuil24()) << F(" % · 7 j : ")
+    << texteSeuil(seuil7()) << F(" % · pour toutes les catégories</span></div></summary><div class='ext'>"
+         "<input type='hidden' name='sk' value='1'>"
+         "<label>Variation sur 24 h qui ajoute une page à 3 valeurs (%)</label><div class='pile'>"
+         "<input type='text' inputmode='decimal' name='s24' value='") << texteSeuil(seuil24()) << F("'></div>"
+         "<label>Variation sur 7 jours qui ajoute une page sur 30 jours (%)</label><div class='pile'>"
+         "<input type='text' inputmode='decimal' name='s7' value='") << texteSeuil(seuil7()) << F("'></div>"
+         "<p class='note'>Après chaque mosaïque : les valeurs au-delà du seuil 24 h (2 pages au plus), puis celles "
+         "au-delà du seuil 7 j (3 pages au plus). De 0 à 20 %, par pas de 0,5. Seuil à 0 : toutes les valeurs.</p>"
+         "</div></details>");
+}
+
+// « 3,5 » ou « 3.5 » -> demi-points (7), de 0 à 20 %
+static uint8_t lireSeuil(const String& v, uint8_t actuel) {
+  // Partie entière, puis première décimale (arrondie au demi-point le plus proche)
+  const char* t = v.c_str();
+  while (*t == ' ') t++;
+  if (!*t || *t == '-') return *t ? 0 : actuel;
+  long dixiemes = 0;
+  bool chiffre = false;
+  for (; *t >= '0' && *t <= '9'; t++) { dixiemes = min(dixiemes * 10 + (*t - '0'), 1000L); chiffre = true; }
+  dixiemes *= 10;
+  if ((*t == ',' || *t == '.') && t[1] >= '0' && t[1] <= '9') { dixiemes += t[1] - '0'; chiffre = true; }
+  if (!chiffre) return actuel;
+  return (uint8_t)min(40L, (dixiemes + 2) / 5);   // dixièmes -> demi-points, au plus proche
 }
 
 // Mémoire pendant la construction de l'onglet Pages (3.3.0, /debug « pages ») :
@@ -554,6 +602,13 @@ static void renderModules(Chunks& c) {
 
   for (uint8_t i = 0; i < PG_COUNT; i++) {
     const uint8_t p = ROTATION[i];
+    // 3.5.0 : section « Marchés » (seuils, catégories, Personnalisée), puis « Autres pages »
+    if (i > 0 && pageCours(p) && !pageCours(ROTATION[i - 1])) {
+      c << F("</div><h2>Marchés</h2><div class='carte'>");
+      renderSeuils(c);
+    } else if (i > 0 && !pageCours(p) && pageCours(ROTATION[i - 1])) {
+      c << F("</div><h2>Autres pages</h2><div class='carte'>");
+    }
     JsonObject mod = trouver(p);
     const bool absent = code == 200 && mod.isNull();
     const bool configure = !mod.isNull() && (mod["ok"] | 0);
@@ -578,6 +633,12 @@ static void renderModules(Chunks& c) {
     else if (p == PG_HEURE) ligne = F("toujours active");
     else if (p == PG_METEO) { if (mod["v"].is<const char*>()) ligne = String((const char*)(mod["v"] | "")) + F(" · 5 jours"); }
     else if (phraseFixe(p).length()) { ligne = phraseFixe(p); pastille = F("on"); }
+    else if (configure && pageMarche(p)) {
+      const String choix = resumeReglages(p, champs, mod, optionsModule, false);
+      ligne = F("mosaïque");
+      if (choix.length()) ligne += String(F(" · ")) + choix;
+      if (mod["lv"] | 0) { ligne += F(" · liste à revoir"); pastille = F("w"); }
+    }
     else if (configure) ligne = resumeReglages(p, champs, mod, optionsModule);
     if (!absent && persoNom(p) && persoActif(p)) {
       if (ligne.length()) ligne += F(" · ");
@@ -606,11 +667,22 @@ static void renderModules(Chunks& c) {
     if (configure) {
       bool all = true;
       if (codeListe != 200) { erreurListe(c, codeListe, listeModule); all = false; }
+      const bool marche = pageMarche(p);
+      if (marche) {
+        c << F("<p class='note'>") << texteMosaique(p);
+        if (mod["ld"].is<const char*>() && (mod["ld"] | "")[0])
+          c << F("<br>") << ((mod["lv"] | 0) ? F("<i class='pt w'></i>") : F("<i class='pt'></i>"))
+            << F(" liste mise à jour le ") << dateListe(mod["ld"] | "")
+            << ((mod["lv"] | 0) ? F(" : plus de 15 jours, à revoir.") : F("."));
+        c << F("</p>");
+      }
       if (all) {
         bool grille = false;
         for (JsonObject param : champs) {
           bool g = param["g"] | 0;
-          if (g && !grille) c << F("<label>Valeurs 1 à 3 (listes fournies par la passerelle)</label><div class='pile'>");
+          if (g && !grille)
+            c << (marche ? F("<label>Mes 3 valeurs (page toujours affichée, facultatif)</label><div class='pile'>")
+                         : F("<label>Valeurs 1 à 3 (listes fournies par la passerelle)</label><div class='pile'>"));
           if (!g && grille) c << F("</div>");
           grille = g;
           if (g && strcmp(param["t"] | "", "text") == 0)
@@ -619,7 +691,7 @@ static void renderModules(Chunks& c) {
         }
         if (grille) c << F("</div>");
         const char* df = mod["df"] | "";
-        if (df[0]) c << F("<p class='note'>Rien de choisi : valeurs du docker-compose (") << esc(df) << F(").</p>");
+        if (df[0] && !marche) c << F("<p class='note'>Rien de choisi : valeurs du docker-compose (") << esc(df) << F(").</p>");
         const char* nt = mod["nt"] | "";
         if (nt[0]) c << F("<p class='note'>") << esc(nt) << F("</p>");
         else if (pageDeCours(mod)) c << F("<p class='note'>3 au plus, dans l&#39;ordre : listes 1 à 3, puis saisie</p>");
@@ -866,6 +938,7 @@ static void handleSave() {
       if (server.hasArg(String("pp") + p)) persoRegler(p, server.hasArg(String("ps") + p));
     }
     if (server.hasArg("duree")) cfg.pageSec = constrain(server.arg("duree").toInt(), 5, 120);
+    if (server.hasArg("sk")) reglerSeuils(lireSeuil(server.arg("s24"), seuil24()), lireSeuil(server.arg("s7"), seuil7()));
   }
 
   cfg.validated = 1;   // le premier Enregistrer valide la configuration

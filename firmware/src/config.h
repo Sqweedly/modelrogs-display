@@ -31,8 +31,8 @@ enum PageId : uint8_t {
   PG_SUP,
   PG_BTC,       // page « Crypto » (identifiant « btc » conservé)
   PG_PLEX,
-  PG_ACTIONS,   // 2.9 : pages de cours (même rendu que Crypto)
-  PG_DEVISES,
+  PG_ACTIONS,   // 2.9 : pages de cours (même rendu que Crypto) ; « Actions Monde » (3.5.0)
+  PG_EUROPE,    // 3.5.0 : « Actions Europe » (place de l'ancienne page Devises, même bit)
   PG_COMMO,
   PG_INDICES,   // 2.10 : indices boursiers (même rendu)
   PG_CUSTOM,    // 2.11 : 3 valeurs de toutes catégories (même rendu)
@@ -45,8 +45,11 @@ extern const char* const PAGE_NAMES[PG_COUNT];   // libellés affichés
 extern const char* const PAGE_IDS[PG_COUNT];     // identifiants des modules
 // Ordre d'affichage (rotation et interface) : les pages de cours se suivent.
 extern const uint8_t ROTATION[PG_COUNT];
-// Pages de cours : Crypto, Actions, Indices, Devises, Commodities, Custom
+// Pages de cours : Crypto, Actions Monde, Actions Europe, Indices, Matières premières, Personnalisée
 bool pageCours(uint8_t page);
+// Catégories des marchés (3.5.0) : pages de cours précédées d'une mosaïque
+// (toutes sauf Personnalisée)
+bool pageMarche(uint8_t page);
 
 struct Config {
   uint32_t magic;
@@ -79,7 +82,7 @@ struct Config {
   char pPlex[4];        // la page Plex n'a pas de réglage
   char pCrypto[72];     // pages de cours : 3 listes (s1, s2, s3) + saisie (m)
   char pActions[72];
-  char pDevises[72];
+  char pEurope[72];     // 3.5.0 : Actions Europe (ancien pDevises, repris dans pCustom à la mise à jour)
   char pCommo[72];
   char pIndices[56];    // 2.10 : pris sur `reserve` (structure 6, même taille que la 5)
 
@@ -87,6 +90,9 @@ struct Config {
                         // reserve[0] : pages apparues sans changement de structure, déjà
                         // activées une fois (bit RES_PAGE_TESLA, 2.15)
                         // reserve[2], reserve[3] : pages 16 à 31 (3.3.0, voir pagesMask)
+                        // reserve[4] : repères de reprise (3.5.0 : RES_MARCHES)
+                        // reserve[5], reserve[6] : seuils des marchés 24 h et 7 j, en demi-points
+                        //   de pour cent (3.5.0, voir seuil24 / seuil7)
                         // reserve[1] : personnages masqués (3.1.0) ; bit à 0 = affiché,
                         // donc activés d'office à la mise à jour (voir persoActif)
 
@@ -110,6 +116,14 @@ void setPageEnabled(uint8_t page, bool actif);
 // Supervision (Bip). Autres pages : false.
 bool persoActif(uint8_t page);
 void persoRegler(uint8_t page, bool actif);
+
+// Seuils des marchés (3.5.0), en demi-points de pour cent (6 = 3 %) : une
+// valeur de la mosaïque au-delà de seuil24 a une page à 3 valeurs, au-delà
+// de seuil7 (variation sur 7 jours) une page sur 30 jours.
+uint8_t seuil24();
+uint8_t seuil7();
+void reglerSeuils(uint8_t demi24, uint8_t demi7);
+String texteSeuil(uint8_t demi);   // 6 -> "3", 7 -> "3.5"
 
 // Réglages d'un module : tampon et taille.
 char*  modParams(uint8_t page);

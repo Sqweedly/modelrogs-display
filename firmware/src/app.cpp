@@ -57,6 +57,25 @@ String modulePath(uint8_t page) {
   path += PAGE_IDS[page];
   path += '?';
   path += modParams(page);
+  if (pageCours(page)) {          // 3.5.0 : seuil des pages sur 30 jours (« x »), réglable
+    if (modParams(page)[0]) path += '&';
+    path += "s7=";
+    path += texteSeuil(seuil7());
+  }
+  return path;
+}
+
+String cheminMarche(uint8_t page) {
+  String path = "/marche/";
+  path += PAGE_IDS[page];
+  path += "?s24=";
+  path += texteSeuil(seuil24());
+  path += "&s7=";
+  path += texteSeuil(seuil7());
+  if (modParams(page)[0]) {       // valeurs choisies : exclues des pages automatiques
+    path += '&';
+    path += modParams(page);
+  }
   return path;
 }
 

@@ -13,7 +13,8 @@ struct V3 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[6
 struct V4 { uint32_t magic; uint16_t version; char wifiSsid[33]; char wifiPass[65]; char apSsid[33]; char gateway[96]; char ville[48];
   uint8_t pages, pageSec, nightOn; uint16_t nightStart, nightEnd; uint8_t brightDay, brightNight; char pHeure[24], pMeteo[24], pDiscord[40], pSup[300], pBtc[24];
   uint8_t validated; char pCrypto[52]; char pPlex[4]; uint8_t ext26; uint8_t reserve[6]; };
-static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO) | (1 << PG_INDICES) | (1 << PG_CUSTOM) | (1 << PG_PHOTOS)
+static const uint8_t RES_MARCHES_TEST = 0x01;   // reserve[4], config.cpp
+static const uint16_t NOUVELLES = (1 << PG_ACTIONS) | (1 << PG_EUROPE) | (1 << PG_COMMO) | (1 << PG_INDICES) | (1 << PG_CUSTOM) | (1 << PG_PHOTOS)
                                | (1 << PG_TESLA);
 
 int main() {
@@ -53,7 +54,7 @@ int main() {
         && cfg.brightNight == 5, "2.8 -> 2.9 : duree, nuit, luminosites");
   CHECK(cfg.pages == (0x2F | NOUVELLES) && !strcmp(cfg.pDiscord, "salon=42"), "2.8 -> 2.9 : pages (+ pages de cours), salon");
   CHECK(!strcmp(cfg.pCrypto, "s1=bitcoin&s2=ethereum&s3=ripple"), "2.8 -> 2.9 : 3 cryptos reprises dans les 3 listes");
-  CHECK(!cfg.pActions[0] && !cfg.pDevises[0] && !cfg.pCommo[0], "2.8 -> 2.9 : pages de cours vides (valeurs du compose)");
+  CHECK(!cfg.pActions[0] && !cfg.pEurope[0] && !cfg.pCommo[0], "2.8 -> 2.9 : pages de cours vides (valeurs du compose)");
 
   // 3b. Configuration 2.5 (structure 4 sans les ajouts 2.6) validee
   c.ext26 = 0; memset(c.pCrypto, 0, sizeof(c.pCrypto)); c.pages = 0x1F; strcpy(c.pBtc, "ids=solana&devise=usd");
@@ -108,15 +109,44 @@ int main() {
   strcpy(cfg.pIndices, "s1=FCHI&s2=GSPC&m=%5EIBEX");
   strcpy(cfg.pCustom, "s1=c%3Abitcoin&s2=a%3ATSLA&s3=m%3AGC%3DF");
   strcpy(cfg.pPhotos, "s=a%3A1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b&duree=120");
-  cfg.pages &= ~(1 << PG_DEVISES); saveConfig();
+  cfg.pages &= ~(1 << PG_EUROPE); saveConfig();
   loadConfig();
   CHECK(cfg.validated == 1 && !strcmp(cfg.pActions, "s1=AAPL&s2=MC.PA&m=BNP.PA%2CORA.PA") && !strcmp(cfg.pCommo, "s1=GC%3DF")
-        && !(cfg.pages & 1 << PG_DEVISES) && (cfg.pages & 1 << PG_COMMO), "meme firmware -> reglages des pages de cours conserves");
+        && !(cfg.pages & 1 << PG_EUROPE) && (cfg.pages & 1 << PG_COMMO), "meme firmware -> reglages des pages de cours conserves");
   CHECK(modParam(PG_ACTIONS, "m") == "BNP.PA,ORA.PA" && modParam(PG_COMMO, "s1") == "GC=F", "reglages relus et decodes");
   CHECK(modParam(PG_INDICES, "s2") == "GSPC" && modParam(PG_INDICES, "m") == "^IBEX", "indices conserves et decodes");
   CHECK(modParam(PG_CUSTOM, "s1") == "c:bitcoin" && modParam(PG_CUSTOM, "s3") == "m:GC=F", "custom conserve et decode");
   CHECK(modParam(PG_PHOTOS, "s") == "a:1f2e3d4c-5b6a-7980-1a2b-3c4d5e6f7a8b" && modParam(PG_PHOTOS, "duree") == "120",
         "photos : album et duree conserves");
+
+  // 4a. 3.4.0 -> 3.5.0 : la page Devises devient Actions Europe ; ses devises passent
+  //     dans la page Personnalisee (cases libres) ; Europe activee comme Actions Monde ;
+  //     seuils par defaut 3 % et 5 % ; une seule fois.
+  {
+    Config v8{};
+    memcpy(&v8, &cfg, sizeof(cfg));
+    v8.reserve[4] = v8.reserve[5] = v8.reserve[6] = 0;
+    strcpy(v8.pEurope, "s1=EUR&m=JPY%2CGBP%20CHF");
+    strcpy(v8.pCustom, "s1=c%3Abitcoin&m=pepe");
+    v8.pages |= 1 << PG_EUROPE; v8.pages &= ~(1 << PG_ACTIONS) & ~(1 << PG_CUSTOM);
+    ecrire(v8); loadConfig();
+    CHECK(!strcmp(cfg.pCustom, "s1=c%3Abitcoin&s2=d%3AEUR&s3=d%3AJPY&m=pepe") && cfg.pEurope[0] == 0,
+          "3.4 -> 3.5 : devises reprises dans la page Personnalisee, Actions Europe vide");
+    CHECK(!(cfg.pages & 1 << PG_EUROPE) && (cfg.pages & 1 << PG_CUSTOM) && seuil24() == 6 && seuil7() == 10
+          && texteSeuil(seuil24()) == "3" && texteSeuil(7) == "3.5",
+          "3.4 -> 3.5 : Europe comme Actions Monde, Personnalisee activee, seuils 3 % et 5 %");
+    setPageEnabled(PG_EUROPE, true); reglerSeuils(5, 90); saveConfig(); loadConfig();
+    CHECK((cfg.pages & 1 << PG_EUROPE) && seuil24() == 5 && seuil7() == 40 && cfg.pEurope[0] == 0,
+          "3.5 : reprise faite une seule fois ; seuils conserves (plafond 20 %)");
+    v8.reserve[4] = 0;
+    strcpy(v8.pEurope, "s1=EUR"); strcpy(v8.pCustom, "s1=c%3Abitcoin&s2=a%3ATSLA&s3=i%3AFCHI");
+    v8.pages |= 1 << PG_ACTIONS;
+    ecrire(v8); loadConfig();
+    CHECK(!strcmp(cfg.pCustom, "s1=c%3Abitcoin&s2=a%3ATSLA&s3=i%3AFCHI") && (cfg.pages & 1 << PG_EUROPE),
+          "3.4 -> 3.5 : Personnalisee pleine, inchangee ; Europe activee avec Actions Monde");
+    memcpy(&cfg, &v8, sizeof(cfg)); cfg.reserve[4] = RES_MARCHES_TEST; strcpy(cfg.pCustom, "s1=c%3Abitcoin&s2=a%3ATSLA&s3=m%3AGC%3DF");
+    cfg.pEurope[0] = 0; reglerSeuils(6, 10); saveConfig(); loadConfig();
+  }
 
   // 4b. 2.12 a 2.14 (structure 8, reserve vide) -> 2.15 : page Tesla activee une fois
   {

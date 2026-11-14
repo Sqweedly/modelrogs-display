@@ -200,8 +200,10 @@ String urlEncode(const char* s) { return String(s); }
 const char* gwErrorText(int code) { return code == -3 ? "Passerelle injoignable" : "Erreur"; }
 
 std::string dernierChemin;   // 3.4.0 : dernier chemin demandé (test de « v=1 »)
+std::vector<std::string> chemins;   // 3.5.0 : chemins demandés (enchaînement d'une catégorie)
 int gwGet(const String& path, JsonDocument& doc, JsonDocument*, bool) {
   dernierChemin = path.s;
+  chemins.push_back(path.s);
   if (gatewayDown) return gwLastCode = -3;
   // Réponse du plus long préfixe correspondant (« /btc/30j » avant « /btc »)
   const std::string* trouve = nullptr;
@@ -266,6 +268,15 @@ static void save(const std::string& name) {
   fprintf(stderr, "%s\n", name.c_str());
 }
 
+// 3.5.0 : une catégorie des marchés commence par sa mosaïque ; les écrans de
+// cours existants sont ceux des « valeurs choisies », juste après (fixture
+// « /marche » : aucune tuile, valeurs choisies). Personnalisée : comme avant.
+static const char* MOSA_VIDE = R"({"ok":1,"t":[],"a":[],"x":[],"ch":1})";
+static void coursAffiche(uint8_t page, uint8_t idx, uint8_t cnt) {
+  drawCours(page, idx, cnt);
+  if (pageMarche(page)) coursEcranSuivant(page, idx, cnt);
+}
+
 int main(int argc, char** argv) {
   std::string fx = argc > 1 ? argv[1] : "fixtures/";
   auto FX = [&](const char* n) { return readFile(fx + n + ".json"); };
@@ -301,28 +312,29 @@ int main(int argc, char** argv) {
   drawSupervision(3, 5);           save("06_supervision_resume");
   fixtures["/supervision"] = FX("supalert"); pollSup();
   drawAlert();                     save("07_alerte");
-  drawCours(PG_BTC, 4, 5);         save("08_crypto_1");
+  fixtures["/marche"] = MOSA_VIDE;
+  coursAffiche(PG_BTC, 4, 5);      save("08_crypto_1");
   fixtures["/discord"] = FX("discord6"); pollDiscord();
   drawDiscord(2, 5);               save("09_discord_7");
   fixtures["/btc"] = FX("crypto2");
-  drawCours(PG_BTC, 4, 6);         save("12_crypto_2");
+  coursAffiche(PG_BTC, 4, 6);      save("12_crypto_2");
   fixtures["/btc"] = FX("crypto3");
-  drawCours(PG_BTC, 4, 6);         save("13_crypto_3");
+  coursAffiche(PG_BTC, 4, 6);      save("13_crypto_3");
   coursEcranSuivant(PG_BTC, 4, 6); save("13b_crypto_dediee");
   // Très petit prix (PEPE) : tailles fixes, prix compact « 0,0₅4540 $ »
-  fixtures["/btc"] = FX("crypto3_pepe"); drawCours(PG_BTC, 4, 6); save("13c_crypto_3_pepe");
-  fixtures["/btc"] = FX("crypto2_pepe"); drawCours(PG_BTC, 4, 6); save("13d_crypto_2_pepe");
-  fixtures["/btc"] = FX("crypto30j_pepe"); drawCours(PG_BTC, 4, 6); save("13e_crypto_1_pepe");
+  fixtures["/btc"] = FX("crypto3_pepe"); coursAffiche(PG_BTC, 4, 6); save("13c_crypto_3_pepe");
+  fixtures["/btc"] = FX("crypto2_pepe"); coursAffiche(PG_BTC, 4, 6); save("13d_crypto_2_pepe");
+  fixtures["/btc"] = FX("crypto30j_pepe"); coursAffiche(PG_BTC, 4, 6); save("13e_crypto_1_pepe");
   // Très petit prix (PEPE) : tailles fixes, prix compact « 0,0₅4540 $ »
-  fixtures["/btc"] = FX("crypto3_pepe"); drawCours(PG_BTC, 4, 6); save("13c_crypto_3_pepe");
-  fixtures["/btc"] = FX("crypto2_pepe"); drawCours(PG_BTC, 4, 6); save("13d_crypto_2_pepe");
-  fixtures["/btc"] = FX("crypto30j_pepe"); drawCours(PG_BTC, 4, 6); save("13e_crypto_1_pepe");
+  fixtures["/btc"] = FX("crypto3_pepe"); coursAffiche(PG_BTC, 4, 6); save("13c_crypto_3_pepe");
+  fixtures["/btc"] = FX("crypto2_pepe"); coursAffiche(PG_BTC, 4, 6); save("13d_crypto_2_pepe");
+  fixtures["/btc"] = FX("crypto30j_pepe"); coursAffiche(PG_BTC, 4, 6); save("13e_crypto_1_pepe");
   // Pages de cours (même rendu que Crypto ; dollars, indices en points)
   const char* const COURS[][3] = {
     {"/actions", "actions1", "20_actions_1"}, {"/actions", "actions2", "21_actions_2"},
     {"/actions", "actions3", "22_actions_3"}, {"/actions", "actions3e", "23_actions_introuvable"},
     {"/actions", "actions2e", "23b_actions_introuvable_2"}, {"/actions", "actions1e", "23c_actions_introuvable_seule"},
-    {"/devises", "devises2", "24_devises_2"}, {"/devises", "devises3", "25_devises_3"},
+    {"/custom", "devises2", "24_devises_2"}, {"/custom", "devises3", "25_devises_3"},   // 3.5.0 : page Personnalisée
     {"/commodities", "commo1", "26_commodities_1"}, {"/commodities", "commo3", "27_commodities_3"},
     {"/commodities", "commo3b", "28_commodities_3b"},
     {"/indices", "indices1", "29_indices_1"}, {"/indices", "indices2", "29b_indices_2"},
@@ -332,9 +344,56 @@ int main(int argc, char** argv) {
   };
   for (auto& k : COURS) {
     fixtures[k[0]] = FX(k[1]);
-    uint8_t page = strcmp(k[0], "/actions") == 0 ? PG_ACTIONS : strcmp(k[0], "/devises") == 0 ? PG_DEVISES
+    uint8_t page = strcmp(k[0], "/actions") == 0 ? PG_ACTIONS
                  : strcmp(k[0], "/indices") == 0 ? PG_INDICES : strcmp(k[0], "/custom") == 0 ? PG_CUSTOM : PG_COMMO;
-    drawCours(page, 5, 9); save(k[2]);
+    coursAffiche(page, 5, 9); save(k[2]);
+  }
+  // 3.5.0 : mosaïques des 5 catégories (liseré : page à 3 valeurs à suivre)
+  const char* const MOSA[][3] = {
+    {"/marche/btc", R"({"ok":1,"t":[["DOGE",-64,1],["SOL",52,1],["AVAX",41,1],["XRP",-31,1],["BTC",24,0],["LINK",-22,0],["ADA",-19,0],["LTC",14,0],["ETH",11,0],["DOT",-8,0],["BNB",6,0],["TRX",3,0]],"a":[],"x":[],"ch":0})", "40_mosaique_crypto"},
+    {"/marche/actions", R"({"ok":1,"t":[["PLTR",56,1],["TSLA",-42,1],["NVDA",38,1],["AVGO",33,1],["META",21,0],["AAPL",12,0],["TSMC",-11,0],["AMZN",-9,0],["LLY",7,0],["JPM",-5,0],["MSFT",4,0],["ARMCO",2,0]],"a":[],"x":[],"ch":0})", "41_mosaique_monde"},
+    {"/marche/europe", R"({"ok":1,"t":[["RHM",44,1],["NOVO",-36,1],["ASML",27,0],["SAN",16,0],["LVMH",-14,0],["SHELL",11,0],["SAP",9,0],["AIR",-8,0],["HSBC",-6,0],["SIE",5,0],["ROCHE",3,0],["NESN",-2,0]],"a":[],"x":[],"ch":0,"p":1})", "42_mosaique_europe_perimee"},
+    {"/marche/indices", R"({"ok":1,"t":[["KOSPI",24,0],["HSI",-21,0],["NKY",18,0],["SENSX",9,0],["NDQ",-7,0],["DAX",6,0],["SX5E",5,0],["CAC",4,0],["S&P",-3,0],["FTSE",2,0],["DOW",1,0],["SMI",-1,0]],"a":[],"x":[],"ch":0})", "43_mosaique_indices"},
+    {"/marche/commodities", R"({"ok":1,"t":[["GAZ",57,1],["CACAO",-48,1],["WTI",-34,1],["CAFE",32,1],["BRENT",-31,1],["AG",23,0],["CU",-12,0],["SUCRE",11,0],["BLE",-9,0],["OR",8,0],["PLAT",-6,0],["MAIS",4,0]],"a":[],"x":[],"ch":0})", "44_mosaique_matieres"},
+    {"/marche/indices", R"({"ok":1,"t":[["CAC",4,0],["S&P",-3,0],["DAX",6,0]],"a":[],"x":[],"ch":0})", "45_mosaique_3_valeurs"},
+  };
+  for (auto& m : MOSA) {
+    fixtures[m[0]] = m[1];
+    uint8_t page = strstr(m[0], "btc") ? PG_BTC : strstr(m[0], "actions") ? PG_ACTIONS : strstr(m[0], "europe") ? PG_EUROPE
+                 : strstr(m[0], "indices") ? PG_INDICES : PG_COMMO;
+    drawCours(page, 5, 9); save(m[2]);
+    fixtures.erase(m[0]);
+  }
+  // 3.5.0 : enchaînement d'une catégorie : mosaïque, valeurs choisies, pages
+  // automatiques (une page d'une seule valeur = sur 30 jours, pas de page dédiée
+  // en double), puis pages sur 30 jours, sans doublon
+  {
+    fixtures["/marche/actions"] = R"({"ok":1,"t":[["PLTR",56,1]],"a":[["PLTR","TSLA","NVDA"],["GC=F"]],"x":["PLTR","GC=F","AAPL"],"ch":1})";
+    fixtures["/actions"] = FX("actions3");
+    fixtures["/actions/30j"] = FX("actions1");
+    std::string seule = FX("actions1");                     // page automatique d'une seule valeur
+    seule.replace(seule.find("\"id\": \"AAPL\""), 12, "\"id\": \"GC=F\"");
+    fixtures["/actions?s1=GC"] = seule;
+    strncpy(cfg.pActions, "s1=AAPL", sizeof(cfg.pActions));
+    reglerSeuils(6, 10);
+    chemins.clear();
+    drawCours(PG_ACTIONS, 5, 9);
+    int pages = 0;
+    while (coursEcranSuivant(PG_ACTIONS, 5, 9) && pages < 10) pages++;
+    std::string vu;
+    for (auto& c : chemins) vu += c + " | ";
+    const std::vector<std::string> attendu = {
+      "/marche/actions?s24=3&s7=5&s1=AAPL", "/actions?s1=AAPL&s7=5", "/actions?s1=PLTR&s2=TSLA&s3=NVDA&s7=5",
+      "/actions?s1=GC=F&s7=5", "/actions/30j?id=PLTR", "/actions/30j?id=AAPL" };
+    if (chemins != attendu || pages != 5) {
+      fprintf(stderr, "ÉCHEC : enchaînement d'une catégorie (%d pages) : %s\n", pages, vu.c_str());
+      return 1;
+    }
+    fprintf(stderr, "Enchaînement d'une catégorie : mosaïque, choisies, 2 pages automatiques, 2 pages sur 30 jours.\n");
+    fixtures.erase("/marche/actions");
+    fixtures.erase("/actions?s1=GC");
+    fixtures["/actions"] = FX("actions3");
+    cfg.pActions[0] = '\0';
   }
   // Photos Immich : en largeur, souvenir, en hauteur
   fixtures["/immich"] = FX("photos");          drawPhotos(6, 7); save("31_photos");

@@ -6,16 +6,16 @@ static_assert(sizeof(Config) <= EEPROM_SIZE, "Config trop grande pour l'EEPROM")
 static_assert(PG_COUNT <= 32, "pages : masque de 32 bits (cfg.pages + reserve[2], reserve[3])");
 
 const char* const PAGE_NAMES[PG_COUNT] = { "Heure", "Météo", "Discord", "Supervision", "Crypto", "Plex",
-                                           "Actions", "Devises", "Commodities", "Indices", "Custom", "Photos",
-                                           "Tesla" };
+                                           "Actions Monde", "Actions Europe", "Matières premières", "Indices",
+                                           "Personnalisée", "Photos", "Tesla" };
 const char* const PAGE_IDS[PG_COUNT]   = { "heure", "meteo", "discord", "supervision", "btc", "plex",
-                                           "actions", "devises", "commodities", "indices", "custom", "immich",
+                                           "actions", "europe", "commodities", "indices", "custom", "immich",
                                            "tesla" };
 const uint8_t ROTATION[PG_COUNT] = { PG_HEURE, PG_METEO, PG_DISCORD, PG_SUP, PG_BTC, PG_ACTIONS,
-                                     PG_INDICES, PG_DEVISES, PG_COMMO, PG_CUSTOM, PG_PHOTOS, PG_TESLA, PG_PLEX };
+                                     PG_EUROPE, PG_INDICES, PG_COMMO, PG_CUSTOM, PG_PHOTOS, PG_TESLA, PG_PLEX };
 // Pages ajoutées en 2.9 : activées à la mise à jour (affichées seulement si
 // le module est actif sur la passerelle)
-static const uint16_t PAGES_29 = (1 << PG_ACTIONS) | (1 << PG_DEVISES) | (1 << PG_COMMO);
+static const uint16_t PAGES_29 = (1 << PG_ACTIONS) | (1 << PG_EUROPE) | (1 << PG_COMMO);   // PG_EUROPE : ancienne page Devises
 // Page ajoutée en 2.10, activée de la même façon
 static const uint16_t PAGES_210 = 1 << PG_INDICES;
 static const uint16_t PAGES_211 = 1 << PG_CUSTOM;
@@ -23,10 +23,17 @@ static const uint16_t PAGES_212 = 1 << PG_PHOTOS;
 // 2.15 : page Tesla, sans réglage ni changement de structure. Activée une seule
 // fois (repère dans reserve[0]) : une fois décochée par l'utilisateur, elle le reste.
 static const uint8_t RES_PAGE_TESLA = 0x01;
+// 3.5.0 : reprise des réglages des marchés faite (reserve[4]) ; seuils par défaut
+static const uint8_t RES_MARCHES = 0x01;
+static const uint8_t SEUIL24_DEFAUT = 6, SEUIL7_DEFAUT = 10;   // 3 % et 5 %
+static const uint8_t SEUIL_MAX = 40;                            // 20 %
 
 bool pageCours(uint8_t page) {
-  return page == PG_BTC || page == PG_ACTIONS || page == PG_DEVISES || page == PG_COMMO || page == PG_INDICES
-         || page == PG_CUSTOM;
+  return pageMarche(page) || page == PG_CUSTOM;
+}
+
+bool pageMarche(uint8_t page) {
+  return page == PG_BTC || page == PG_ACTIONS || page == PG_EUROPE || page == PG_COMMO || page == PG_INDICES;
 }
 
 // --- Anciennes structures, lues une seule fois lors de la mise à jour ------
@@ -172,6 +179,74 @@ static void gatewayFromOldUrl(const char* oldUrl) {
 
 static void terminate(char* s, size_t size) { s[size - 1] = '\0'; }
 
+static int hexVal(char c);
+
+// Valeur brute (encodée) d'une clé dans une chaîne « cle=valeur&… » ("" si absente)
+static String valeurBrute(const char* p, const char* cle) {
+  const size_t n = strlen(cle);
+  while (*p) {
+    const char* fin = strchr(p, '&');
+    if (!fin) fin = p + strlen(p);
+    if ((size_t)(fin - p) > n && strncmp(p, cle, n) == 0 && p[n] == '=') return String(p).substring(n + 1, fin - p);
+    p = *fin ? fin + 1 : fin;
+  }
+  return "";
+}
+
+// 3.5.0 : la page Devises disparaît ; sa place (bit et tampon) devient Actions
+// Europe. Les devises choisies passent dans la page Personnalisée (« d:EUR »),
+// dans les cases libres de ses listes ; Actions Europe est activée comme
+// Actions Monde ; seuils par défaut (3 % sur 24 h, 5 % sur 7 jours).
+static void reprendreMarches() {
+  // Devises choisies : listes 1 à 3, puis saisie (« m », séparée par , ; ou espaces)
+  String codes[3];
+  uint8_t n = 0;
+  for (const char* k : { "s1", "s2", "s3" }) {
+    const String v = valeurBrute(cfg.pEurope, k);
+    if (v.length() && n < 3) codes[n++] = v;
+  }
+  // Saisie : séparateurs (, ; espace, éventuellement encodés) ramenés à des espaces
+  const String brut = valeurBrute(cfg.pEurope, "m");
+  String m;
+  for (int k = 0; k < (int)brut.length(); k++) {
+    char c = brut[k];
+    if (c == '%' && k + 2 < (int)brut.length() && hexVal(brut[k + 1]) >= 0 && hexVal(brut[k + 2]) >= 0) {
+      c = (char)(hexVal(brut[k + 1]) * 16 + hexVal(brut[k + 2]));
+      k += 2;
+    }
+    m += (c == ',' || c == ';' || c == '+') ? ' ' : c;
+  }
+  int i = 0;
+  while (n < 3 && i < (int)m.length()) {
+    while (i < (int)m.length() && m[i] == ' ') i++;
+    int j = i;
+    while (j < (int)m.length() && m[j] != ' ') j++;
+    if (j > i) codes[n++] = m.substring(i, j);
+    i = j;
+  }
+  // Cases libres de la page Personnalisée
+  String s[3], mc = valeurBrute(cfg.pCustom, "m");
+  for (uint8_t k = 0; k < 3; k++) s[k] = valeurBrute(cfg.pCustom, k == 0 ? "s1" : k == 1 ? "s2" : "s3");
+  uint8_t repris = 0;
+  for (uint8_t k = 0; k < 3 && repris < n; k++)
+    if (!s[k].length()) s[k] = "d%3A" + codes[repris++];
+  if (repris) {
+    String nouveau;
+    for (uint8_t k = 0; k < 3; k++)
+      if (s[k].length()) nouveau += String(nouveau.length() ? "&" : "") + "s" + String(k + 1) + "=" + s[k];
+    if (mc.length()) nouveau += String(nouveau.length() ? "&" : "") + "m=" + mc;
+    if (nouveau.length() < sizeof(cfg.pCustom)) {
+      copyStr(cfg.pCustom, sizeof(cfg.pCustom), nouveau.c_str());
+      if (pageEnabled(PG_EUROPE)) setPageEnabled(PG_CUSTOM, true);   // l'ancienne page Devises était affichée
+    }
+  }
+  memset(cfg.pEurope, 0, sizeof(cfg.pEurope));
+  setPageEnabled(PG_EUROPE, pageEnabled(PG_ACTIONS));
+  cfg.reserve[5] = SEUIL24_DEFAUT;
+  cfg.reserve[6] = SEUIL7_DEFAUT;
+  cfg.reserve[4] |= RES_MARCHES;
+}
+
 static void sanitize() {
   terminate(cfg.wifiSsid, sizeof(cfg.wifiSsid));
   terminate(cfg.wifiPass, sizeof(cfg.wifiPass));
@@ -184,6 +259,9 @@ static void sanitize() {
     cfg.pages |= 1u << PG_TESLA;
     cfg.reserve[0] |= RES_PAGE_TESLA;
   }
+  if (!(cfg.reserve[4] & RES_MARCHES)) reprendreMarches();   // première lecture par la 3.5.0
+  cfg.reserve[5] = min(cfg.reserve[5], SEUIL_MAX);
+  cfg.reserve[6] = min(cfg.reserve[6], SEUIL_MAX);
   // Pages 0 à 31 (3.3.0) : bits au-delà des pages existantes effacés
   setPagesMask(pagesMask() & (PG_COUNT >= 32 ? 0xFFFFFFFFu : (1u << PG_COUNT) - 1));
   cfg.reserve[1] &= 0x07;          // 3.1.0 : bits des personnages (Heure, Tesla, Supervision)
@@ -428,7 +506,7 @@ char* modParams(uint8_t page) {
     case PG_PLEX:
     case PG_TESLA:   return cfg.pPlex;   // pages sans réglage : même tampon vide
     case PG_ACTIONS: return cfg.pActions;
-    case PG_DEVISES: return cfg.pDevises;
+    case PG_EUROPE:  return cfg.pEurope;
     case PG_COMMO:   return cfg.pCommo;
     case PG_INDICES: return cfg.pIndices;
     case PG_CUSTOM:  return cfg.pCustom;
@@ -446,7 +524,7 @@ size_t modParamsSize(uint8_t page) {
     case PG_PLEX:
     case PG_TESLA:   return sizeof(cfg.pPlex);
     case PG_ACTIONS: return sizeof(cfg.pActions);
-    case PG_DEVISES: return sizeof(cfg.pDevises);
+    case PG_EUROPE:  return sizeof(cfg.pEurope);
     case PG_COMMO:   return sizeof(cfg.pCommo);
     case PG_INDICES: return sizeof(cfg.pIndices);
     case PG_CUSTOM:  return sizeof(cfg.pCustom);
@@ -483,4 +561,18 @@ String modParam(uint8_t page, const char* key) {
     p = *end ? end + 1 : end;
   }
   return "";
+}
+
+// --------------------------------------------------------------- Seuils des marchés (3.5.0)
+
+uint8_t seuil24() { return cfg.reserve[5]; }
+uint8_t seuil7() { return cfg.reserve[6]; }
+
+void reglerSeuils(uint8_t demi24, uint8_t demi7) {
+  cfg.reserve[5] = min(demi24, SEUIL_MAX);
+  cfg.reserve[6] = min(demi7, SEUIL_MAX);
+}
+
+String texteSeuil(uint8_t demi) {
+  return String(demi / 2) + (demi % 2 ? ".5" : "");
 }

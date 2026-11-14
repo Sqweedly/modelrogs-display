@@ -970,7 +970,7 @@ static void dessinerPrix(const char* px, int x, int base, FontId f, uint16_t bg 
 static uint16_t accentPage(uint8_t page, JsonArray cs) {
   switch (page) {
     case PG_ACTIONS: return BLEU;
-    case PG_DEVISES: return VERT;
+    case PG_EUROPE:  return XRP;        // cyan (3.5.0)
     case PG_COMMO:   return AMBRE;
     case PG_INDICES: return VIOLET;
     case PG_CUSTOM:  return CORAIL;
@@ -1030,12 +1030,27 @@ static void pageCrypto30(JsonObject c, uint8_t dotIndex, uint8_t dotCount, bool 
 static char    dediees[3][24];
 static uint8_t nbDediees = 0, prochaineDediee = 0, pageDediees = PG_BTC;
 
-static void noterDediee(JsonObject c) {
-  if ((c["x"] | 0) && !(c["e"] | 0) && nbDediees < 3) {
-    strncpy(dediees[nbDediees], c["id"] | "", sizeof(dediees[0]) - 1);
-    dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';
-    if (dediees[nbDediees][0]) nbDediees++;
+static void ajouterDediee(const char* id) {
+  if (!id || !*id || nbDediees >= 3) return;
+  for (uint8_t i = 0; i < nbDediees; i++)
+    if (strcmp(dediees[i], id) == 0) return;          // déjà en attente (3.5.0 : mosaïque + pages)
+  strncpy(dediees[nbDediees], id, sizeof(dediees[0]) - 1);
+  dediees[nbDediees][sizeof(dediees[0]) - 1] = '\0';
+  nbDediees++;
+}
+
+// Valeur déjà montrée sur 30 jours (page à une seule valeur) : pas de page dédiée en plus
+static void retirerDediee(const char* id) {
+  for (uint8_t i = prochaineDediee; i < nbDediees; i++) {
+    if (strcmp(dediees[i], id) != 0) continue;
+    for (uint8_t k = i; k + 1 < nbDediees; k++) memcpy(dediees[k], dediees[k + 1], sizeof(dediees[0]));
+    nbDediees--;
+    return;
   }
+}
+
+static void noterDediee(JsonObject c) {
+  if ((c["x"] | 0) && !(c["e"] | 0)) ajouterDediee(c["id"] | "");
 }
 
 // « Prix en vedette » à 2 ou 3 valeurs, identique pour Crypto, Actions,
@@ -1131,11 +1146,12 @@ static void vedetteCartes(JsonArray cs, uint8_t n, uint8_t dotIndex, uint8_t dot
   pageDots(dotIndex, dotCount, accent);
 }
 
-void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
-  nbDediees = prochaineDediee = 0;
-  pageDediees = page;
+// Une page de cours (valeurs choisies, ou page automatique d'une catégorie) :
+// 1 valeur -> page sur 30 jours, 2 ou 3 -> « prix en vedette ». Les valeurs
+// marquées « x » sont mises en attente pour une page sur 30 jours.
+static void drawCoursChemin(uint8_t page, const String& chemin, uint8_t dotIndex, uint8_t dotCount) {
   JsonDocument doc;
-  int code = memoGet(modulePath(page), doc);
+  int code = memoGet(chemin, doc);
   if (code != 200 || doc["c"].as<JsonArray>().size() == 0) {
     tft.fillScreen(BG);
     errorPage(PAGE_NAMES[page], code == -5 ? String(doc["err"] | "")
@@ -1154,6 +1170,7 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
       pageDots(dotIndex, dotCount, accent);
       return;
     }
+    retirerDediee(cs[0]["id"] | "");
     pageCrypto30(cs[0], dotIndex, dotCount, perime, accent);
     return;
   }
@@ -1161,8 +1178,223 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   vedetteCartes(cs, n, dotIndex, dotCount, perime, accent);
 }
 
+// ------------------------------------------------------------------ Mosaïque des marchés (3.5.0)
+//
+// Une par catégorie (Crypto, Actions Monde, Actions Europe, Indices, Matières
+// premières) : les 12 plus fortes variations sur 24 h, choisies par la
+// passerelle (route /marche/<catégorie>). Surface d'une tuile proportionnelle
+// à la racine de sa variation, avec un plancher de 2 % (les valeurs calmes ont
+// toutes la même tuile) ; découpe « squarified » (Bruls, Huizing, van Wijk) :
+// des rangées qui gardent les tuiles aussi carrées que possible. Couleur du
+// rouge au vert selon le sens et l'ampleur (jusqu'à 4 %) ; liseré blanc sur
+// les valeurs suivies d'une page à 3 valeurs.
+//
+// Ensuite, dans la même page de la rotation (coursEcranSuivant) : les valeurs
+// choisies (s'il y en a), les pages automatiques (2 au plus) et les pages sur
+// 30 jours (3 au plus).
+
+static const uint8_t MOSA_MAX = 12;
+static const float   MOSA_PLANCHER = 2.0f;   // %
+
+static uint16_t mosaFond(float v) {
+  if (fabsf(v) < 0.05f) return RGB(0x2A, 0x30, 0x3C);
+  const float t = powf(fminf(1.0f, fabsf(v) / 4.0f), 0.65f);
+  if (v > 0) return RGB(0x0B + (0x00 - 0x0B) * t, 0x33 + (0xB0 - 0x33) * t, 0x1F + (0x52 - 0x1F) * t);
+  return RGB(0x3D + (0xD8 - 0x3D) * t, 0x10 + (0x1A - 0x10) * t, 0x16 + (0x2E - 0x16) * t);
+}
+
+// « +5,6 % » à partir de la variation en dixièmes de point
+static String mosaPct(int v10) {
+  if (v10 == 0) return "0,0 %";
+  const int a = abs(v10);
+  return String(v10 > 0 ? "+" : "-") + String(a / 10) + "," + String(a % 10) + " %";
+}
+
+static float mosaPire(const float* a, uint8_t n, float s, float cote) {
+  float mn = 1e9f, mx = 0;
+  for (uint8_t i = 0; i < n; i++) { mn = fminf(mn, a[i]); mx = fmaxf(mx, a[i]); }
+  const float s2 = s * s, c2 = cote * cote;
+  return fmaxf(c2 * mx / s2, s2 / (c2 * mn));
+}
+
+// Aires décroissantes -> rectangles (même ordre), dans la zone z
+void mosaiqueDecoupe(const float* aires, uint8_t n, float zx, float zy, float zw, float zh, MosaRect* out) {
+  uint8_t i = 0;
+  while (i < n) {
+    const float cote = fminf(zw, zh);
+    uint8_t j = i + 1;
+    float s = aires[i];
+    while (j < n && mosaPire(aires + i, j - i + 1, s + aires[j], cote) <= mosaPire(aires + i, j - i, s, cote)) {
+      s += aires[j];
+      j++;
+    }
+    if (zw >= zh) {                       // rangée verticale à gauche
+      const float w = s / zh;
+      float y = zy;
+      for (uint8_t k = i; k < j; k++) { out[k] = { zx, y, w, aires[k] / w }; y += aires[k] / w; }
+      zx += w; zw -= w;
+    } else {                              // rangée horizontale en haut
+      const float h = s / zw;
+      float x = zx;
+      for (uint8_t k = i; k < j; k++) { out[k] = { x, zy, aires[k] / h, h }; x += aires[k] / h; }
+      zy += h; zh -= h;
+    }
+    i = j;
+  }
+}
+
+static void mosaTuile(const char* code, int v10, bool lisere, int x, int y, int w, int h) {
+  const uint16_t f = mosaFond(v10 / 10.0f);
+  if (lisere) {
+    tft.fillSmoothRoundRect(x, y, w, h, 6, TXT, BG);
+    tft.fillSmoothRoundRect(x + 2, y + 2, w - 4, h - 4, 5, f, TXT);
+  } else {
+    tft.fillSmoothRoundRect(x, y, w, h, 6, f, BG);
+  }
+  const String pct = mosaPct(v10);
+  if (h < 30 || textW(pct, F_11) > w - 4) {                // petite tuile : le code seul
+    drawText(fitText(code, F_11, w - 2), x + w / 2, y + h / 2 + 1, F_11, TXT, f, MC_DATUM);
+    return;
+  }
+  static const FontId ORD[] = { F_32, F_18, F_16, F_13, F_11 };
+  FontId fv = F_11, fc = F_11;
+  for (FontId k : ORD) if (textW(pct, k) <= w - 6 && fontAscent(k) <= h * 38 / 100) { fv = k; break; }
+  for (FontId k : ORD) if (k != F_32 && textW(code, k) <= w - 6 && fontAscent(k) <= h * 26 / 100) { fc = k; break; }
+  const int hc = fontAscent(fc), hv = fontAscent(fv), e = h > 70 ? 8 : 4, yt = y + (h - (hc + e + hv)) / 2;
+  drawText(fitText(code, fc, w - 2), x + w / 2, yt + hc / 2, fc, TXT2, f, MC_DATUM);
+  drawText(pct, x + w / 2, yt + hc + e + hv / 2, fv, TXT, f, MC_DATUM);
+}
+
+static void mosaTriangle(int x, int y, bool haut, uint16_t c) {
+  if (haut) tft.fillTriangle(x, y + 4, x + 9, y + 4, x + 4, y - 3, c);
+  else      tft.fillTriangle(x, y - 3, x + 9, y - 3, x + 4, y + 4, c);
+}
+
+static void dessinerMosaique(uint8_t page, JsonArray t, bool perime, uint8_t dotIndex, uint8_t dotCount) {
+  const uint16_t accent = page == PG_BTC ? BTC : accentPage(page, JsonArray());
+  tft.fillScreen(BG);
+  // En-tête : pastille et nom de la catégorie ; hausses et baisses à droite
+  uint8_t n = 0, h = 0, b = 0;
+  int v[MOSA_MAX];
+  for (JsonVariant x : t) {
+    if (n == MOSA_MAX) break;
+    v[n] = x[1] | 0;
+    if (v[n] > 0) h++; else if (v[n] < 0) b++;
+    n++;
+  }
+  const int yt = MARGE_HAUT + 9;
+  tft.fillSmoothCircle(10, yt, 4, accent, BG);
+  int xd = 223 - textW(String(b), F_13);       // 224-235 : repère « périmé »
+  drawText(String(b), xd, yt + 1, F_13, ROUGE_TX, BG, ML_DATUM);
+  xd -= 13; mosaTriangle(xd, yt, false, ROUGE_TX);
+  xd -= 8 + textW(String(h), F_13);
+  drawText(String(h), xd, yt + 1, F_13, VERT, BG, ML_DATUM);
+  xd -= 13; mosaTriangle(xd, yt, true, VERT);
+  const FontId fn = textW(PAGE_NAMES[page], F_16) <= xd - 25 ? F_16 : F_13;
+  drawText(fitText(PAGE_NAMES[page], fn, xd - 25), 19, yt + 1, fn, TXT, BG, ML_DATUM);
+  if (n == 0) {
+    drawText("Aucune valeur", 120, 120, F_16, MUTED, BG, MC_DATUM);
+    pageDots(dotIndex, dotCount, accent);
+    return;
+  }
+  // Tuiles : de la plus grande à la plus petite (ordre de la découpe)
+  uint8_t ordre[MOSA_MAX];
+  float poids[MOSA_MAX], total = 0;
+  for (uint8_t i = 0; i < n; i++) {
+    ordre[i] = i;
+    poids[i] = sqrtf(fmaxf(fabsf(v[i] / 10.0f), MOSA_PLANCHER));
+  }
+  for (uint8_t i = 1; i < n; i++)                         // tri par insertion, stable
+    for (uint8_t k = i; k > 0 && poids[ordre[k]] > poids[ordre[k - 1]]; k--) {
+      const uint8_t tmp = ordre[k]; ordre[k] = ordre[k - 1]; ordre[k - 1] = tmp;
+    }
+  for (uint8_t i = 0; i < n; i++) total += poids[i];
+  // Zone : sous l'en-tête, au-dessus des points ; 3 px de plus à droite et en
+  // bas, retirés de chaque tuile (espace de 3 px entre les tuiles)
+  const float ZX = 3, ZY = MARGE_HAUT + 21, ZW = 237, ZH = 240 - MARGE_BAS - 16 - (MARGE_HAUT + 21) + 3;
+  float aires[MOSA_MAX];
+  for (uint8_t i = 0; i < n; i++) aires[i] = poids[ordre[i]] / total * ZW * ZH;
+  MosaRect r[MOSA_MAX];
+  mosaiqueDecoupe(aires, n, ZX, ZY, ZW, ZH, r);
+  for (uint8_t i = 0; i < n; i++) {
+    JsonVariant x = t[ordre[i]];
+    const int x0 = lroundf(r[i].x), y0 = lroundf(r[i].y);
+    const int x1 = lroundf(r[i].x + r[i].w), y1 = lroundf(r[i].y + r[i].h);
+    mosaTuile(x[0] | "?", v[ordre[i]], (x[2] | 0) != 0, x0, y0, x1 - x0 - 3, y1 - y0 - 3);
+  }
+  staleMark(perime);
+  pageDots(dotIndex, dotCount, accent);
+}
+
+// Suite de la page d'une catégorie : valeurs choisies, puis pages automatiques
+static bool    marcheChoisies = false;
+static uint8_t marcheEtape = 0, marcheNbAuto = 0;
+static char    marcheAuto[2][3][24];
+static uint8_t marcheAutoN[2];
+
+void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
+  nbDediees = prochaineDediee = 0;
+  pageDediees = page;
+  marcheEtape = marcheNbAuto = 0;
+  marcheChoisies = false;
+  if (!pageMarche(page)) {                 // Personnalisée : les valeurs choisies, comme avant
+    drawCoursChemin(page, modulePath(page), dotIndex, dotCount);
+    return;
+  }
+  JsonDocument doc;
+  const int code = memoGet(cheminMarche(page), doc);
+  if (code != 200) {
+    // Mosaïque indisponible : message, puis les valeurs choisies s'il y en a
+    tft.fillScreen(BG);
+    errorPage(PAGE_NAMES[page], code == -5 ? String(doc["err"] | "") : String(gwErrorText(code)));
+    pageDots(dotIndex, dotCount, accentPage(page, JsonArray()));
+    marcheChoisies = modParams(page)[0] != '\0';
+    return;
+  }
+  marcheChoisies = (doc["ch"] | 0) != 0;
+  for (JsonVariant a : doc["a"].as<JsonArray>()) {
+    if (marcheNbAuto == 2) break;
+    uint8_t k = 0;
+    for (JsonVariant vi : a.as<JsonArray>()) {
+      const char* id = vi.as<const char*>();
+      if (k == 3 || !id) break;
+      strncpy(marcheAuto[marcheNbAuto][k], id, sizeof(marcheAuto[0][0]) - 1);
+      marcheAuto[marcheNbAuto][k][sizeof(marcheAuto[0][0]) - 1] = '\0';
+      k++;
+    }
+    if (k) marcheAutoN[marcheNbAuto++] = k;
+  }
+  for (JsonVariant id : doc["x"].as<JsonArray>()) ajouterDediee(id.as<const char*>());
+  dessinerMosaique(page, doc["t"].as<JsonArray>(), doc["p"] | 0, dotIndex, dotCount);
+}
+
 bool coursEcranSuivant(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   if (page != pageDediees) return false;
+  if (pageMarche(page)) {
+    // Étape 0 : valeurs choisies ; étapes 1 et 2 : pages automatiques
+    while (marcheEtape < 1 + marcheNbAuto) {
+      const uint8_t e = marcheEtape++;
+      if (e == 0) {
+        if (!marcheChoisies) continue;
+        drawCoursChemin(page, modulePath(page), dotIndex, dotCount);
+        return true;
+      }
+      String chemin = "/";
+      chemin += PAGE_IDS[page];
+      chemin += '?';
+      for (uint8_t k = 0; k < marcheAutoN[e - 1]; k++) {
+        chemin += 's';
+        chemin += (char)('1' + k);
+        chemin += '=';
+        chemin += urlEncode(marcheAuto[e - 1][k]);
+        chemin += '&';
+      }
+      chemin += "s7=";
+      chemin += texteSeuil(seuil7());
+      drawCoursChemin(page, chemin, dotIndex, dotCount);
+      return true;
+    }
+  }
   while (prochaineDediee < nbDediees) {
     const char* id = dediees[prochaineDediee++];
     JsonDocument doc;

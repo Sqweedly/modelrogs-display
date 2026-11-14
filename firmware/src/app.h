@@ -131,7 +131,8 @@ extern ModulesState gMods;
 void   fetchModules();
 bool   moduleUsable(uint8_t page);   // page utilisable d'après la passerelle
 bool   discordConfigured();          // salon vocal choisi
-String modulePath(uint8_t page);     // "/<module>?<réglages>"
+String modulePath(uint8_t page);     // "/<module>?<réglages>[&s7=…]" (s7 : pages de cours, 3.5.0)
+String cheminMarche(uint8_t page);   // 3.5.0 : "/marche/<module>?s24=…&s7=…&<réglages>"
 
 void syncTime();
 bool pollDiscord();          // true si quelqu'un vient d'arriver

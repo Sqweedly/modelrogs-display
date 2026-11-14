@@ -1433,7 +1433,7 @@ bool drawPhotos(uint8_t dotIndex, uint8_t dotCount) {
 }
 
 // ------------------------------------------------------------------ Tesla
-// Bandeau de 72 px : batterie et pourcentage en vert (éclair en charge), état
+// Bandeau de 72 px : batterie et pourcentage (couleur de Volta, 3.5.0 ; éclair en charge), état
 // en haut à droite (hors charge), ligne d'information dessous ; photo de l'état
 // en 240 x 168 (70 % de l'écran), recadrée au centre par la passerelle.
 // Pas de points de pagination : la photo occupe le bas de l'écran.
@@ -1443,11 +1443,21 @@ static constexpr uint16_t TESLA_GRIS = RGB(0xA0, 0xA0, 0xA0);      // textes du 
 static constexpr uint16_t TESLA_FOND_PILE = RGB(0x2C, 0x2C, 0x2C);
 static constexpr uint16_t TESLA_CADRE = RGB(0x1A, 0x1A, 0x1A);     // sans photo
 
+// Couleur de la batterie : mêmes seuils et mêmes couleurs que la jauge de
+// Volta (voltaEtat, persos.cpp) : rouge sous 20 %, orange sous 35 %, vert sinon.
+static uint16_t teslaCouleur(int pct) {
+  switch (voltaEtat(pct < 0 ? 0 : pct > 100 ? 100 : pct)) {
+    case VOLTA_ROUGE:  return RGB(0xF0, 0x44, 0x34);
+    case VOLTA_ORANGE: return RGB(0xFF, 0x9C, 0x2C);
+    default:           return VERT;
+  }
+}
+
 static void teslaPile(int x, int y, int w, int h, int pct) {
   tft.fillSmoothRoundRect(x, y, w, h, h / 3, TESLA_FOND_PILE, BG);
   tft.fillRect(x + w + 1, y + h / 3, 3, h / 3, TESLA_FOND_PILE);
   const int iw = (w - 6) * pct / 100;
-  if (iw > 0) tft.fillSmoothRoundRect(x + 3, y + 3, max(iw, 2), h - 6, (h - 6) / 3, VERT, TESLA_FOND_PILE);
+  if (iw > 0) tft.fillSmoothRoundRect(x + 3, y + 3, max(iw, 2), h - 6, (h - 6) / 3, teslaCouleur(pct), TESLA_FOND_PILE);
 }
 
 static void teslaEclair(int x, int y, int h, uint16_t c) {
@@ -1460,9 +1470,10 @@ void teslaBandeau() {
   tft.fillRect(0, 0, 240, TESLA_BANDEAU, BG);
   const bool charge = gTesla.etat == TESLA_CHARGE;
   teslaPile(14, 15, 36, 18, gTesla.pct);
-  const int w = drawText(String(gTesla.pct) + "%", 60, 24, F_32, VERT, BG, ML_DATUM);
+  const uint16_t cb = teslaCouleur(gTesla.pct);
+  const int w = drawText(String(gTesla.pct) + "%", 60, 24, F_32, cb, BG, ML_DATUM);
   if (charge) {
-    teslaEclair(60 + w + 8, 12, 24, VERT);           // en charge : l'éclair suffit
+    teslaEclair(60 + w + 8, 12, 24, cb);           // en charge : l'éclair suffit
   } else {
     static const char* const LIBELLES[] = { "En route", "Stationnée", "Branchée" };
     drawText(LIBELLES[gTesla.etat], 226, 24, F_13, TESLA_GRIS, BG, MR_DATUM);

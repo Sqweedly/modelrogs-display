@@ -360,6 +360,11 @@ int main(int argc, char** argv) {
     fixtures["/tesla"] = FX((std::string("tesla_") + e).c_str()); pollTesla();
     drawTesla(); save(std::string("32_tesla_") + e);
   }
+  // 3.5.0 : couleur de la batterie selon les seuils de Volta (rouge < 20 %, orange < 35 %)
+  fixtures["/tesla"] = R"({"ok":1,"e":1,"b":12,"l":"Autonomie 58 km","i":"tesla-park","ev":0,"p":0})";
+  pollTesla(); drawTesla(); save("32b_tesla_batterie_rouge");
+  fixtures["/tesla"] = R"({"ok":1,"e":3,"b":30,"l":"Charge 11 kW · 1 h 40","i":"tesla-charge","ev":0,"p":0})";
+  pollTesla(); drawTesla(); save("32c_tesla_batterie_orange");
   drawNuit(true);                  save("33_nuit");   // écran de nuit (horloge à aiguilles, 3.0.2)
   // Personnages (3.1.0) : Nimbus (ciel), Pousse (température), Volta (Tesla), Bip (panne)
   {

@@ -16,9 +16,9 @@ int main() {
   for (int i = 0; i < 9; i++) { char q[32]; snprintf(q, sizeof q, "nimbus(icône %d)", i); attendu(q, nimbusEtat(i), CIEL[i]); }
   attendu("nimbus(icône inconnue)", nimbusEtat(42), NIMBUS_BEAU);
 
-  // Volta : moins de 20, 20 à 39, 40 à 80, plus de 80 %
-  const struct { int pct, e; } V[] = { {0, VOLTA_ROUGE}, {19, VOLTA_ROUGE}, {20, VOLTA_ORANGE}, {39, VOLTA_ORANGE},
-    {40, VOLTA_VERT}, {79, VOLTA_VERT}, {80, VOLTA_VERT}, {81, VOLTA_CONTENTE}, {100, VOLTA_CONTENTE} };
+  // Volta (et batterie Tesla, 3.5.0) : moins de 20, 20 à 34, 35 à 80, plus de 80 %
+  const struct { int pct, e; } V[] = { {0, VOLTA_ROUGE}, {19, VOLTA_ROUGE}, {20, VOLTA_ORANGE}, {34, VOLTA_ORANGE},
+    {35, VOLTA_VERT}, {39, VOLTA_VERT}, {40, VOLTA_VERT}, {79, VOLTA_VERT}, {80, VOLTA_VERT}, {81, VOLTA_CONTENTE}, {100, VOLTA_CONTENTE} };
   for (auto& v : V) { char q[32]; snprintf(q, sizeof q, "volta(%d %%)", v.pct); attendu(q, voltaEtat(v.pct), v.e); }
 
   // Pousse sans état précédent : seuils d'entrée (5, 17, 33)

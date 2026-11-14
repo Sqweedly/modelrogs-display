@@ -45,7 +45,7 @@ uint8_t pousseEtat(int t, uint8_t precedent) {
 
 uint8_t voltaEtat(uint8_t pct) {
   if (pct < 20) return VOLTA_ROUGE;
-  if (pct < 40) return VOLTA_ORANGE;
+  if (pct < 35) return VOLTA_ORANGE;   // 3.5.0 : 35 % (40 avant)
   if (pct <= 80) return VOLTA_VERT;
   return VOLTA_CONTENTE;
 }

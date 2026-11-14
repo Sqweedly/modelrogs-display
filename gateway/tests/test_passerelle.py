@@ -319,6 +319,50 @@ async def principal() -> int:
     echecs += not ok
     print(f"{'OK ' if ok else 'ÉCHEC'} repères placés comme la courbe (0 = plus bas, 100 = plus haut) -> {[x['y'] for x in r]}")
 
+    # --- 3.5.0 : mosaïques des marchés (sélection, listes fixes)
+    from app.modules import marches as MA
+    from app.modules import cotations as COT
+    vals = [(f"ID{i}", f"C{i}", v24, v7) for i, (v24, v7) in enumerate(
+        [(5.6, 9.8), (-4.2, -3.1), (3.8, 4.6), (2.1, 6.0), (0.4, 0.2), (-0.9, -1.0), (3.3, 2.0),
+         (-1.1, 0.5), (0.7, 0.1), (-0.5, -0.3), (0.2, 0.0), (-3.6, -7.5), (0.1, 0.1), (-0.05, 12.0)])]
+    sel = MA.selection("actions", vals, ["ID2"], 3.0, 5.0)
+    ok = (len(sel["t"]) == 12 and sel["t"][0] == ["C0", 56, 1]                     # tri |24 h|, ×10, liseré
+          and sel["a"] == [["ID0", "ID1", "ID11"], ["ID6"]]                         # ID2 choisie : exclue
+          and sel["x"] == ["ID0", "ID11", "ID3"]                                     # |7 j| ≥ 5 décroissant, 3 au plus
+          and "ID13" not in [t[0] for t in sel["t"]]                                 # hors des 12 : ignorée
+          and [t[2] for t in sel["t"] if t[0] == "C2"] == [0])
+    sel0 = MA.selection("actions", vals, [], 0.0, 100.0)
+    ok = ok and len(sel0["a"]) == 2 and len(sel0["a"][0]) == 3 and sel0["x"] == []   # seuil 0 : 2 pages au plus
+    echecs += not ok
+    print(f"{'OK ' if ok else 'ÉCHEC'} mosaïque : 12 tuiles, pages automatiques (2 × 3, sans les choisies), 30 jours (3) -> {sel}")
+    ok = (len(COT.INDICES) == 20 and len(COT.COMMODITIES) == 20 and COT.symbole_indice("FCHI") == "^FCHI"
+          and COT.symbole_indice("FTSEMIB.MI") == "FTSEMIB.MI" and COT.indice("ibex35") == "IBEX"
+          and all(len(v[1]) <= 5 for v in list(COT.INDICES.values()) + list(COT.COMMODITIES.values())))
+    echecs += not ok
+    print(f"{'OK ' if ok else 'ÉCHEC'} indices et matières premières : 20 chacun, codes de 5 caractères au plus")
+    # Listes fixes : 30 valeurs, date, liste perso (LISTES_DIR) relue quand elle change, alerte > 15 jours
+    mo, eu = MA.liste("actions"), MA.liste("europe")
+    ok = (len(mo.valeurs) == 30 and len(eu.valeurs) == 30 and mo.valeurs[0] == ("NVDA", "NVDA", "Nvidia")
+          and eu.valeurs[0][0] == "ASML.AS" and all(len(v[1]) <= 5 for v in mo.valeurs + eu.valeurs)
+          and len({v[1] for v in mo.valeurs}) == 30 and len({v[1] for v in eu.valeurs}) == 30)
+    with tempfile.TemporaryDirectory() as d:
+        os.environ["LISTES_DIR"] = d
+        vieux = (datetime.now().date() - timedelta(days=16)).isoformat()
+        Path(d, "actions_monde.txt").write_text(f"# mise à jour : {vieux}\nAAPL ; AAPL ; Apple\nmsft;;Microsoft\n",
+                                                 encoding="utf-8")
+        li = MA.liste("actions")
+        ok = ok and [v[0] for v in li.valeurs] == ["AAPL", "MSFT"] and li.valeurs[1][1] == "MSFT" and li.vieille() \
+            and MA.infos_liste("actions") == {"ld": vieux, "lv": 1}
+        time.sleep(0.01)
+        Path(d, "actions_monde.txt").write_text(f"# mise à jour : {datetime.now().date().isoformat()}\nTSLA ; TSLA ; Tesla\n",
+                                                 encoding="utf-8")
+        os.utime(Path(d, "actions_monde.txt"), (time.time() + 5, time.time() + 5))
+        ok = ok and [v[0] for v in MA.liste("actions").valeurs] == ["TSLA"] and not MA.liste("actions").vieille()
+        os.environ["LISTES_DIR"] = ""
+    ok = ok and len(MA.liste("actions").valeurs) == 30
+    echecs += not ok
+    print(f"{'OK ' if ok else 'ÉCHEC'} listes fixes : 30 valeurs, liste perso relue, alerte au-delà de 15 jours")
+
     # --- 3.4.0 : données « non dynamiques » gardées 10 minutes, partout
     from app import cache as CA
     from app.modules import btc as BT, cotations as CO, immich as IM
@@ -340,11 +384,13 @@ async def principal() -> int:
             # Cours : 3 listes + saisie ; 10 options ; valeurs du compose annoncées
             ("/modules", lambda d: all(
                 [p["k"] for p in m["p"]] == ["s1", "s2", "s3", "m"] and m["nt"]
-                for m in d["m"] if m["id"] in ("btc", "actions", "indices", "devises", "commodities", "custom"))
+                for m in d["m"] if m["id"] in ("btc", "actions", "europe", "indices", "devises", "commodities", "custom"))
                 and next(m for m in d["m"] if m["id"] == "custom")["src"] == "/custom/liste"
                 and next(m for m in d["m"] if m["id"] == "indices")["o"][0] == {"id": "FCHI", "n": "CAC 40"}
                 and next(m for m in d["m"] if m["id"] == "btc")["src"] == "/btc/liste"
                 and len(next(m for m in d["m"] if m["id"] == "actions")["o"]) == 10
+                # 3.5.0 : date de la liste fixe (« ld ») et alerte (« lv »)
+                and next(m for m in d["m"] if m["id"] == "actions")["o"][0] == {"id": "NVDA", "n": "Nvidia"}
                 and next(m for m in d["m"] if m["id"] == "devises")["df"] == "EUR, JPY"
                 and next(m for m in d["m"] if m["id"] == "commodities")["o"][0] == {"id": "GC=F", "n": "Or"}),
             # 3.2.0 : format compact (?f=2) des pages de cours : marque « f », exemple de
@@ -352,8 +398,12 @@ async def principal() -> int:
             ("/modules?f=2", lambda d: all(
                 m["f"] == "c" and m["ph"].startswith("ex. ") and m["src"] == f"/{m['id']}/liste"
                 and not ({"p", "nt", "o"} & set(m)) and m["df"]
-                for m in d["m"] if m["id"] in ("btc", "actions", "indices", "devises", "commodities", "custom"))
-                and next(m for m in d["m"] if m["id"] == "actions")["ph"] == "ex. BNP.PA, ^FCHI"
+                for m in d["m"] if m["id"] in ("btc", "actions", "europe", "indices", "devises", "commodities", "custom"))
+                and next(m for m in d["m"] if m["id"] == "actions")["ph"] == "ex. BNP.PA, ADBE"
+                # 3.5.0 : Actions Europe (format compact seulement), date des listes fixes
+                and [m["id"] for m in d["m"]].index("europe") == [m["id"] for m in d["m"]].index("actions") + 1
+                and next(m for m in d["m"] if m["id"] == "europe")["ld"] == "2026-11-14"
+                and next(m for m in d["m"] if m["id"] == "europe")["lv"] in (0, 1)
                 # 3.3.0 : champs vides absents ; durées des Photos envoyées par la passerelle, comme ailleurs
                 and next(m for m in d["m"] if m["id"] == "immich")["p"][1]["k"] == "duree"
                 and len(next(m for m in d["m"] if m["id"] == "immich")["p"][1]["o"]) == 8
@@ -361,7 +411,9 @@ async def principal() -> int:
                 and "p" not in next(m for m in d["m"] if m["id"] == "heure")
                 and next(m for m in d["m"] if m["id"] == "discord")["p"][0]["src"] == "/discord/salons"
                 and next(m for m in d["m"] if m["id"] == "meteo")["v"]),
-            ("/actions/liste", lambda d: d["ok"] and len(d["s"]) == 10 and d["s"][0] == {"id": "AAPL", "n": "Apple"}),
+            # 3.5.0 : listes fixes de 30 actions (mosaïques Actions Monde et Actions Europe)
+            ("/actions/liste", lambda d: d["ok"] and len(d["s"]) == 30 and d["s"][0] == {"id": "NVDA", "n": "Nvidia (NVDA)"}),
+            ("/europe/liste", lambda d: d["ok"] and len(d["s"]) == 30 and d["s"][0] == {"id": "ASML.AS", "n": "ASML (ASML)"}),
             ("/indices/liste", lambda d: d["ok"] and d["s"][0] == {"id": "FCHI", "n": "CAC 40"}),
             ("/devises/liste", lambda d: d["ok"] and len(d["s"]) >= 10),
             ("/commodities/liste", lambda d: d["ok"] and d["s"][0] == {"id": "GC=F", "n": "Or"}),
@@ -431,6 +483,21 @@ async def principal() -> int:
             ("/immich?s=a%3Aancien", lambda d: d["ok"] == 1 and d["i"]),
             ("/immich/sources", lambda d: [s["id"] for s in d["s"]] == ["favoris", "souvenirs", "a:alb1"]
                 and d["s"][2]["n"] == "Album · Vacances"),
+            # 3.5.0 : mosaïque Crypto (30 premières hors stablecoins), seuils, valeurs choisies
+            ("/marche/btc?s24=1&s7=5", lambda d: d["ok"] and len(d["t"]) == 12 and d["ch"] == 0
+                and all(t[0] not in ("USDT", "USDC", "STETH", "WBTC") for t in d["t"])
+                and d["t"][0][1] in (19, -8) and len(d["a"]) == 2 and len(d["x"]) == 3
+                and "ethereum" not in d["x"]),
+            ("/marche/btc?s24=1&s7=5&s1=bitcoin", lambda d: d["ok"] and d["ch"] == 1
+                and "bitcoin" not in sum(d["a"], [])),
+            # Seuil « s7 » des pages sur 30 jours appliqué aux pages de cours ; « _v7 » jamais envoyé
+            ("/actions?s1=AAPL&s2=NFLX&s7=2", lambda d: d["ok"] and [c["x"] for c in d["c"]] == [1, 1]
+                and all("_v7" not in c for c in d["c"])),
+            ("/actions?s1=AAPL&s2=NFLX&s7=50", lambda d: d["ok"] and [c["x"] for c in d["c"]] == [0, 0]),
+            ("/actions?s1=AAPL&s2=NFLX", lambda d: d["ok"] and all("_v7" not in c for c in d["c"])),
+            ("/europe?s1=MC.PA", lambda d: d["ok"] and d["c"][0]["s"] == "MC" and d["c"][0]["px"].endswith("$")),
+            # Catégorie Yahoo sans cours chargé : message d'attente
+            ("/marche/indices", lambda d: d["ok"] == 0 and d["err"] == "Cours en préparation"),
             # Custom : 3 valeurs de catégories différentes, servies comme sur leur page d'origine
             ("/custom?s1=c%3Abitcoin&s2=a%3AAAPL&s3=m%3AGC%3DF", lambda d: [c["id"] for c in d["c"]]
                 == ["c:bitcoin", "a:AAPL", "m:GC=F"] and [c["px"] for c in d["c"]] == ["62 100 $", "268,40 $", "4 112 $"]
@@ -477,6 +544,27 @@ async def principal() -> int:
             ok = r.status == 200 and len(texte.encode()) < (4096 if chemin == "/modules" else 2048) and verif(d)
             echecs += not ok
             print(f"{'OK ' if ok else 'ÉCHEC'} {chemin:40s} {len(texte.encode()):5d} o  {texte[:110]}")
+
+        # 3.5.0 : actualisation répartie des cours Yahoo, seulement pour les catégories demandées
+        from app.modules import marches as MA2
+        MA2.PAS_RATTRAPAGE = 0.0
+        avant = len(APPELS_YAHOO)
+        await asyncio.sleep(0.3)
+        ok = len(APPELS_YAHOO) == avant            # Actions, Europe, Matières premières jamais demandées : rien
+        MA2._demandes.pop("indices", None)
+        await c.get("/marche/indices")             # première demande : la boucle repart aussitôt
+        for _ in range(60):
+            await asyncio.sleep(0.05)
+            if sum(1 for (cat, _) in MA2._essais if cat == "indices") >= 20:
+                break
+        d = await (await c.get("/marche/indices?s24=1&s7=1")).json()
+        appels = [a for a in APPELS_YAHOO[avant:]]
+        essais = [i for (cat, i) in MA2._essais if cat == "indices"]
+        ok = ok and d["ok"] == 1 and sorted(t[0] for t in d["t"]) == ["CAC", "S&P"] and len(essais) == 20 \
+            and "FTSEMIB.MI" in appels and all(a.startswith("^") or "." in a for a in appels) \
+            and MA2._a_charger(time.time())[0][0] > 0      # symboles inconnus : pas de nouvel essai avant 1 h
+        echecs += not ok
+        print(f"{'OK ' if ok else 'ÉCHEC'} mosaïque Indices : cours chargés en tâche de fond ({len(appels)} requêtes) -> {d}")
 
         r = await c.get("/supervision/services")
         ok = r.status == 404

@@ -164,10 +164,16 @@ async def trente_jours(session: aiohttp.ClientSession, q: dict) -> dict:
     return {"ok": 1, "c": [e], "p": int(perime)}
 
 
+async def _marche(session: aiohttp.ClientSession, q: dict) -> dict:
+    """Mosaïque Crypto (3.5.0) : voir marches.py."""
+    from . import marches
+    return await marches.ROUTES["/marche/btc"](session, q)
+
+
 MODULE = Module(
     id="btc",
     nom="Crypto",
     params=cours.params("ex. pepe, kaspa"),
     extra=lambda: cours.manifeste("CRYPTOS", "bitcoin", src="/btc/liste"),
-    routes={"/btc": crypto, "/btc/30j": trente_jours, "/btc/liste": liste},
+    routes={"/btc": crypto, "/btc/30j": trente_jours, "/btc/liste": liste, "/marche/btc": _marche},
 )

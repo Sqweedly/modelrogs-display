@@ -126,6 +126,11 @@ INDICES = {
     "DJI": ("Dow Jones", "DOW"), "GDAXI": ("DAX", "DAX"), "FTSE": ("FTSE 100", "FTSE"),
     "STOXX50E": ("Euro Stoxx 50", "SX5E"), "N225": ("Nikkei 225", "NKY"), "HSI": ("Hang Seng", "HSI"),
     "SSMI": ("SMI (Suisse)", "SMI"),
+    # 3.5.0 : 20 indices (mosaïque Indices). Un symbole avec un point se passe du « ^ ».
+    "RUT": ("Russell 2000", "RUT"), "IBEX": ("IBEX 35", "IBEX"), "FTSEMIB.MI": ("FTSE MIB", "MIB"),
+    "AEX": ("AEX", "AEX"), "BFX": ("BEL 20", "BEL"), "000001.SS": ("Shanghai Composite", "SHANG"),
+    "KS11": ("KOSPI", "KOSPI"), "BSESN": ("Sensex", "SENSX"), "AXJO": ("S&P/ASX 200", "ASX"),
+    "GSPTSE": ("S&P/TSX", "TSX"),
 }
 # Saisies courantes acceptées (majuscules, sans espace ni tiret)
 ALIAS_INDICES = {
@@ -133,6 +138,9 @@ ALIAS_INDICES = {
     "NASDAQ": "IXIC", "DOW": "DJI", "DOWJONES": "DJI", "DAX": "GDAXI", "DAX40": "GDAXI",
     "FTSE100": "FTSE", "EUROSTOXX50": "STOXX50E", "STOXX50": "STOXX50E", "SX5E": "STOXX50E",
     "NIKKEI": "N225", "NIKKEI225": "N225", "HANGSENG": "HSI", "SMI": "SSMI",
+    "RUSSELL": "RUT", "RUSSELL2000": "RUT", "IBEX35": "IBEX", "MIB": "FTSEMIB.MI", "FTSEMIB": "FTSEMIB.MI",
+    "BEL20": "BFX", "SHANGHAI": "000001.SS", "KOSPI": "KS11", "SENSEX": "BSESN", "ASX": "AXJO",
+    "ASX200": "AXJO", "TSX": "GSPTSE",
 }
 
 
@@ -142,6 +150,12 @@ def indice(saisie: str) -> str:
     s = saisie.strip().upper().lstrip("^")
     cle = s.replace(" ", "").replace("-", "").replace("_", "")
     return ALIAS_INDICES.get(cle, s)
+
+
+def symbole_indice(ident: str) -> str:
+    """Symbole Yahoo d'un indice : « FCHI » -> « ^FCHI » ; « FTSEMIB.MI » et
+    « 000001.SS » (cotations avec un suffixe de place) restent tels quels."""
+    return ident if "." in ident else f"^{ident}"
 
 
 # symbole Yahoo -> (nom, code court, icône incluse, forme)
@@ -156,6 +170,17 @@ COMMODITIES = {
     "ZS=F": ("Soja", "SOJA", "soja", 1),
     "KC=F": ("Café", "CAFE", "cafe", 1),
     "CC=F": ("Cacao", "CAC", "cacao", 1),
+    # 3.5.0 : 20 matières premières (mosaïque). Sans icône : pastille du code.
+    "BZ=F": ("Pétrole (Brent)", "BRENT", "", 1),
+    "PL=F": ("Platine", "PLAT", "", 2),
+    "PA=F": ("Palladium", "PALL", "", 2),
+    "SB=F": ("Sucre", "SUCRE", "", 1),
+    "CT=F": ("Coton", "COTON", "", 1),
+    "HO=F": ("Fioul", "FIOUL", "", 1),
+    "RB=F": ("Essence", "ESS", "", 1),
+    "LE=F": ("Bovins", "BOV", "", 1),
+    "OJ=F": ("Jus d'orange", "JUS", "", 1),
+    "ZO=F": ("Avoine", "AVOIN", "", 1),
 }
 
 
@@ -280,12 +305,12 @@ def _logo_action(symbole: str) -> str:
 async def _cotation(session: aiohttp.ClientSession, page: str, ident: str, avec_courbe: bool) -> dict:
     """Une valeur de la page : prix, variations, logo (et courbe 30 jours)."""
     unite = "$"
-    if page == "actions":
+    if page in ("actions", "europe"):
         symbole = ident.upper()
         code, logo, forme = cours.code_court(symbole), _logo_action(symbole), 1
     elif page == "indices":
         ident = indice(ident)
-        symbole, unite, forme = f"^{ident}", "", 2
+        symbole, unite, forme = symbole_indice(ident), "", 2
         code = INDICES.get(ident, ("", cours.code_court(ident)))[1]
         logo = images.enregistrer([images.perso("indices", ident), images.icone("indices", ident)])
     elif page == "devises":
@@ -373,22 +398,58 @@ def _liste(dico: dict):
 
 
 _actions, _actions30 = _page("actions", "ACTIONS", "AAPL")
+_europe, _europe30 = _page("europe", "ACTIONS_EUROPE", "ASML.AS")
 _indices, _indices30 = _page("indices", "INDICES", "FCHI")
 _devises, _devises30 = _page("devises", "DEVISES", "EUR")
 _commodities, _commodities30 = _page("commodities", "COMMODITIES", "GC=F")
 
+def _liste_marche(cat: str):
+    """Route /<page>/liste des actions (3.5.0) : la liste fixe de la mosaïque."""
+    async def liste(session: aiohttp.ClientSession, q: dict) -> dict:
+        from . import marches
+        return {"ok": 1, "s": marches.options(cat)}
+    return liste
+
+
+def _manifeste_marche(cat: str, variable: str, defaut: str):
+    def extra() -> dict:
+        from . import marches
+        # Format d'origine de /modules (afficheurs avant 3.2.0) : 10 options, pour rester
+        # sous 4 Ko ; le format compact passe par /<page>/liste (30 valeurs).
+        options = [{"id": o["id"], "n": o["n"].rsplit(" (", 1)[0]} for o in marches.options(cat)[:10]]
+        return {**cours.manifeste(variable, defaut, options), **marches.infos_liste(cat)}
+    return extra
+
+
+def _marche(cat: str):
+    async def route(session: aiohttp.ClientSession, q: dict) -> dict:
+        from . import marches
+        return await marches.ROUTES[f"/marche/{cat}"](session, q)
+    return route
+
+
 MODULE_ACTIONS = Module(
-    id="actions", nom="Actions",
-    params=cours.params("ex. BNP.PA, ^FCHI"),
-    extra=lambda: cours.manifeste("ACTIONS", "AAPL", _options(ACTIONS)),
-    routes={"/actions": _actions, "/actions/30j": _actions30, "/actions/liste": _liste(ACTIONS)},
+    id="actions", nom="Actions Monde",
+    params=cours.params("ex. BNP.PA, ADBE"),
+    extra=_manifeste_marche("actions", "ACTIONS", "AAPL"),
+    routes={"/actions": _actions, "/actions/30j": _actions30, "/actions/liste": _liste_marche("actions"),
+            "/marche/actions": _marche("actions")},
+    arreter=fermer,
+)
+MODULE_EUROPE = Module(
+    id="europe", nom="Actions Europe",
+    params=cours.params("ex. ADYEN.AS, VOW3.DE"),
+    extra=_manifeste_marche("europe", "ACTIONS_EUROPE", "ASML.AS"),
+    routes={"/europe": _europe, "/europe/30j": _europe30, "/europe/liste": _liste_marche("europe"),
+            "/marche/europe": _marche("europe")},
     arreter=fermer,
 )
 MODULE_INDICES = Module(
     id="indices", nom="Indices",
     params=cours.params("ex. ^IBEX, CAC40"),
-    extra=lambda: cours.manifeste("INDICES", "FCHI", _options(INDICES)),
-    routes={"/indices": _indices, "/indices/30j": _indices30, "/indices/liste": _liste(INDICES)},
+    extra=lambda: cours.manifeste("INDICES", "FCHI", _options(INDICES)[:10]),
+    routes={"/indices": _indices, "/indices/30j": _indices30, "/indices/liste": _liste(INDICES),
+            "/marche/indices": _marche("indices")},
     arreter=fermer,
 )
 MODULE_DEVISES = Module(
@@ -399,9 +460,10 @@ MODULE_DEVISES = Module(
     arreter=fermer,
 )
 MODULE_COMMODITIES = Module(
-    id="commodities", nom="Commodities",
+    id="commodities", nom="Matières premières",
     params=cours.params("ex. BZ=F, PL=F"),
-    extra=lambda: cours.manifeste("COMMODITIES", "GC=F", _options(COMMODITIES)),
-    routes={"/commodities": _commodities, "/commodities/30j": _commodities30, "/commodities/liste": _liste(COMMODITIES)},
+    extra=lambda: cours.manifeste("COMMODITIES", "GC=F", _options(COMMODITIES)[:10]),
+    routes={"/commodities": _commodities, "/commodities/30j": _commodities30, "/commodities/liste": _liste(COMMODITIES),
+            "/marche/commodities": _marche("commodities")},
     arreter=fermer,
 )

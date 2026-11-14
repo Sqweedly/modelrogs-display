@@ -23,7 +23,7 @@ from . import diagnostic
 log = logging.getLogger("cache")
 
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", "/cache"))
-MAX_ENTREES = int(os.environ.get("CACHE_MAX_ENTREES", "200"))
+MAX_ENTREES = int(os.environ.get("CACHE_MAX_ENTREES", "400"))   # 3.5.0 : 200 -> 400 (mosaïques : ~100 cours Yahoo)
 # 3.4.0 : durée commune des données « non dynamiques » (météo, cours,
 # courbes 30 jours, listes de photos). L'afficheur garde lui aussi ces
 # réponses 10 minutes : une valeur affichée a donc au plus 20 minutes environ.

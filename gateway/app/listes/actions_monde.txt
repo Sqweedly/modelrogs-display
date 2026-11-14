@@ -1,0 +1,38 @@
+# Actions Monde — 30 plus grosses capitalisations boursières mondiales
+# mise à jour : 2026-11-14
+# ÉTAT : À VÉRIFIER (symboles Yahoo et appartenance au top 30).
+# Établie à partir de classements publics partiels (The Motley Fool, finhacker.cz,
+# statranker.org, novembre 2026) et de connaissances arrêtées mi-2026.
+# Les dernières places peuvent varier : à revoir sur un classement complet.
+# Cotation principale (place d'origine), symboles Yahoo Finance.
+# symbole Yahoo ; code court (5 car. max) ; nom
+NVDA ; NVDA ; Nvidia
+AAPL ; AAPL ; Apple
+MSFT ; MSFT ; Microsoft
+GOOGL ; GOOGL ; Alphabet
+AMZN ; AMZN ; Amazon
+AVGO ; AVGO ; Broadcom
+2330.TW ; TSMC ; TSMC
+META ; META ; Meta
+TSLA ; TSLA ; Tesla
+SPCX ; SPCX ; SpaceX
+2222.SR ; ARMCO ; Saudi Aramco
+BRK-B ; BRK ; Berkshire Hathaway
+LLY ; LLY ; Eli Lilly
+WMT ; WMT ; Walmart
+JPM ; JPM ; JPMorgan Chase
+005930.KS ; SMSNG ; Samsung Electronics
+0700.HK ; TCENT ; Tencent
+V ; VISA ; Visa
+ORCL ; ORCL ; Oracle
+MA ; MA ; Mastercard
+XOM ; XOM ; Exxon Mobil
+NFLX ; NFLX ; Netflix
+COST ; COST ; Costco
+JNJ ; JNJ ; Johnson & Johnson
+PLTR ; PLTR ; Palantir
+ABBV ; ABBV ; AbbVie
+HD ; HD ; Home Depot
+BAC ; BAC ; Bank of America
+PG ; PG ; Procter & Gamble
+AMD ; AMD ; AMD

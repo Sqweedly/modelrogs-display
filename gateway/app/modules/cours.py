@@ -18,7 +18,7 @@ from ..text import nombre_fr
 
 MAX_VALEURS = 3
 POINTS_30J = 60          # points de la courbe sur 30 jours
-SEUIL_DEDIEE = 5.0       # |variation 7 j| >= 5 % : page dédiée (30 jours) sur l'afficheur
+SEUIL_DEDIEE = 5.0       # |variation 7 j| >= 5 % : page dédiée (30 jours) ; réglable depuis la 3.5.0 (« s7 »)
 
 NOTE = "3 au plus, dans l'ordre : listes 1 à 3, puis saisie"
 
@@ -167,7 +167,24 @@ def element(ident: str, code: str, valeur: float, pct24: float | None, pct7: flo
         "v24": v24, "u24": u24, "v7": v7, "u7": u7, "v30": v30, "u30": u30,
         "x": int(abs(pct7 or 0.0) >= SEUIL_DEDIEE),
         "i": image, "f": forme,
+        "_v7": pct7 or 0.0,       # retiré avant l'envoi : seuil « s7 » de l'afficheur (appliquer_seuil)
     }
+
+
+def appliquer_seuil(reponse: dict, q: dict) -> dict:
+    """Page sur 30 jours (« x ») selon le seuil de 7 jours de l'afficheur (3.5.0,
+    paramètre « s7 », en %) ; sans ce paramètre, SEUIL_DEDIEE (5 %), comme avant.
+    Retire la variation brute « _v7 » des éléments."""
+    try:
+        s7 = float(q.get("s7", "").replace(",", ".")) if q.get("s7") else None
+    except ValueError:
+        s7 = None
+    for e in reponse.get("c") or []:
+        if isinstance(e, dict) and "_v7" in e:
+            v7 = e.pop("_v7")
+            if s7 is not None and not e.get("e"):
+                e["x"] = int(abs(v7) >= s7)
+    return reponse
 
 
 def introuvable(ident: str, code: str, indisponible: bool = False) -> dict:

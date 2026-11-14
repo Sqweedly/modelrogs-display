@@ -1,0 +1,40 @@
+# Actions Europe — 30 plus grosses capitalisations européennes
+# (Royaume-Uni et Suisse compris ; même périmètre que le STOXX Europe 50)
+# mise à jour : 2026-11-14
+# ÉTAT : À VÉRIFIER (symboles Yahoo et appartenance au top 30).
+# Établie à partir des 10 premières valeurs publiées par STOXX (fiches STOXX
+# Europe 50, 2026), du classement capital.com (mai 2026) et de connaissances
+# arrêtées mi-2026. Les dernières places peuvent varier.
+# Symboles Yahoo Finance : .AS Amsterdam, .SW Zurich, .L Londres, .DE Xetra,
+# .PA Paris, .CO Copenhague, .MC Madrid, .MI Milan, .BR Bruxelles, .ST Stockholm.
+# symbole Yahoo ; code court (5 car. max) ; nom
+ASML.AS ; ASML ; ASML
+ROG.SW ; ROCHE ; Roche
+NOVN.SW ; NOVN ; Novartis
+AZN.L ; AZN ; AstraZeneca
+HSBA.L ; HSBC ; HSBC
+NESN.SW ; NESN ; Nestlé
+SHEL.L ; SHELL ; Shell
+SAP.DE ; SAP ; SAP
+SIE.DE ; SIE ; Siemens
+MC.PA ; LVMH ; LVMH
+NOVO-B.CO ; NOVO ; Novo Nordisk
+SAN.MC ; SAN ; Banco Santander
+ALV.DE ; ALV ; Allianz
+TTE.PA ; TTE ; TotalEnergies
+SU.PA ; SU ; Schneider Electric
+ENR.DE ; ENR ; Siemens Energy
+OR.PA ; OREAL ; L'Oréal
+RMS.PA ; RMS ; Hermès
+DTE.DE ; DTE ; Deutsche Telekom
+ULVR.L ; ULVR ; Unilever
+IBE.MC ; IBE ; Iberdrola
+ITX.MC ; ITX ; Inditex
+AIR.PA ; AIR ; Airbus
+SAF.PA ; SAF ; Safran
+RHM.DE ; RHM ; Rheinmetall
+UCG.MI ; UCG ; UniCredit
+ISP.MI ; ISP ; Intesa Sanpaolo
+BBVA.MC ; BBVA ; BBVA
+BNP.PA ; BNP ; BNP Paribas
+SAN.PA ; SANOF ; Sanofi

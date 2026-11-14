@@ -19,7 +19,7 @@ from aiohttp import web
 
 from .cache import SourceIndisponible, cache
 from . import diagnostic, images
-from .modules import Module, btc, cotations, cours, custom, discord_vocal, immich, meteo, plex, supervision, tesla
+from .modules import Module, btc, cotations, cours, custom, discord_vocal, immich, marches, meteo, plex, supervision, tesla
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
 log = logging.getLogger("passerelle")
@@ -32,11 +32,13 @@ PORT = int(os.environ.get("PORT", "8080"))
 
 CATALOGUE: dict[str, Module] = {m.id: m for m in (
     meteo.MODULE_HEURE, meteo.MODULE_METEO, discord_vocal.MODULE, supervision.MODULE, btc.MODULE, plex.MODULE,
-    cotations.MODULE_ACTIONS, cotations.MODULE_INDICES, cotations.MODULE_DEVISES, cotations.MODULE_COMMODITIES,
+    cotations.MODULE_ACTIONS, cotations.MODULE_EUROPE, cotations.MODULE_INDICES, cotations.MODULE_DEVISES,
+    cotations.MODULE_COMMODITIES,
     custom.MODULE, immich.MODULE, tesla.MODULE,
 )}
 # Autres noms acceptés dans MODULES
-ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities", "indice": "indices", "photos": "immich"}
+ALIAS = {"crypto": "btc", "commodites": "commodities", "matieres": "commodities", "indice": "indices", "photos": "immich",
+         "actions_europe": "europe"}
 
 SESSION = web.AppKey("session", aiohttp.ClientSession)
 ACTIFS = web.AppKey("actifs", list)
@@ -58,6 +60,9 @@ def modules_demandes() -> list[Module]:
             actifs.append(CATALOGUE[nom])
         else:
             log.warning("Module inconnu ignoré : %s (disponibles : %s)", nom, ", ".join(CATALOGUE))
+    # 3.5.0 : « Actions Europe » vient avec « actions » (docker-compose inchangé)
+    if CATALOGUE["actions"] in actifs and CATALOGUE["europe"] not in actifs:
+        actifs.insert(actifs.index(CATALOGUE["actions"]) + 1, CATALOGUE["europe"])
     return actifs
 
 
@@ -66,7 +71,8 @@ def _route(module: Module, traitement):
         if (erreur := module.erreur_config()):
             return _json({"ok": 0, "err": f"Non configuré : {erreur}"})
         try:
-            return _json(await traitement(request.app[SESSION], dict(request.query)))
+            q = dict(request.query)
+            return _json(cours.appliquer_seuil(await traitement(request.app[SESSION], q), q))
         except meteo.VilleInconnue:
             return _json({"ok": 0, "err": "Ville introuvable"})
         except SourceIndisponible:
@@ -96,8 +102,13 @@ async def route_modules(request: web.Request) -> web.Response:
     compact = request.query.get("f") == "2"
     liste = []
     for m in request.app[ACTIFS]:
+        if m.id == "europe" and not compact:
+            continue        # 3.5.0 : page inconnue des afficheurs avant 3.2.0 (format d'origine, < 4 Ko)
         erreur = m.erreur_config()
         entree = {"id": m.id, "n": m.nom, "ok": int(not erreur), "err": erreur, "p": m.params, **m.manifeste()}
+        if not compact:
+            entree.pop("ld", None)
+            entree.pop("lv", None)
         liste.append(cours.compacter(entree) if compact else entree)
     return _json({"ok": 1, "v": VERSION, "m": liste})
 
@@ -150,6 +161,11 @@ async def demarrage(app: web.Application) -> None:
                 m.demarrer()
     if any(m.id in ("actions", "indices", "devises", "commodities", "custom") for m in app[ACTIFS]):
         log.info("Yahoo Finance : client %s", cotations.client_yahoo())
+    if any(m.id in ("actions", "europe", "indices", "commodities") for m in app[ACTIFS]):
+        for cat in ("actions", "europe"):
+            if CATALOGUE[cat] in app[ACTIFS]:
+                marches.liste(cat)                  # lecture et contrôle de la date au démarrage
+        marches.demarrer(lambda: app[SESSION])  # mosaïques : cours Yahoo répartis sur une heure
     images.inventaire_perso()
     log.info("Passerelle %s%s prête sur le port %d", VERSION, f" ({REVISION})" if REVISION else "", PORT)
     if diagnostic.actif():
@@ -158,6 +174,7 @@ async def demarrage(app: web.Application) -> None:
 
 async def arret(app: web.Application) -> None:
     app[SURVEILLANCE].cancel()
+    await marches.arreter()
     for m in app[ACTIFS]:
         if m.arreter and not m.erreur_config():
             await m.arreter()

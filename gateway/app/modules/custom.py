@@ -140,7 +140,7 @@ async def liste(session: aiohttp.ClientSession, q: dict) -> dict:
 
 MODULE = Module(
     id="custom",
-    nom="Custom",
+    nom="Personnalisée",
     params=cours.params("ex. c:pepe, a:NFLX"),
     extra=lambda: cours.manifeste("CUSTOM", DEFAUT, src="/custom/liste"),
     routes={"/custom": valeurs, "/custom/30j": trente_jours, "/custom/liste": liste},

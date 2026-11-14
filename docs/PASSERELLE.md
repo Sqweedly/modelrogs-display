@@ -134,7 +134,7 @@ Exemple : affichage de la page Crypto avec Bitcoin seul.
 - **Pas d'appels en double.** Un verrou par donnée garantit que si plusieurs requêtes arrivent pendant une recharge, une seule va chercher la source ; les autres attendent son résultat.
 - **Repli sur la dernière valeur connue.** Si la source tombe, la passerelle renvoie la dernière donnée avec **`"p":1`** (périmée), et l'afficheur montre un petit point ambre. Sans aucune donnée antérieure, elle répond `ok:0`.
 - **Persistance sur disque.** Grâce au dossier de l'hôte monté sur `/cache`, un redémarrage du conteneur n'oblige pas à tout redemander.
-- **Taille bornée.** Le cache contient au plus 200 entrées (variable `CACHE_MAX_ENTREES`). Au-delà, les moins récemment utilisées sont supprimées, en mémoire comme sur disque. Au démarrage, les fichiers de plus d'un an ou en surnombre sont effacés.
+- **Taille bornée.** Le cache contient au plus 400 entrées (variable `CACHE_MAX_ENTREES` ; 200 avant la 3.5.0, relevé pour les cours des mosaïques). Au-delà, les moins récemment utilisées sont supprimées, en mémoire comme sur disque. Au démarrage, les fichiers de plus d'un an ou en surnombre sont effacés.
 - **Villes.** La clé est normalisée : « Lyon », « lyon » et «  LYON  » partagent la même entrée. Une ville introuvable est mémorisée 1 heure : l'afficheur reçoit « Ville introuvable » sans nouvel appel à Open-Meteo.
 
 Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, CoinGecko n'est appelé qu'une fois toutes les 10 minutes, quel que soit le nombre d'écrans.
@@ -163,9 +163,9 @@ Ces durées protègent aussi les API gratuites : avec plusieurs afficheurs, Coin
   - un **code d'icône** de 0 à 8, que l'afficheur dessine. La nuit, le soleil devient une lune.
 - Les températures sont arrondies au degré.
 
-### Pages de cours : Crypto, Actions, Indices, Devises, Commodities, Custom
+### Pages de cours : Crypto, Actions Monde, Actions Europe, Indices, Matières premières, Personnalisée (et Devises)
 
-Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, chacune avec sa page dédiée `/<page>/30j?id=<id>`. Tous les prix sont **en dollars**, sauf les indices, en **points** (sans unité).
+Routes : `/btc`, `/actions`, `/europe` (3.5.0), `/indices`, `/commodities`, `/custom`, et `/devises` pour les afficheurs d'avant la 3.5.0 (l'afficheur 3.5.0 n'a plus de page Devises ; les devises passent par la page Personnalisée, `d:EUR`). Chacune a sa page dédiée `/<page>/30j?id=<id>`. Les identifiants internes restent ceux d'avant la 3.5.0 : `actions` = Actions Monde, `commodities` = Matières premières, `custom` = Personnalisée. Tous les prix sont **en dollars**, sauf les indices, en **points** (sans unité).
 
 - **Sélection**, la même pour les quatre pages : `?s1=&s2=&s3=` (les trois listes de l'interface) puis `?m=` (saisie libre, une ou plusieurs valeurs séparées par des virgules ou des espaces). Les **3 premières** valeurs, dans l'ordre des champs, sont retenues. Si l'afficheur n'envoie rien, la passerelle prend la variable du compose : `CRYPTOS`, `ACTIONS`, `DEVISES`, `COMMODITIES`.
 - **Une valeur** (et page dédiée `/30j`) : la réponse contient sa **courbe sur 30 jours** (`p30`, normalisée de 0 à 100) et ses **repères de prix** (`rep`, depuis la 2.9.1) : `[{"y": 21, "t": "55 000"}, {"y": 74, "t": "60 000"}]`.
@@ -183,6 +183,7 @@ Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, 
 - Source : CoinGecko (voir le parcours d'une requête, section 4). Une clé « Demo », facultative (`COINGECKO_KEY`), peut être ajoutée si l'API refuse les appels anonymes.
 - **Listes de l'interface** : `/btc/liste`, les **10 premières capitalisations**, hors stablecoins (USDT, USDC…) et jetons adossés (WBTC, stETH…), relue toutes les 10 minutes.
 - **Saisie** : identifiant CoinGecko (`pepe`) ou symbole (`PEPE`, reconnu parmi les 50 premières).
+- **Seuil des pages sur 30 jours** (3.5.0) : `?s7=` en pourcentage (`s7=5`, `s7=3.5`). Une valeur dont la variation sur 7 jours atteint ce seuil est annoncée pour une page sur 30 jours. Sans `s7`, 5 % comme avant.
 - **Logos** : ceux que CoinGecko fournit avec les cours (une icône personnelle passe avant, voir « Icônes personnelles »).
 - Un afficheur 2.8 envoie encore `?ids=bitcoin,ethereum&devise=eur` : les cryptos sont reprises, la devise ignorée.
 
@@ -193,10 +194,11 @@ Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, 
   - un symbole inconnu n'est redemandé qu'au bout d'une heure.
 - **Variations** : 24 h = depuis la clôture précédente ; 7 j et 30 j = depuis la clôture d'il y a 7 et 30 jours. Elles sont calculées dans la devise de cotation.
 - **Conversion en dollars** : les cotations en cents (`USX` : blé, maïs, soja, café) sont divisées par 100 ; les autres devises (LVMH en euros, Londres en pence) sont converties au taux du jour (`EURUSD=X`…).
-- **Actions** : symboles Yahoo (`AAPL`, `MC.PA` pour Paris). Liste : Apple, Microsoft, Nvidia, Alphabet, Amazon, Meta, Tesla, TotalEnergies, LVMH, Airbus.
-- **Indices** (module `indices`, variable `INDICES`) : symboles Yahoo, avec ou sans « ^ » (`FCHI` = `^FCHI`). Liste : CAC 40 `FCHI`, S&P 500 `GSPC`, Nasdaq Composite `IXIC`, Dow Jones `DJI`, DAX `GDAXI`, FTSE 100 `FTSE`, Euro Stoxx 50 `STOXX50E`, Nikkei 225 `N225`, Hang Seng `HSI`, SMI `SSMI`. Les saisies courantes sont reconnues, en un mot : `CAC40`, `SP500`, `NASDAQ`, `DOW`, `DAX`, `NIKKEI`… Tout autre indice Yahoo se saisit par son symbole (`^IBEX`, `AEX`). Le cours est donné **en points**, sans conversion ni unité (« 8 123 ») ; repères de prix, variations et courbe sont calculés de la même façon que pour les autres pages.
+- **Actions Monde et Actions Europe** : symboles Yahoo (`AAPL`, `MC.PA` pour Paris). Depuis la 3.5.0, les listes de l'interface sont les 30 valeurs des **listes fixes** des mosaïques (voir « Mosaïques des marchés »). Actions Europe (module `europe`) est ajoutée automatiquement quand `actions` est dans `MODULES` ; sans valeur choisie, elle n'affiche que sa mosaïque et ses pages automatiques.
+- **Indices** (module `indices`, variable `INDICES`) : symboles Yahoo, avec ou sans « ^ » (`FCHI` = `^FCHI`). Liste (20 depuis la 3.5.0) : CAC 40 `FCHI`, S&P 500 `GSPC`, Nasdaq Composite `IXIC`, Dow Jones `DJI`, DAX `GDAXI`, FTSE 100 `FTSE`, Euro Stoxx 50 `STOXX50E`, Nikkei 225 `N225`, Hang Seng `HSI`, SMI `SSMI`, Russell 2000 `RUT`, IBEX 35 `IBEX`, FTSE MIB `FTSEMIB.MI`, AEX `AEX`, BEL 20 `BFX`, Shanghai Composite `000001.SS`, KOSPI `KS11`, Sensex `BSESN`, S&P/ASX 200 `AXJO`, S&P/TSX `GSPTSE`. Un symbole qui contient un point (`FTSEMIB.MI`, `000001.SS`) est demandé tel quel, sans « ^ ». Les saisies courantes sont reconnues, en un mot : `CAC40`, `SP500`, `NASDAQ`, `DOW`, `DAX`, `NIKKEI`… Tout autre indice Yahoo se saisit par son symbole (`^IBEX`, `AEX`). Le cours est donné **en points**, sans conversion ni unité (« 8 123 ») ; repères de prix, variations et courbe sont calculés de la même façon que pour les autres pages.
 - **Devises** : code ISO, coté en dollars (`EURUSD=X`). Si Yahoo ne répond pas, la passerelle prend les taux quotidiens de la **BCE** (Frankfurter, `FRANKFURTER_URL`, sans clé). Liste : EUR, GBP, JPY, CHF, CNY, CAD, AUD, HKD, SGD, INR.
-- **Commodities** : contrats à terme Yahoo. Liste : or `GC=F`, argent `SI=F`, cuivre `HG=F`, pétrole `CL=F`, gaz naturel `NG=F`, blé `ZW=F`, maïs `ZC=F`, soja `ZS=F`, café `KC=F`, cacao `CC=F`.
+- **Matières premières** (identifiant `commodities`) : contrats à terme Yahoo. Liste (20 depuis la 3.5.0) : or `GC=F`, argent `SI=F`, cuivre `HG=F`, pétrole WTI `CL=F`, gaz naturel `NG=F`, blé `ZW=F`, maïs `ZC=F`, soja `ZS=F`, café `KC=F`, cacao `CC=F`, Brent `BZ=F`, platine `PL=F`, palladium `PA=F`, sucre `SB=F`, coton `CT=F`, fioul `HO=F`, essence `RB=F`, bovins `LE=F`, jus d'orange `OJ=F`, avoine `ZO=F`.
+- **Format d'origine de `/modules`** (afficheurs d'avant la 3.2.0) : chaque liste y est limitée à 10 options et Actions Europe n'y figure pas, pour rester sous 4 096 octets.
 - **Logos** (une icône personnelle passe toujours en premier, voir ci-dessous) :
   - actions : **Logo.dev** si la clé `LOGO_DEV_TOKEN` est renseignée (`/ticker/<symbole>?format=png&theme=dark&fallback=404`), puis les logos inclus dans `gateway/app/icones/actions/`, puis le dépôt GitHub `nvstly/icons` pour les actions cotées aux États-Unis ;
   - devises : **pastilles incluses** (`icones/devises/`, 31 devises) : un disque de couleur avec le symbole de la monnaie (€, £, ¥, ₹, C$, HK$…). Elles sont produites par `gateway/tools/icones_devises.py`, qui fixe symboles et couleurs ;
@@ -211,6 +213,24 @@ Routes : `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, 
 - **Listes de l'interface** : `/custom/liste` propose les **5 premières valeurs de chaque catégorie** (25 en tout : 5 cryptos, 5 actions, 5 indices, 5 devises, 5 matières), avec la catégorie devant le nom (« Crypto · Bitcoin (BTC) », « Matière · Or ») ; toute autre valeur se saisit dans le champ libre.
 - Les identifiants des réponses sont préfixés (`c:bitcoin`, `a:TSLA`) : la page dédiée est demandée à `/custom/30j?id=a:TSLA`.
 - Valeurs par défaut : `CUSTOM: c:bitcoin,a:TSLA,m:GC=F`.
+
+**Mosaïques des marchés** (3.5.0, module `marches.py`)
+- **Route** : `/marche/<catégorie>?s24=3&s7=5[&s1=…&s2=…&s3=…&m=…]`, catégorie `btc`, `actions`, `europe`, `indices` ou `commodities`. `s24` et `s7` sont les seuils en pourcentage ; `s1…m` sont les valeurs choisies de la catégorie (page « Mes 3 valeurs »).
+- **Réponse** :
+  ```
+  {"ok":1,
+   "t":[["NVDA",38,1],["TSLA",-42,1],…],   tuiles : code, variation 24 h × 10, liseré (1 = aura une page)
+   "a":[["NVDA","PLTR","AVGO"],["TSLA"]],    pages automatiques : |24 h| ≥ s24, 2 pages de 3 au plus
+   "x":["PLTR"],                             pages sur 30 jours : |7 j| ≥ s7, 3 au plus
+   "ch":1,                                   des valeurs ont été choisies
+   "p":1}                                    données périmées (facultatif)
+  ```
+  12 tuiles au plus : les plus fortes variations sur 24 h en valeur absolue. Les valeurs choisies ne sont pas reprises dans les pages automatiques. Les identifiants de `a` et `x` sont ceux de la route de la catégorie (`/actions?s1=NVDA`, `/actions/30j?id=PLTR`).
+- **Valeurs** : Crypto = 30 premières capitalisations CoinGecko, stablecoins exclus ; Actions Monde et Actions Europe = listes fixes de 30 ; Indices et Matières premières = les 20 ci-dessus.
+- **Actualisation** : les cours Yahoo des mosaïques sont rechargés en arrière-plan, **une requête à la fois, répartie sur 1 h**, et seulement pour les catégories demandées par un afficheur dans les 2 dernières heures. Au premier passage, les cours manquants sont chargés plus vite (une requête toutes les 2 s) ; la première demande réveille la boucle. Un symbole en échec n'est réessayé qu'une heure plus tard. La Crypto reprend l'appel CoinGecko des pages de cours (10 min). Tant qu'aucun cours n'est chargé : `{"ok":0,"err":"Cours en préparation"}`.
+- **Listes fixes** (`gateway/app/listes/actions_monde.txt`, `actions_europe.txt`) : une ligne par valeur, `symbole Yahoo ; code court (5 caractères au plus) ; nom`, et une ligne `# mise à jour : AAAA-MM-JJ`. Une liste datée de plus de 15 jours est signalée dans le journal et dans l'interface de l'afficheur (« liste à revoir »). Pour les remplacer sans reconstruire l'image, monter un dossier sur `/listes` (`- ./listes:/listes:ro`, autre chemin : variable `LISTES_DIR`) avec des fichiers de mêmes noms ; ils sont relus quand ils changent.
+- **Vérifier une liste** : `docker compose exec gateway python -m app.verifier` (ou, sur le PC, `python -m app.verifier actions europe` depuis `gateway/`). Chaque symbole est demandé à Yahoo : OK (avec le nom renvoyé), INCONNU ou ÉCHEC. Code de sortie 1 si un symbole est inconnu.
+- **Refaire une liste à la main** : prendre un classement des capitalisations (par exemple companiesmarketcap.com), retenir les 30 premières, chercher chaque symbole sur finance.yahoo.com (suffixe de la place : `.PA` Paris, `.DE` Francfort, `.AS` Amsterdam, `.SW` Suisse, `.L` Londres, `.MC` Madrid, `.MI` Milan, `.CO` Copenhague), choisir un code de 5 caractères au plus, mettre la date du jour, puis lancer `app.verifier`.
 
 **Icônes personnelles** (toutes les pages de cours)
 
@@ -383,7 +403,7 @@ Le port 8080 n'a **aucune authentification** : il ne doit pas être ouvert vers 
 | `/supervision` | toutes les 30 s | Alerte rapide en cas de panne |
 | `/plex` | toutes les 5 s | Montrer la page dès le début d'une lecture, suivre la progression |
 | `/tesla` | toutes les 15 s | Montrer la page au début d'une charge, suivre le pourcentage (réponse depuis la mémoire) |
-| `/meteo`, `/btc`, `/actions`, `/indices`, `/devises`, `/commodities`, `/custom`, `…/30j` | à l'affichage de la page, **au plus une fois toutes les 10 min** (3.4.0) | Réponse gardée 10 min par l'afficheur (`memo.cpp`), en plus du cache de la passerelle. Passerelle sans réponse : dernière copie affichée, marquée périmée, pendant 30 min au plus |
+| `/meteo`, `/btc`, `/actions`, `/europe`, `/indices`, `/commodities`, `/custom`, `/marche/…`, `…/30j` | à l'affichage de la page, **au plus une fois toutes les 10 min** (3.4.0) | Réponse gardée 10 min par l'afficheur (`memo.cpp`), en plus du cache de la passerelle. Passerelle sans réponse : dernière copie affichée, marquée périmée, pendant 30 min au plus |
 | `/img` | à chaque dessin d'une page avec image | Images converties gardées en mémoire par la passerelle |
 | `/ping` | toutes les 30 s, en mode diagnostic de l'afficheur seulement | Sonde réseau (§ 11) |
 

@@ -113,6 +113,15 @@ python -m tests.test_passerelle
 
 Ils simulent Open-Meteo, CoinGecko, Yahoo Finance, la BCE, Logo.dev, Kuma, Plex et Immich : aucun accès Internet ni jeton n'est nécessaire. La dernière ligne doit être « Tous les tests sont passés. »
 
+Listes fixes des mosaïques (3.5.0, `gateway/app/listes/`) : après une modification, vérifier les symboles auprès de Yahoo (accès Internet nécessaire) :
+
+```
+cd gateway
+python -m app.verifier actions europe
+```
+
+Chaque symbole est affiché OK, INCONNU ou ÉCHEC ; code de sortie 1 si un symbole est inconnu. Mettre à jour la ligne `# mise à jour : AAAA-MM-JJ` : au-delà de 15 jours, l'interface de l'afficheur signale la liste « à revoir ».
+
 ### Image Docker
 
 ```
@@ -138,7 +147,7 @@ cd firmware/tools/simulateur
 sh apercu.sh
 ```
 
-Résultat : un fichier par écran dans `out/` et une planche de tous les écrans, `planche.png`. Le script lance aussi le test de conservation de la configuration et un test de placement des textes. Il lance enfin le banc d'essai de l'interface web (`test_web.cpp`, 3.0.0) : le **vrai** `web.cpp` sur PC, avec un serveur web imité (`shim_web/`) et des réponses de la passerelle (`fixtures_web/`, produites par `gateway/tools/fixtures_interface.py`) ; chaque onglet est écrit dans `out_web/*.html`, à ouvrir dans un navigateur, puis les enregistrements sont vérifiés (seuls les champs de l'onglet changent). Le même test tourne sur GitHub après la compilation du firmware. Le script lance aussi le test de l'écran de nuit (`test_nuit.cpp`, 3.0.2) : pour toutes les minutes d'une journée, le redessin partiel doit donner les mêmes pixels que le redessin complet et, depuis la 3.1.0, aucun élément du cadran ne doit en recouvrir un autre ; puis le test des personnages (`test_persos.cpp`, 3.1.0 : choix des états, seuils, marge de Pousse), et le test des réponses gardées (`test_memo.cpp`, 3.4.0 : copie réutilisée 10 min, secours périmé jusqu'à 30 min, plafonds de nombre et de taille). Les trois tournent aussi sur GitHub. Le simulateur, lui, ne garde aucune copie (`gwGetBrut` y rend un texte vide) : chaque écran montre la donnée d'exemple du moment. Sous Windows, passer par WSL ou Git Bash.
+Résultat : un fichier par écran dans `out/` et une planche de tous les écrans, `planche.png`. Le script lance aussi le test de conservation de la configuration et un test de placement des textes. Il lance enfin le banc d'essai de l'interface web (`test_web.cpp`, 3.0.0) : le **vrai** `web.cpp` sur PC, avec un serveur web imité (`shim_web/`) et des réponses de la passerelle (`fixtures_web/`, produites par `gateway/tools/fixtures_interface.py`) ; chaque onglet est écrit dans `out_web/*.html`, à ouvrir dans un navigateur, puis les enregistrements sont vérifiés (seuls les champs de l'onglet changent). Le même test tourne sur GitHub après la compilation du firmware. Le script lance aussi le test de l'écran de nuit (`test_nuit.cpp`, 3.0.2) : pour toutes les minutes d'une journée, le redessin partiel doit donner les mêmes pixels que le redessin complet et, depuis la 3.1.0, aucun élément du cadran ne doit en recouvrir un autre ; puis le test des personnages (`test_persos.cpp`, 3.1.0 : choix des états, seuils, marge de Pousse), et le test des réponses gardées (`test_memo.cpp`, 3.4.0 : copie réutilisée 10 min, secours périmé jusqu'à 30 min, plafonds de nombre et de taille). Le simulateur vérifie aussi la suite d'une catégorie des marchés (3.5.0 : mosaïque, « Mes 3 valeurs », pages automatiques, pages sur 30 jours : chemins demandés à la passerelle et nombre de pages). Les trois tournent aussi sur GitHub. Le simulateur, lui, ne garde aucune copie (`gwGetBrut` y rend un texte vide) : chaque écran montre la donnée d'exemple du moment. Sous Windows, passer par WSL ou Git Bash.
 
 ### Pastilles des devises et des indices
 

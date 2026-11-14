@@ -12,41 +12,36 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
-## [3.5.1] — 2026-11-13 (beta)
+## [3.5.0] — 2026-11-14
 
-D'après les mesures de la 3.5.0 relevées par le propriétaire (1 h 48 de marche, `/debug.json`).
+Version publiée sans beta, à la demande du propriétaire (exception à la règle n° 9). Elle regroupe les essais 3.5.0 et 3.5.1, publiés seulement sur `beta` et mesurés sur l'afficheur, et la refonte des pages des marchés.
 
-### Modifié
-- **Veille du Wi-Fi coupée** (`WiFi.setSleepMode(WIFI_NONE_SLEEP)`, backlog n° 34, essai).
-  - **Constat** : la 3.5.0 a relevé `reseau.veille` = 2, veille modem active, malgré le point d'accès. L'analyse supposait le contraire.
-  - **Pourquoi** : en veille LIGHT ou MODEM, les temporisateurs TCP passent de 250 ms à 3 s (documentation du cœur, `generic-class.rst` l.123).
-  - **Effet** : non démontré. C'est à comparer sur la beta avec la 3.5.0 :
-    - délais dépassés (`compteurs.delai` : 3 en 1 h 48, rattrapés par le second essai) ;
-    - pire image (`max_ms.image` : 4 438 ms) ;
-    - pire pause de l'interface (`web.pause_max_ms` : 4 450 ms).
-  - **Coût** : consommation un peu plus élevée ; l'afficheur est sur secteur.
-  - **Vérification** : `reseau.veille` doit valoir 0.
-- **Onglet Pages : les réponses gardées 10 min sont rendues avant sa construction** (`memoVider()`).
-  - **Constat** : la 3.5.0 a relevé, pendant l'ouverture de l'onglet, au plus bas 16 904 octets libres et un plus grand bloc de 15 048 octets. En 3.3.0, on avait relevé 23 240 et 21 080.
-  - **Cause probable** : les copies (4 205 octets en 11 réponses, plus le surcoût de leurs chaînes) et les connexions en TIME_WAIT (6 × 184 octets).
-  - **Effet** : environ 4 Ko de plus pendant ce moment, le plus gourmand en mémoire de l'interface.
-  - **Coût** : chaque page concernée redemande ses données à son prochain affichage, une fois.
-
-### Outils
-- `test_web` : l'onglet Pages rend les réponses gardées. Une requête d'essai de plus apparaît dans `out_web/diagnostic.html` (compteurs JSON 15 → 16).
-- Simulateur : 67 écrans identiques ; `test_memo`, `test_nuit`, `test_persos`, `test_fit` passés.
-
-### Mesures (compilation locale, PlatformIO 6.1.16)
-- Flash +64 octets (625 995), RAM statique inchangée (38 460), code en IRAM inchangé (27 735 octets).
-
-### Essai
-- **Branche `beta`.** Relever `/debug.json` après une durée comparable (environ 2 h), avec les mêmes pages, puis ouvrir l'onglet Pages et relever la clé `pages`.
-
----
-
-## [3.5.0] — 2026-11-12 (beta)
+**Mise à jour : passerelle d'abord**, puis afficheur (voir « Compatibilité »).
 
 ### Ajouté
+- **Mosaïque des marchés** : une page par catégorie, en tête de la catégorie : Crypto, Actions Monde, Actions Europe (nouvelle), Indices, Matières premières.
+  - **Contenu** : les **12 plus fortes variations sur 24 h** (en valeur absolue) parmi :
+    - Crypto : les 30 premières capitalisations CoinGecko, stablecoins exclus ;
+    - Actions Monde : une liste fixe de 30 actions (`gateway/app/listes/actions_monde.txt`) ;
+    - Actions Europe : une liste fixe de 30 actions, Royaume-Uni et Suisse compris (`actions_europe.txt`) ;
+    - Indices : 20 indices ;
+    - Matières premières : 20 contrats.
+  - **Dessin** : découpage « squarified » (Bruls, Huizing et van Wijk). L'aire d'une tuile suit la racine carrée de sa variation, avec un plancher de 2 % pour que le code et la variation restent lisibles. La couleur va du vert ou rouge sombre au vert ou rouge vif jusqu'à 4 % ; gris sous 0,05 %. Codes de 5 caractères au plus.
+  - **En-tête** : pastille et nom de la catégorie, nombre de hausses ▲ et de baisses ▼.
+  - **Liseré blanc** : les tuiles des valeurs qui auront une page dans la suite de la catégorie.
+- **Suite de chaque catégorie**, après la mosaïque :
+  1. **« Mes 3 valeurs »** (facultatif) : les valeurs choisies dans l'interface, comme avant, toujours affichées quand elles sont choisies ;
+  2. **pages automatiques** : les valeurs dont la variation sur 24 h atteint le **seuil S24**, par pages de 3, **2 pages au plus**, sans les valeurs déjà choisies ;
+  3. **pages sur 30 jours** : les valeurs dont la variation sur 7 jours atteint le **seuil S7**, **3 au plus**.
+- **Seuils S24 et S7**, communs à toutes les catégories et à la page Personnalisée : onglet Pages, section « Marchés ». Par défaut 3 % et 5 %, de 0 à 20 % par demi-point (« 3,5 » ou « 3.5 » ; une saisie illisible est ignorée). Avant, le seuil des pages sur 30 jours était fixé à 5 %.
+- **Passerelle** :
+  - route **`/marche/<catégorie>?s24=&s7=`** (`btc`, `actions`, `europe`, `indices`, `commodities`), avec les valeurs choisies en plus (`s1…s3`, `m`). Réponse : tuiles, pages automatiques, pages sur 30 jours, « valeurs choisies » et marque « périmée » (format dans `docs/PASSERELLE.md`). Tant qu'aucun cours n'est chargé : `{"ok":0,"err":"Cours en préparation"}` ;
+  - **actualisation en arrière-plan** des cours Yahoo des mosaïques, une requête à la fois, **répartie sur 1 h**, et seulement pour les catégories demandées par un afficheur dans les 2 dernières heures. Au premier passage, les cours manquants arrivent plus vite (une requête toutes les 2 s). Un symbole en échec n'est réessayé qu'une heure plus tard. La Crypto reprend l'appel CoinGecko des pages de cours (10 min) ;
+  - module **Actions Europe** (`/europe`, `/europe/30j`, `/europe/liste`), ajouté automatiquement quand `actions` est dans `MODULES` ;
+  - **listes fixes datées** : ligne `# mise à jour : AAAA-MM-JJ`. Une liste de plus de 15 jours est signalée dans le journal et dans l'interface de l'afficheur (« liste à revoir », point orange). Elles se remplacent sans reconstruire l'image : dossier monté sur `/listes` (variable `LISTES_DIR`), relu quand un fichier change ;
+  - **outil de vérification des listes** : `python -m app.verifier [catégorie…]` interroge Yahoo pour chaque symbole et affiche OK, INCONNU ou ÉCHEC. Code de sortie 1 si un symbole est inconnu ;
+  - Indices et Matières premières passent de 10 à **20** valeurs (Russell 2000, IBEX 35, FTSE MIB, AEX, BEL 20, Shanghai, KOSPI, Sensex, ASX 200, TSX ; Brent, platine, palladium, sucre, coton, fioul, essence, bovins, jus d'orange, avoine) ;
+  - paramètre `s7` sur toutes les pages de cours : seuil des pages sur 30 jours (5 % sans lui, comme avant).
 - **Mesures réseau dans `/debug.json`** (backlog n° 32), nouvelle clé `reseau`. Ce sont des relevés seulement : rien ne change dans le fonctionnement. Elles servent à décider des n° 31 (une requête de fond par tour), 33 (TIME_WAIT), 34 (veille du Wi-Fi) et 35 (relance du Wi-Fi) sur des chiffres.
   - **`veille`** : mode de veille réel du Wi-Fi (`WiFi.getSleepMode()` : `0` aucune, `1` légère, `2` modem ; `-1` tant qu'il n'a pas été relevé).
   - **`fond`** : chaque tour de `loop()` où au moins une requête de fond est partie (liste des modules, heure, Discord, Supervision, Plex, Tesla) :
@@ -59,23 +54,42 @@ D'après les mesures de la 3.5.0 relevées par le propriétaire (1 h 48 de march
   - **`tcp`** : connexions TCP de lwIP, relevées une fois par seconde et après chaque tour de fond. On y trouve les connexions fermées encore en TIME_WAIT (`time_wait`, `time_wait_max`), qui gardent leur mémoire quelques minutes, les connexions ouvertes (`actives`) et la mémoire d'une connexion (`octets_par_connexion`, `sizeof(struct tcp_pcb)`). Ce sont des lectures des listes `tcp_tw_pcbs` et `tcp_active_pcbs` (`lwip/priv/tcp_priv.h`), sans rien modifier.
   - **`web`** : temps écoulé entre deux passages de l'interface web (`webTick()`). Pendant ce temps, elle ne peut pas répondre (requêtes, dessin d'une page, réception d'une photo). On y trouve la plus longue pause (`pause_max_ms`, `pause_max_il_y_a_s`) et le nombre de pauses de plus de 1 s et de plus de 5 s.
 
+### Modifié
+- **Page Devises supprimée.** Les devises restent disponibles dans la page **Personnalisée** (préfixe `d:`).
+- **Noms des pages** : « Actions » → « Actions Monde », « Commodities » → « Matières premières », « Custom » → « Personnalisée ».
+- **Interface, onglet Pages** : section **« Marchés »** (seuils, Crypto, Actions Monde, Actions Europe, Indices, Matières premières, Personnalisée), puis **« Autres pages »**. Les catégories affichent « mosaïque » et les valeurs choisies, une note sur le contenu de la mosaïque et, pour les actions, la date de la liste. Les listes proposées pour les actions sont les 30 valeurs de la liste fixe. Rien de choisi : seulement la mosaïque et les pages automatiques, sans les valeurs du `docker-compose.yml`.
+- **Page Tesla : couleur de la batterie** (backlog n° 40). Le pourcentage, le remplissage de la pile et l'éclair de charge prennent la couleur de Volta : **rouge sous 20 %**, **orange sous 35 %**, vert au-delà. Avant, ils étaient toujours verts.
+- **Volta** : orange sous **35 %** au lieu de 40 %, aligné sur la page Tesla.
+- **Veille du Wi-Fi coupée** (`WiFi.setSleepMode(WIFI_NONE_SLEEP)`, backlog n° 34) :
+  - **constat** (mesures de la beta 3.5.0) : `reseau.veille` = 2, veille modem active malgré le point d'accès, contrairement à ce que supposait l'analyse ;
+  - **pourquoi** : en veille LIGHT ou MODEM, les temporisateurs TCP passent de 250 ms à 3 s (documentation du cœur, `generic-class.rst` l.123) ;
+  - **résultat** (beta 3.5.1) : `reseau.veille` = 0. Pas de gain démontré sur les délais ; pire image à 11,2 s sur une période (contre 4,4 s), sans cause établie. Gardé à la demande du propriétaire ;
+  - **coût** : consommation un peu plus élevée ; l'afficheur est sur secteur.
+- **Onglet Pages : les réponses gardées 10 min sont rendues avant sa construction** (`memoVider()`). Mesuré sur les betas : au plus bas pendant l'ouverture, 22 280 octets libres et un plus grand bloc de 20 112 octets, contre 16 904 et 15 048 sans. Chaque page concernée redemande ses données une fois, à son prochain affichage.
+- **Passerelle** : jusqu'à 400 entrées en cache (`CACHE_MAX_ENTREES`, 200 avant), pour les cours des mosaïques. Symboles d'indices avec un point (`FTSEMIB.MI`, `000001.SS`) demandés sans « ^ ».
+
+### Reprise de la configuration
+Faite une seule fois, à la première lecture par la 3.5.0 (structure `Config` v8 inchangée, drapeau dans `reserve[4]`) :
+- les devises de l'ancienne page Devises (listes, puis saisie) vont dans les cases libres de la page Personnalisée (`d:EUR`…), 3 au plus. La page Personnalisée est activée si la page Devises l'était ;
+- la place de la page Devises devient Actions Europe : ses réglages sont effacés et elle est activée si Actions l'est ;
+- seuils à 3 % et 5 % (`reserve[5]` et `reserve[6]`, en demi-points, plafonnés à 20 %).
+
 ### Compatibilité
-- Passerelle inchangée. Les clés existantes de `/debug.json` sont inchangées.
+- **Passerelle 3.5.0 d'abord.** Avec une passerelle plus ancienne, l'afficheur 3.5.0 affiche « Données indisponibles » à la place des mosaïques (route `/marche` absente), et Actions Europe est signalée « module absent de la passerelle ».
+- **Afficheur plus ancien avec la passerelle 3.5.0** : fonctionnement inchangé. Le format d'origine de `/modules` ne présente pas Actions Europe et limite chaque liste à 10 options (3 957 octets dans les tests, plafond de 4 096). Format compact : 1 810 octets (plafond de 2 048).
+- Les clés existantes de `/debug.json` sont inchangées.
 
 ### Outils
-- `test_web` : mesures vides au départ, puis :
-  - tours de fond (un tour sans requête est ignoré ; moyenne ; plus long tour) ;
-  - pire baisse de mémoire (une remontée n'est pas comptée) ;
-  - TIME_WAIT (le maximum reste) ;
-  - pauses de l'interface.
-- La lecture des listes de lwIP, du mode de veille et le relevé dans `loop()` ne sont pas exécutables sur PC : à vérifier sur l'afficheur.
-- Simulateur : 67 écrans identiques à la 3.4.0 ; `test_memo`, `test_nuit`, `test_persos`, `test_fit` et tests de la passerelle (Python 3.12) passés.
+- `test_passerelle` : sélection des tuiles et des pages (seuils, valeurs choisies exclues, plafonds), listes de 20, listes fixes et `LISTES_DIR`, `/marche/btc`, `s7`, `/europe`, « Cours en préparation », boucle d'actualisation (réveil à la première demande, symbole en échec mis de côté).
+- `test_config` : reprise 3.4 → 3.5 (devises reprises dans la page Personnalisée, page activée, Actions Europe, seuils), 4 cas.
+- `test_web` : mesures réseau de `/debug.json` ; sections Marchés et Autres pages ; seuils (3,5 → 3,5 % ; 25 → 20 % ; illisible ignoré ; 2,3 → 2,5 %) ; date des listes ; passerelle au format d'origine identique hors Actions Europe, dates et options.
+- `test_persos` : Volta orange à 34 %, vert à 35 %.
+- Simulateur : 8 écrans nouveaux (6 mosaïques dont une périmée et une de 3 tuiles, batterie Tesla rouge et orange) ; suite d'une catégorie vérifiée (chemins demandés, 5 pages). Écrans existants identiques, sauf ceux modifiés à dessein (nom « Actions Monde », devises via la page Personnalisée). `test_memo`, `test_nuit`, `test_fit` passés.
+- `fixtures_interface.py` : réponse `/europe/liste`.
+- **Non exécutable sur PC** : lecture des listes de lwIP, mode de veille, relevés dans `loop()`, boucle de rotation (`main.cpp`) avec les pages des marchés. **À vérifier sur l'afficheur.**
 
 ### Mesures (compilation locale, PlatformIO 6.1.16)
-- Flash +1 576 octets (625 931), RAM statique +76 octets (38 460), code en IRAM inchangé (27 735 octets).
-
-### Essai
-- **Branche `beta`** (règle n° 9). Relever `/debug.json` après au moins 1 h de marche avec les pages habituelles, puis une fois en ouvrant l'interface pendant un changement de page Photos.
+- Flash +13 608 octets depuis la 3.4.0 (637 963), RAM statique +384 octets (38 768), code en IRAM inchangé (27 735 octets).
 
 ---
 

@@ -36,6 +36,10 @@ services:
       # charge (paysage, 480 x 336 ou plus). Pris en compte sans redémarrer.
       # Voir docs/PASSERELLE.md.
       # - ./icones:/icones:ro
+      # Facultatif (3.5.0) : vos listes fixes des mosaïques Actions Monde et Actions
+      # Europe (actions_monde.txt, actions_europe.txt, même format que celles de la
+      # passerelle). Vérification : docker compose exec gateway python -m app.verifier
+      # - ./listes:/listes:ro
 
     environment:
       TZ: Europe/Paris            # fuseau par défaut (si la ville est introuvable)
@@ -53,6 +57,8 @@ services:
       # MODULES ACTIFS — retirer un nom désactive le module.
       # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities, custom, immich,
       # supervision, discord, plex, tesla   (« btc », l'ancien nom de crypto, reste accepté)
+      # 3.5.0 : « actions » ajoute aussi Actions Europe ; « devises » ne sert plus qu'aux
+      # afficheurs d'avant la 3.5.0 (les devises passent par la page Personnalisée, d:EUR).
       # ---------------------------------------------------------------
       MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,immich,supervision,discord,plex,tesla
 
@@ -106,12 +112,15 @@ services:
       ACTIONS: AAPL,MC.PA               # symboles Yahoo Finance (Paris : .PA)
       INDICES: FCHI,GSPC                # symboles Yahoo sans « ^ » : FCHI CAC 40, GSPC S&P 500,
                                         # IXIC Nasdaq, DJI Dow Jones, GDAXI DAX, FTSE, STOXX50E,
-                                        # N225 Nikkei, HSI Hang Seng, SSMI ; « CAC40 », « SP500 »… acceptés
+                                        # N225 Nikkei, HSI Hang Seng, SSMI… (20, docs/PASSERELLE.md) ;
+                                        # « CAC40 », « SP500 »… acceptés
       DEVISES: EUR,GBP                  # codes ISO, cotés en dollars
       COMMODITIES: GC=F,CL=F            # contrats Yahoo : GC=F or, SI=F argent, HG=F cuivre,
                                         # CL=F pétrole, NG=F gaz, ZW=F blé, ZC=F maïs,
-                                        # ZS=F soja, KC=F café, CC=F cacao
-      CUSTOM: c:bitcoin,a:TSLA,m:GC=F   # page Custom : 3 valeurs de toutes catégories, préfixées
+                                        # ZS=F soja, KC=F café, CC=F cacao… (20, docs/PASSERELLE.md)
+      # 3.5.0 : ces valeurs ne servent qu'aux afficheurs d'avant la 3.5.0. L'afficheur 3.5.0
+      # montre la mosaïque et les pages automatiques, plus les valeurs choisies dans son interface.
+      CUSTOM: c:bitcoin,a:TSLA,m:GC=F   # page Personnalisée : 3 valeurs de toutes catégories, préfixées
                                         # c: crypto, a: action, i: indice, d: devise, m: matière
       # Logos des actions : clé publique gratuite Logo.dev (compte « Community »),
       # commence par pk_. Sans clé : logos des grandes actions américaines inclus,

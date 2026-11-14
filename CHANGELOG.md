@@ -12,6 +12,32 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.5.1] — 2026-11-14
+
+Passerelle seule : le firmware ne change pas (même code que la 3.5.0 ; seul le numéro affiché change si l'afficheur est mis à jour).
+
+### Modifié
+- **Mosaïques : pages sur 30 jours tirées au hasard.** Parmi les 12 tuiles, les valeurs dont la variation sur 7 jours atteint le seuil S7 sont candidates ; 3 au plus sont tirées au hasard (`random.sample`), à chaque appel de `/marche/<catégorie>`. Avant, c'étaient toujours les 3 plus fortes variations sur 7 jours.
+  - L'afficheur garde la réponse 10 minutes (3.4.0) : le tirage change au plus toutes les 10 minutes.
+  - Inchangés : seuil S7, 3 pages au plus, valeurs prises parmi les 12 tuiles, page Personnalisée (3 valeurs au plus : toutes passent déjà).
+- **Liseré blanc des tuiles** : il marque aussi les valeurs tirées pour une page sur 30 jours. En 3.5.0, il ne marquait que les pages automatiques (24 h), contrairement à ce qu'annonçait ce journal.
+
+### Corrigé
+- **`app.verifier`** (vérification des listes) :
+  - avec `docker compose exec`, l'outil tourne en root, mais sans droits (`cap_drop: ALL`) : il ne pouvait pas écrire dans `/cache` et affichait « Cache disque /cache non inscriptible (utilisateur 0) ». Il écrit maintenant dans un dossier temporaire, jamais dans `/cache`, et redemande chaque cours à Yahoo ;
+  - lignes affichées au fil de l'eau, même sans terminal ; nombre de symboles et durée estimée au départ (environ 2 min pour 100 symboles) ;
+  - la ligne « OK » d'une valeur sans variation sur 24 h était vide.
+- Commande documentée : `docker exec modelrogs-gateway python -m app.verifier`, utilisable depuis n'importe quel dossier (README, `docs/PASSERELLE.md`, `docker-compose.yml`).
+
+### Compatibilité
+- Afficheur 3.5.0 inchangé : il lit la clé `x` et le liseré comme avant. Mise à jour de la passerelle seule.
+
+### Outils
+- `test_passerelle` : tirage sur 200 graines (3 valeurs distinctes, toujours parmi les candidates des 12 tuiles, les 10 combinaisons possibles sorties, valeur hors tuiles jamais tirée), liseré conforme au tirage, un seul candidat, aucun candidat.
+- `app.verifier` essayé avec un faux Yahoo local et un dossier de cache en lecture seule : aucun message, rien d'écrit, symbole connu « OK », symbole inconnu « INCONNU », code de sortie 1.
+
+---
+
 ## [3.5.0] — 2026-11-14
 
 Version publiée sans beta, à la demande du propriétaire (exception à la règle n° 9). Elle regroupe les essais 3.5.0 et 3.5.1, publiés seulement sur `beta` et mesurés sur l'afficheur, et la refonte des pages des marchés.

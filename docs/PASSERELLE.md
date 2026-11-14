@@ -219,17 +219,18 @@ Routes : `/btc`, `/actions`, `/europe` (3.5.0), `/indices`, `/commodities`, `/cu
 - **Réponse** :
   ```
   {"ok":1,
-   "t":[["NVDA",38,1],["TSLA",-42,1],…],   tuiles : code, variation 24 h × 10, liseré (1 = aura une page)
+   "t":[["NVDA",38,1],["TSLA",-42,1],…],   tuiles : code, variation 24 h × 10, liseré (1 = aura une page,
+                                             automatique ou sur 30 jours)
    "a":[["NVDA","PLTR","AVGO"],["TSLA"]],    pages automatiques : |24 h| ≥ s24, 2 pages de 3 au plus
-   "x":["PLTR"],                             pages sur 30 jours : |7 j| ≥ s7, 3 au plus
+   "x":["PLTR"],                             pages sur 30 jours : |7 j| ≥ s7, 3 au plus, au hasard
    "ch":1,                                   des valeurs ont été choisies
    "p":1}                                    données périmées (facultatif)
   ```
-  12 tuiles au plus : les plus fortes variations sur 24 h en valeur absolue. Les valeurs choisies ne sont pas reprises dans les pages automatiques. Les identifiants de `a` et `x` sont ceux de la route de la catégorie (`/actions?s1=NVDA`, `/actions/30j?id=PLTR`).
+  12 tuiles au plus : les plus fortes variations sur 24 h en valeur absolue. Les valeurs choisies ne sont pas reprises dans les pages automatiques. **Pages sur 30 jours** (3.5.1) : parmi les 12 tuiles, celles dont |7 j| atteint `s7` sont candidates, et 3 au plus sont **tirées au hasard**, à chaque appel. L'afficheur garde la réponse 10 minutes : le tirage change donc au plus toutes les 10 minutes. Avant la 3.5.1, c'étaient toujours les 3 plus fortes variations sur 7 jours. Les identifiants de `a` et `x` sont ceux de la route de la catégorie (`/actions?s1=NVDA`, `/actions/30j?id=PLTR`).
 - **Valeurs** : Crypto = 30 premières capitalisations CoinGecko, stablecoins exclus ; Actions Monde et Actions Europe = listes fixes de 30 ; Indices et Matières premières = les 20 ci-dessus.
 - **Actualisation** : les cours Yahoo des mosaïques sont rechargés en arrière-plan, **une requête à la fois, répartie sur 1 h**, et seulement pour les catégories demandées par un afficheur dans les 2 dernières heures. Au premier passage, les cours manquants sont chargés plus vite (une requête toutes les 2 s) ; la première demande réveille la boucle. Un symbole en échec n'est réessayé qu'une heure plus tard. La Crypto reprend l'appel CoinGecko des pages de cours (10 min). Tant qu'aucun cours n'est chargé : `{"ok":0,"err":"Cours en préparation"}`.
 - **Listes fixes** (`gateway/app/listes/actions_monde.txt`, `actions_europe.txt`) : une ligne par valeur, `symbole Yahoo ; code court (5 caractères au plus) ; nom`, et une ligne `# mise à jour : AAAA-MM-JJ`. Une liste datée de plus de 15 jours est signalée dans le journal et dans l'interface de l'afficheur (« liste à revoir »). Pour les remplacer sans reconstruire l'image, monter un dossier sur `/listes` (`- ./listes:/listes:ro`, autre chemin : variable `LISTES_DIR`) avec des fichiers de mêmes noms ; ils sont relus quand ils changent.
-- **Vérifier une liste** : `docker compose exec gateway python -m app.verifier` (ou, sur le PC, `python -m app.verifier actions europe` depuis `gateway/`). Chaque symbole est demandé à Yahoo : OK (avec le nom renvoyé), INCONNU ou ÉCHEC. Code de sortie 1 si un symbole est inconnu.
+- **Vérifier une liste** : `docker exec modelrogs-gateway python -m app.verifier`, depuis n'importe quel dossier du serveur (une catégorie seulement : `… app.verifier europe`). Sur le PC : `python -m app.verifier actions europe` depuis `gateway/`. Environ 2 minutes pour les 100 symboles (une requête par seconde). L'outil n'écrit pas dans `/cache` et redemande chaque cours à Yahoo. Chaque symbole est demandé à Yahoo : OK (avec le nom renvoyé), INCONNU ou ÉCHEC. Code de sortie 1 si un symbole est inconnu.
 - **Refaire une liste à la main** : prendre un classement des capitalisations (par exemple companiesmarketcap.com), retenir les 30 premières, chercher chaque symbole sur finance.yahoo.com (suffixe de la place : `.PA` Paris, `.DE` Francfort, `.AS` Amsterdam, `.SW` Suisse, `.L` Londres, `.MC` Madrid, `.MI` Milan, `.CO` Copenhague), choisir un code de 5 caractères au plus, mettre la date du jour, puis lancer `app.verifier`.
 
 **Icônes personnelles** (toutes les pages de cours)

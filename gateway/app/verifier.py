@@ -4,24 +4,39 @@ Interroge chaque symbole des listes fixes (Actions Monde, Actions Europe) et
 des listes intégrées (Indices, Matières premières), une requête par seconde,
 et affiche ceux que Yahoo ne connaît pas.
 
-Lancement, sur la machine de la passerelle :
-    docker exec <conteneur de la passerelle> python -m app.verifier
-    docker exec <conteneur de la passerelle> python -m app.verifier europe
+Lancement, sur la machine de la passerelle (depuis n'importe quel dossier) :
+    docker exec modelrogs-gateway python -m app.verifier
+    docker exec modelrogs-gateway python -m app.verifier europe
 Catégories : actions, europe, indices, commodities (toutes par défaut).
 Code de sortie : 0 si tout est connu, 1 sinon.
+
+L'outil tourne à côté de la passerelle, souvent en root sans droits (cap_drop
+du docker-compose) : il n'écrit jamais dans /cache, et chaque symbole est
+demandé à Yahoo, sans réutiliser les cours gardés par la passerelle.
 """
 
 import asyncio
+import functools
 import sys
+import tempfile
+from pathlib import Path
 
 import aiohttp
 
+from . import cache as _cache
 from .cache import SourceIndisponible
 from .modules import cotations, marches
+
+# Cache disque dans un dossier temporaire (tmpfs du conteneur), jamais /cache
+_cache.CACHE_DIR = Path(tempfile.mkdtemp(prefix="verifier-"))
+# Lignes affichées au fil de l'eau, même sans terminal (docker exec sans -t)
+print = functools.partial(print, flush=True)  # noqa: A001
 
 
 async def verifier(categories: list[str]) -> int:
     inconnus = 0
+    total = sum(len(marches.symboles(c)) for c in categories)
+    print(f"{total} symboles à vérifier, une requête par seconde : environ {total // 60 + 1} min.")
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
         for cat in categories:
             if cat in marches.FICHIERS:
@@ -38,7 +53,7 @@ async def verifier(categories: list[str]) -> int:
                     g = await cotations._graphique(session, symbole)
                     p24, _, _ = cotations._variations(g)
                     print(f"   OK      {symbole:12s} {code:6s} {g['px']:>14,.2f} {g['dev']:4s}"
-                          f" 24 h {p24:+.1f} %" if p24 is not None else "")
+                          + (f" 24 h {p24:+.1f} %" if p24 is not None else ""))
                 except cotations.Introuvable:
                     inconnus += 1
                     print(f"   INCONNU {symbole:12s} {code:6s} symbole inconnu de Yahoo : à corriger")

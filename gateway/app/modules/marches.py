@@ -14,7 +14,8 @@ Route /marche/<catégorie>?s24=3&s7=5[&s1=…&s2=…&s3=…&m=…] :
    "a": [[id, id, id], [id, …]]                    pages automatiques (|24 h| ≥ s24,
                                                    2 pages de 3 au plus, sans les
                                                    valeurs choisies),
-   "x": [id, …]                                    pages sur 30 jours (|7 j| ≥ s7, 3 au plus),
+   "x": [id, …]                                    pages sur 30 jours (|7 j| ≥ s7, 3 au plus,
+                                                   tirées au hasard parmi les 12 tuiles, 3.5.1),
    "ch": 1                                         des valeurs ont été choisies (s1…m),
    "p": 1                                          données périmées (facultatif)}
 Les « id » sont ceux de la route de la catégorie (/btc?s1=<id>, /actions?s1=<id>…).
@@ -34,6 +35,7 @@ import asyncio
 import datetime as dt
 import logging
 import os
+import random
 import re
 import time
 from pathlib import Path
@@ -277,9 +279,13 @@ def _cle(cat: str, ident: str) -> str:
 
 
 def selection(cat: str, valeurs: list[tuple[str, str, float, float]], choisies: list[str],
-              s24: float, s7: float) -> dict:
+              s24: float, s7: float, tirage: random.Random | None = None) -> dict:
     """Tuiles, pages automatiques et pages sur 30 jours (fonction pure, testée seule).
-    valeurs : [(id, code, v24, v7)]."""
+    valeurs : [(id, code, v24, v7)].
+    Pages sur 30 jours (3.5.1) : 3 au plus, tirées au hasard parmi les tuiles dont
+    |7 j| ≥ s7 ; un nouveau tirage à chaque appel (l'afficheur garde la réponse
+    10 min). « tirage » : générateur imposé par les tests.
+    Liseré : les tuiles qui auront une page (automatique ou sur 30 jours)."""
     tuiles = sorted(valeurs, key=lambda v: -abs(v[2]))[:TUILES]
     deja = {_cle(cat, c) for c in choisies}
     codes_choisis = {c.strip().upper() for c in choisies}
@@ -287,7 +293,9 @@ def selection(cat: str, valeurs: list[tuple[str, str, float, float]], choisies: 
             and _cle(cat, v[0]) not in deja and v[1].upper() not in codes_choisis][:3 * MAX_AUTO]
     pages = [[v[0] for v in auto[i:i + 3]] for i in range(0, len(auto), 3)]
     en_page = {v[0] for v in auto}
-    trente = [v[0] for v in sorted(tuiles, key=lambda v: -abs(v[3])) if abs(v[3]) >= s7][:MAX_30J]
+    candidats = [v[0] for v in tuiles if abs(v[3]) >= s7]
+    trente = (tirage or random).sample(candidats, min(MAX_30J, len(candidats)))
+    en_page |= set(trente)
     return {
         "t": [[v[1], int(round(v[2] * 10)), int(v[0] in en_page)] for v in tuiles],
         "a": pages,

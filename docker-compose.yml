@@ -38,7 +38,7 @@ services:
       # - ./icones:/icones:ro
       # Facultatif (3.5.0) : vos listes fixes des mosaïques Actions Monde et Actions
       # Europe (actions_monde.txt, actions_europe.txt, même format que celles de la
-      # passerelle). Vérification : docker compose exec gateway python -m app.verifier
+      # passerelle). Vérification : docker exec modelrogs-gateway python -m app.verifier
       # - ./listes:/listes:ro
 
     environment:

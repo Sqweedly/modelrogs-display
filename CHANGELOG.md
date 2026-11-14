@@ -66,6 +66,7 @@ Version publiée sans beta, à la demande du propriétaire (exception à la règ
   - **résultat** (beta 3.5.1) : `reseau.veille` = 0. Pas de gain démontré sur les délais ; pire image à 11,2 s sur une période (contre 4,4 s), sans cause établie. Gardé à la demande du propriétaire ;
   - **coût** : consommation un peu plus élevée ; l'afficheur est sur secteur.
 - **Onglet Pages : les réponses gardées 10 min sont rendues avant sa construction** (`memoVider()`). Mesuré sur les betas : au plus bas pendant l'ouverture, 22 280 octets libres et un plus grand bloc de 20 112 octets, contre 16 904 et 15 048 sans. Chaque page concernée redemande ses données une fois, à son prochain affichage.
+- **`docker-compose.yml` épuré** : module `devises` retiré de `MODULES` (les devises passent par la page Personnalisée, qui interroge Yahoo elle-même) ; variables `CRYPTOS`, `ACTIONS`, `INDICES`, `DEVISES`, `COMMODITIES` retirées (l'afficheur 3.5.0 envoie toujours ses valeurs ; seule `CUSTOM` reste) ; volume facultatif `/listes`. Un compose 3.4 laissé tel quel fonctionne aussi : ces réglages sont simplement ignorés par l'afficheur 3.5.0.
 - **Passerelle** : jusqu'à 400 entrées en cache (`CACHE_MAX_ENTREES`, 200 avant), pour les cours des mosaïques. Symboles d'indices avec un point (`FTSEMIB.MI`, `000001.SS`) demandés sans « ^ ».
 
 ### Reprise de la configuration

@@ -99,7 +99,7 @@ Les autres modules demandent leurs variables (les mêmes que dans `docker-compos
 | `discord` | `DISCORD_TOKEN`, `DISCORD_GUILD_ID` (et `DISCORD_MEMBERS_INTENT`) |
 | `plex` | `PLEX_URL`, `PLEX_TOKEN` |
 | `immich` | `IMMICH_URL`, `IMMICH_KEY` |
-| `crypto`, `actions`, `indices`, `devises`, `commodities`, `custom` | facultatives : `CRYPTOS`, `ACTIONS`, `INDICES`, `DEVISES`, `COMMODITIES`, `CUSTOM` (valeurs par défaut), `LOGO_DEV_TOKEN`, `COINGECKO_KEY`, `ICONES_PERSO` (dossier d'icônes personnelles, `/icones` par défaut) |
+| `crypto`, `actions`, `indices`, `devises`, `commodities`, `custom` | facultatives : `CUSTOM` (valeurs par défaut de la page Personnalisée) ; `CRYPTOS`, `ACTIONS`, `INDICES`, `DEVISES`, `COMMODITIES` (valeurs par défaut, afficheurs d'avant la 3.5.0 seulement), `LOGO_DEV_TOKEN`, `COINGECKO_KEY`, `ICONES_PERSO` (dossier d'icônes personnelles, `/icones` par défaut) |
 | tous | `TZ`, `VILLE` (ancien nom `VILLE_DEFAUT`) |
 
 Ne jamais enregistrer de jeton dans un fichier suivi par git.

@@ -6,7 +6,7 @@
 #   3. chmod 600 docker-compose.yml     (il contient les jetons Discord et Plex)
 #   4. docker compose up -d
 #
-# Les réglages personnels (ville, salon vocal, valeurs des pages de cours)
+# Les réglages personnels (salon vocal, valeurs et seuils des marchés, photos)
 # se font ensuite dans l'interface de l'afficheur.
 # NE JAMAIS publier ce fichier une fois les jetons renseignés.
 # =====================================================================
@@ -16,7 +16,7 @@ services:
     image: ghcr.io/sqweedly/modelrogs-gateway:3
     # Essai de la branche beta (image publiée par Actions → Vérification sur beta) :
     # image: ghcr.io/sqweedly/modelrogs-gateway:beta
-    # Vérifie à chaque « docker compose up -d » si une version 2.x plus récente
+    # Vérifie à chaque « docker compose up -d » si une version 3.x plus récente
     # est publiée (sinon, seul « docker compose pull » la télécharge)
     pull_policy: always
     container_name: modelrogs-gateway
@@ -28,7 +28,7 @@ services:
       # BTC). Chemin libre à gauche du « : », par ex. /volume1/docker/modelrogs/cache.
       # Il est créé au besoin et reçoit automatiquement les bons droits au démarrage.
       - ./cache:/cache
-      # Facultatif : vos propres icônes pour les pages de cours, prioritaires sur
+      # Facultatif : vos propres icônes pour les pages des marchés, prioritaires sur
       # celles de la passerelle. Rangement : devises/EUR.png, actions/AAPL.png,
       # commodities/GC=F.png, crypto/bitcoin.png (nom = valeur saisie sur
       # l'afficheur, majuscules indifférentes). PNG carré, 64 px ou plus, fond
@@ -55,12 +55,12 @@ services:
 
       # ---------------------------------------------------------------
       # MODULES ACTIFS — retirer un nom désactive le module.
-      # Disponibles : heure, meteo, crypto, actions, indices, devises, commodities, custom, immich,
-      # supervision, discord, plex, tesla   (« btc », l'ancien nom de crypto, reste accepté)
-      # 3.5.0 : « actions » ajoute aussi Actions Europe ; « devises » ne sert plus qu'aux
-      # afficheurs d'avant la 3.5.0 (les devises passent par la page Personnalisée, d:EUR).
+      # Disponibles : heure, meteo, crypto, actions (Actions Monde et Actions Europe),
+      # indices, commodities (Matières premières), custom (Personnalisée), immich,
+      # supervision, discord, plex, tesla
+      # Les devises se choisissent dans la page Personnalisée (d:EUR).
       # ---------------------------------------------------------------
-      MODULES: heure,meteo,crypto,actions,indices,devises,commodities,custom,immich,supervision,discord,plex,tesla
+      MODULES: heure,meteo,crypto,actions,indices,commodities,custom,immich,supervision,discord,plex,tesla
 
       # --- Module « supervision » (Uptime Kuma) ----------------------
       # Page de statut Kuma : toutes ses sondes sont suivies par l'afficheur
@@ -104,24 +104,12 @@ services:
       # TESLA_MQTT_ESPACE: ""            # MQTT_NAMESPACE de TeslaMate, s'il est réglé
       # TESLA_VOITURE: "1"               # n° après « cars/ » dans les sujets de TeslaMate
 
-      # --- Pages de cours : crypto, actions, indices, devises, commodities, custom
-      # Tous les prix sont en dollars, sauf les indices (en points). 3 valeurs au plus par page, séparées par
-      # des virgules. Valeurs par défaut : celles choisies dans l'interface de
-      # l'afficheur passent avant (3 listes + une saisie libre par page).
-      CRYPTOS: bitcoin,ethereum         # identifiants CoinGecko (ou symboles : BTC, ETH)
-      ACTIONS: AAPL,MC.PA               # symboles Yahoo Finance (Paris : .PA)
-      INDICES: FCHI,GSPC                # symboles Yahoo sans « ^ » : FCHI CAC 40, GSPC S&P 500,
-                                        # IXIC Nasdaq, DJI Dow Jones, GDAXI DAX, FTSE, STOXX50E,
-                                        # N225 Nikkei, HSI Hang Seng, SSMI… (20, docs/PASSERELLE.md) ;
-                                        # « CAC40 », « SP500 »… acceptés
-      DEVISES: EUR,GBP                  # codes ISO, cotés en dollars
-      COMMODITIES: GC=F,CL=F            # contrats Yahoo : GC=F or, SI=F argent, HG=F cuivre,
-                                        # CL=F pétrole, NG=F gaz, ZW=F blé, ZC=F maïs,
-                                        # ZS=F soja, KC=F café, CC=F cacao… (20, docs/PASSERELLE.md)
-      # 3.5.0 : ces valeurs ne servent qu'aux afficheurs d'avant la 3.5.0. L'afficheur 3.5.0
-      # montre la mosaïque et les pages automatiques, plus les valeurs choisies dans son interface.
-      CUSTOM: c:bitcoin,a:TSLA,m:GC=F   # page Personnalisée : 3 valeurs de toutes catégories, préfixées
-                                        # c: crypto, a: action, i: indice, d: devise, m: matière
+      # --- Marchés : crypto, actions, indices, commodities, custom ------
+      # Mosaïques, seuils et valeurs choisies : dans l'interface de l'afficheur.
+      # Tous les prix sont en dollars, sauf les indices (en points).
+      # Page Personnalisée, rien de choisi dans l'interface : ces 3 valeurs,
+      # préfixées c: crypto, a: action, i: indice, d: devise, m: matière première.
+      CUSTOM: c:bitcoin,a:TSLA,m:GC=F
       # Logos des actions : clé publique gratuite Logo.dev (compte « Community »),
       # commence par pk_. Sans clé : logos des grandes actions américaines inclus,
       # sinon une pastille avec le code.

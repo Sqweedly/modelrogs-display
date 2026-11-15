@@ -1049,8 +1049,12 @@ static void retirerDediee(const char* id) {
   }
 }
 
+// 3.5.2 : faux pendant les pages automatiques des marchés, dont les pages sur
+// 30 jours sont tirées par la passerelle (clé « x » de la mosaïque)
+static bool noterActif = true;
+
 static void noterDediee(JsonObject c) {
-  if ((c["x"] | 0) && !(c["e"] | 0)) ajouterDediee(c["id"] | "");
+  if (noterActif && (c["x"] | 0) && !(c["e"] | 0)) ajouterDediee(c["id"] | "");
 }
 
 // « Prix en vedette » à 2 ou 3 valeurs, identique pour Crypto, Actions,
@@ -1148,7 +1152,8 @@ static void vedetteCartes(JsonArray cs, uint8_t n, uint8_t dotIndex, uint8_t dot
 
 // Une page de cours (valeurs choisies, ou page automatique d'une catégorie) :
 // 1 valeur -> page sur 30 jours, 2 ou 3 -> « prix en vedette ». Les valeurs
-// marquées « x » sont mises en attente pour une page sur 30 jours.
+// marquées « x » sont mises en attente pour une page sur 30 jours, sauf sur
+// les pages automatiques des marchés (3.5.2 : tirées par la passerelle).
 static void drawCoursChemin(uint8_t page, const String& chemin, uint8_t dotIndex, uint8_t dotCount) {
   JsonDocument doc;
   int code = memoGet(chemin, doc);
@@ -1326,17 +1331,29 @@ static void dessinerMosaique(uint8_t page, JsonArray t, bool perime, uint8_t dot
   pageDots(dotIndex, dotCount, accent);
 }
 
-// Suite de la page d'une catégorie : valeurs choisies, puis pages automatiques
+// Suite de la page d'une catégorie (3.5.2) : pages automatiques tirées, pages
+// sur 30 jours tirées, puis valeurs choisies et leurs pages sur 30 jours
 static bool    marcheChoisies = false;
-static uint8_t marcheEtape = 0, marcheNbAuto = 0;
+static uint8_t marcheEtape = 0, marcheNbAuto = 0, marcheNbX = 0;
 static char    marcheAuto[2][3][24];
 static uint8_t marcheAutoN[2];
+static char    marcheX[2][24];
+
+// Page sur 30 jours d'une valeur (identifiant de la passerelle) ; faux si indisponible
+static bool page30(uint8_t page, const char* id, uint8_t dotIndex, uint8_t dotCount) {
+  JsonDocument doc;
+  if (memoGet(String("/") + PAGE_IDS[page] + "/30j?id=" + urlEncode(id), doc) != 200) return false;
+  JsonArray cs = doc["c"].as<JsonArray>();
+  pageCrypto30(cs[0], dotIndex, dotCount, doc["p"] | 0, accentPage(page, cs));
+  return true;
+}
 
 void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   nbDediees = prochaineDediee = 0;
   pageDediees = page;
-  marcheEtape = marcheNbAuto = 0;
+  marcheEtape = marcheNbAuto = marcheNbX = 0;
   marcheChoisies = false;
+  noterActif = true;
   if (!pageMarche(page)) {                 // Personnalisée : les valeurs choisies, comme avant
     drawCoursChemin(page, modulePath(page), dotIndex, dotCount);
     return;
@@ -1364,46 +1381,56 @@ void drawCours(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
     }
     if (k) marcheAutoN[marcheNbAuto++] = k;
   }
-  for (JsonVariant id : doc["x"].as<JsonArray>()) ajouterDediee(id.as<const char*>());
+  for (JsonVariant vi : doc["x"].as<JsonArray>()) {
+    const char* id = vi.as<const char*>();
+    if (marcheNbX == 2 || !id || !*id) continue;
+    // Seule sur sa page automatique, la valeur y est déjà montrée sur 30 jours
+    bool seule = false;
+    for (uint8_t p = 0; p < marcheNbAuto; p++)
+      seule |= marcheAutoN[p] == 1 && strcmp(marcheAuto[p][0], id) == 0;
+    if (seule) continue;
+    strncpy(marcheX[marcheNbX], id, sizeof(marcheX[0]) - 1);
+    marcheX[marcheNbX][sizeof(marcheX[0]) - 1] = '\0';
+    marcheNbX++;
+  }
   dessinerMosaique(page, doc["t"].as<JsonArray>(), doc["p"] | 0, dotIndex, dotCount);
 }
 
 bool coursEcranSuivant(uint8_t page, uint8_t dotIndex, uint8_t dotCount) {
   if (page != pageDediees) return false;
   if (pageMarche(page)) {
-    // Étape 0 : valeurs choisies ; étapes 1 et 2 : pages automatiques
-    while (marcheEtape < 1 + marcheNbAuto) {
+    // Étapes (3.5.2) : pages automatiques, pages sur 30 jours tirées, valeurs
+    // choisies ; ensuite, les pages sur 30 jours des valeurs choisies (file)
+    const uint8_t fin = marcheNbAuto + marcheNbX + 1;
+    while (marcheEtape < fin) {
       const uint8_t e = marcheEtape++;
-      if (e == 0) {
-        if (!marcheChoisies) continue;
-        drawCoursChemin(page, modulePath(page), dotIndex, dotCount);
+      if (e < marcheNbAuto) {
+        String chemin = "/";
+        chemin += PAGE_IDS[page];
+        chemin += '?';
+        for (uint8_t k = 0; k < marcheAutoN[e]; k++) {
+          if (k) chemin += '&';
+          chemin += 's';
+          chemin += (char)('1' + k);
+          chemin += '=';
+          chemin += urlEncode(marcheAuto[e][k]);
+        }
+        noterActif = false;          // leurs pages sur 30 jours : tirées par la passerelle
+        drawCoursChemin(page, chemin, dotIndex, dotCount);
+        noterActif = true;
         return true;
       }
-      String chemin = "/";
-      chemin += PAGE_IDS[page];
-      chemin += '?';
-      for (uint8_t k = 0; k < marcheAutoN[e - 1]; k++) {
-        chemin += 's';
-        chemin += (char)('1' + k);
-        chemin += '=';
-        chemin += urlEncode(marcheAuto[e - 1][k]);
-        chemin += '&';
+      if (e < marcheNbAuto + marcheNbX) {
+        if (page30(page, marcheX[e - marcheNbAuto], dotIndex, dotCount)) return true;
+        continue;                    // indisponible : étape suivante
       }
-      chemin += "s7=";
-      chemin += texteSeuil(seuil7());
-      drawCoursChemin(page, chemin, dotIndex, dotCount);
+      if (!marcheChoisies) continue;
+      drawCoursChemin(page, modulePath(page), dotIndex, dotCount);
       return true;
     }
   }
   while (prochaineDediee < nbDediees) {
-    const char* id = dediees[prochaineDediee++];
-    JsonDocument doc;
-    if (memoGet(String("/") + PAGE_IDS[page] + "/30j?id=" + urlEncode(id), doc) != 200) {
-      continue;                 // indisponible : page suivante
-    }
-    JsonArray cs = doc["c"].as<JsonArray>();
-    pageCrypto30(cs[0], dotIndex, dotCount, doc["p"] | 0, accentPage(page, cs));
-    return true;
+    if (page30(page, dediees[prochaineDediee++], dotIndex, dotCount)) return true;
   }
   return false;
 }

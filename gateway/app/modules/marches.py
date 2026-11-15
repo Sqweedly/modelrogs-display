@@ -14,8 +14,9 @@ Route /marche/<catégorie>?s24=3&s7=5[&s1=…&s2=…&s3=…&m=…] :
    "a": [[id, id, id], [id, …]]                    pages automatiques (|24 h| ≥ s24,
                                                    2 pages de 3 au plus, sans les
                                                    valeurs choisies),
-   "x": [id, …]                                    pages sur 30 jours (|7 j| ≥ s7, 3 au plus,
-                                                   tirées au hasard parmi les 12 tuiles, 3.5.1),
+   "x": [id, …]                                    pages sur 30 jours : 2 au plus, tirées au hasard
+                                                   parmi les valeurs des pages automatiques
+                                                   dont |7 j| ≥ s7 (3.5.2),
    "ch": 1                                         des valeurs ont été choisies (s1…m),
    "p": 1                                          données périmées (facultatif)}
 Les « id » sont ceux de la route de la catégorie (/btc?s1=<id>, /actions?s1=<id>…).
@@ -50,7 +51,7 @@ log = logging.getLogger("marches")
 TUILES = 12
 TOP_CRYPTO = 30
 MAX_AUTO = 2              # pages automatiques à 3 valeurs, au plus
-MAX_30J = 3               # pages sur 30 jours, au plus
+MAX_30J = 2               # pages sur 30 jours tirées parmi les pages automatiques, au plus (3.5.2)
 PERIODE = 3600.0          # actualisation complète des cours Yahoo
 PAS_RATTRAPAGE = 2.0      # premier chargement : une requête toutes les 2 s
 ACTIVITE = 2 * 3600.0     # catégorie suivie tant qu'un afficheur l'a demandée récemment
@@ -282,20 +283,27 @@ def selection(cat: str, valeurs: list[tuple[str, str, float, float]], choisies: 
               s24: float, s7: float, tirage: random.Random | None = None) -> dict:
     """Tuiles, pages automatiques et pages sur 30 jours (fonction pure, testée seule).
     valeurs : [(id, code, v24, v7)].
-    Pages sur 30 jours (3.5.1) : 3 au plus, tirées au hasard parmi les tuiles dont
-    |7 j| ≥ s7 ; un nouveau tirage à chaque appel (l'afficheur garde la réponse
-    10 min). « tirage » : générateur imposé par les tests.
-    Liseré : les tuiles qui auront une page (automatique ou sur 30 jours)."""
+    - Tuiles : les 12 plus fortes |24 h|, sans seuil.
+    - Pages automatiques (3.5.2) : tuiles dont |24 h| ≥ s24, hors valeurs choisies ;
+      plus de 6 : 6 tirées au hasard. Rangées par |24 h| décroissante, par 3.
+    - Pages sur 30 jours (3.5.2) : parmi ces valeurs affichées, celles dont
+      |7 j| ≥ s7 ; plus de 2 : 2 tirées au hasard. Les valeurs choisies ont leurs
+      propres pages sur 30 jours (route de la catégorie), hors de ce tirage.
+    Nouveau tirage à chaque appel (l'afficheur garde la réponse 10 min).
+    « tirage » : générateur imposé par les tests.
+    Liseré : les tuiles des pages automatiques (celles sur 30 jours en font partie)."""
+    hasard = tirage or random
     tuiles = sorted(valeurs, key=lambda v: -abs(v[2]))[:TUILES]
     deja = {_cle(cat, c) for c in choisies}
     codes_choisis = {c.strip().upper() for c in choisies}
     auto = [v for v in tuiles if abs(v[2]) >= s24
-            and _cle(cat, v[0]) not in deja and v[1].upper() not in codes_choisis][:3 * MAX_AUTO]
+            and _cle(cat, v[0]) not in deja and v[1].upper() not in codes_choisis]
+    if len(auto) > 3 * MAX_AUTO:
+        auto = sorted(hasard.sample(auto, 3 * MAX_AUTO), key=lambda v: -abs(v[2]))
     pages = [[v[0] for v in auto[i:i + 3]] for i in range(0, len(auto), 3)]
     en_page = {v[0] for v in auto}
-    candidats = [v[0] for v in tuiles if abs(v[3]) >= s7]
-    trente = (tirage or random).sample(candidats, min(MAX_30J, len(candidats)))
-    en_page |= set(trente)
+    candidats = [v[0] for v in auto if abs(v[3]) >= s7]
+    trente = hasard.sample(candidats, min(MAX_30J, len(candidats)))
     return {
         "t": [[v[1], int(round(v[2] * 10)), int(v[0] in en_page)] for v in tuiles],
         "a": pages,

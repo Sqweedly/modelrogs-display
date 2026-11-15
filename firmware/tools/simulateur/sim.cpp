@@ -364,34 +364,46 @@ int main(int argc, char** argv) {
     drawCours(page, 5, 9); save(m[2]);
     fixtures.erase(m[0]);
   }
-  // 3.5.0 : enchaînement d'une catégorie : mosaïque, valeurs choisies, pages
-  // automatiques (une page d'une seule valeur = sur 30 jours, pas de page dédiée
-  // en double), puis pages sur 30 jours, sans doublon
+  // 3.5.2 : enchaînement d'une catégorie : mosaïque, pages automatiques tirées
+  // (sans pages sur 30 jours à elles ; une page d'une seule valeur = sur 30 jours,
+  // sans doublon), pages sur 30 jours tirées (clé « x »), valeurs choisies, puis
+  // les pages sur 30 jours des valeurs choisies
   {
-    fixtures["/marche/actions"] = R"({"ok":1,"t":[["PLTR",56,1]],"a":[["PLTR","TSLA","NVDA"],["GC=F"]],"x":["PLTR","GC=F","AAPL"],"ch":1})";
-    fixtures["/actions"] = FX("actions3");
+    auto avecX = [](std::string j, std::initializer_list<int> rangs) {   // « x »: 1 sur les valeurs voulues
+      size_t pos = 0;
+      for (int r = 0; (pos = j.find("\"x\": 0", pos)) != std::string::npos; r++, pos++)
+        for (int k : rangs) if (k == r) j[pos + 5] = '1';
+      return j;
+    };
+    fixtures["/marche/actions"] = R"({"ok":1,"t":[["PLTR",56,1]],"a":[["PLTR","TSLA","NVDA"],["GC=F"]],"x":["PLTR","GC=F"],"ch":1})";
+    std::string autoPage = avecX(FX("actions3"), {0, 1, 2});            // ne doit rien mettre en attente
+    autoPage.replace(autoPage.find("\"id\": \"MC.PA\""), 13, "\"id\": \"TSLA\"");
+    fixtures["/actions?s1=PLTR"] = autoPage;
+    fixtures["/actions?s1=AAPL"] = avecX(FX("actions3"), {0, 2});      // choisies : AAPL et TTE.PA sur 30 jours
     fixtures["/actions/30j"] = FX("actions1");
     std::string seule = FX("actions1");                     // page automatique d'une seule valeur
     seule.replace(seule.find("\"id\": \"AAPL\""), 12, "\"id\": \"GC=F\"");
     fixtures["/actions?s1=GC"] = seule;
-    strncpy(cfg.pActions, "s1=AAPL", sizeof(cfg.pActions));
+    strncpy(cfg.pActions, "s1=AAPL&s2=TTE.PA", sizeof(cfg.pActions));
     reglerSeuils(6, 10);
     chemins.clear();
     drawCours(PG_ACTIONS, 5, 9);
     int pages = 0;
-    while (coursEcranSuivant(PG_ACTIONS, 5, 9) && pages < 10) pages++;
+    while (coursEcranSuivant(PG_ACTIONS, 5, 9) && pages < 12) pages++;
     std::string vu;
     for (auto& c : chemins) vu += c + " | ";
     const std::vector<std::string> attendu = {
-      "/marche/actions?s24=3&s7=5&s1=AAPL", "/actions?s1=AAPL&s7=5", "/actions?s1=PLTR&s2=TSLA&s3=NVDA&s7=5",
-      "/actions?s1=GC=F&s7=5", "/actions/30j?id=PLTR", "/actions/30j?id=AAPL" };
-    if (chemins != attendu || pages != 5) {
+      "/marche/actions?s24=3&s7=5&s1=AAPL&s2=TTE.PA", "/actions?s1=PLTR&s2=TSLA&s3=NVDA", "/actions?s1=GC=F",
+      "/actions/30j?id=PLTR", "/actions?s1=AAPL&s2=TTE.PA&s7=5", "/actions/30j?id=AAPL", "/actions/30j?id=TTE.PA" };
+    if (chemins != attendu || pages != 6) {
       fprintf(stderr, "ÉCHEC : enchaînement d'une catégorie (%d pages) : %s\n", pages, vu.c_str());
       return 1;
     }
-    fprintf(stderr, "Enchaînement d'une catégorie : mosaïque, choisies, 2 pages automatiques, 2 pages sur 30 jours.\n");
+    fprintf(stderr, "Enchaînement d'une catégorie : mosaïque, 2 pages automatiques, 1 page sur 30 jours tirée, choisies, 2 pages sur 30 jours des choisies.\n");
     fixtures.erase("/marche/actions");
     fixtures.erase("/actions?s1=GC");
+    fixtures.erase("/actions?s1=PLTR");
+    fixtures.erase("/actions?s1=AAPL");
     fixtures["/actions"] = FX("actions3");
     cfg.pActions[0] = '\0';
   }
@@ -437,7 +449,7 @@ int main(int argc, char** argv) {
     for (auto& c : TEMP) { gWx.t = c.t; drawPousse(); save(c.f); }
     struct { uint8_t pct; uint8_t etat; const char* l; const char* f; } const BATT[] = {
       {12, TESLA_STATIONNEE, "Autonomie 41 km", "36a_volta_rouge"}, {32, TESLA_STATIONNEE, "Autonomie 112 km", "36b_volta_orange"},
-      {80, TESLA_BRANCHEE, "Autonomie 281 km", "36c_volta_vert"}, {91, TESLA_STATIONNEE, "Autonomie 321 km", "36d_volta_contente"},
+      {80, TESLA_BRANCHEE, "Autonomie 281 km", "36c_volta_vert"}, {18, TESLA_BRANCHEE, "Autonomie 62 km", "36g_volta_branchee_rouge"}, {30, TESLA_BRANCHEE, "Autonomie 105 km", "36h_volta_branchee_orange"}, {91, TESLA_STATIONNEE, "Autonomie 321 km", "36d_volta_contente"},
       {64, TESLA_CHARGE, "80 % dans 1 h 05 min", "36e_volta_charge"}, {15, TESLA_CHARGE, "80 % dans 6 h 40 min", "36f_volta_charge_rouge"} };
     for (auto& c : BATT) { gTesla.pct = c.pct; gTesla.etat = c.etat; strcpy(gTesla.ligne, c.l); drawVolta(); save(c.f); }
     gSup.pa = 1; drawBip(); save("37a_bip_1");

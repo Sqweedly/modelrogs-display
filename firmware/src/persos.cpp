@@ -363,13 +363,15 @@ void drawPousse() {
 void drawVolta() {
   const uint8_t e = voltaEtat(gTesla.pct);
   const bool charge = gTesla.etat == TESLA_CHARGE;
+  // 3.5.2 : branchée sans charger = câble et bras levés aussi (ni éclair ni étincelles)
+  const bool branchee = charge || gTesla.etat == TESLA_BRANCHEE;
   tft.fillScreen(BG);
   repere(1.16f, 205);                    // de la borne aux pieds, bras levés compris
   const uint16_t JAUGE[4] = { RGB(0xF0, 0x44, 0x34), RGB(0xFF, 0x9C, 0x2C), RGB(0x4C, 0xD0, 0x64), RGB(0x3C, 0xE0, 0x70) };
   const uint16_t jauge = JAUGE[e];
   const uint16_t boit = RGB(0xF2, 0xF0, 0xEA), om = RGB(0xB8, 0xB4, 0xAA), vitre = RGB(0x1E, 0x26, 0x32);
   const uint16_t borne = RGB(0xD4, 0xA0, 0x40);
-  if (charge) {   // câble branché
+  if (branchee) {   // câble branché
     const uint16_t cb = RGB(0x70, 0x78, 0x88);
     float px = X(150), py = Y(190);
     for (int j = 1; j <= 6; j++) {
@@ -382,7 +384,7 @@ void drawVolta() {
   }
   RR(98, 196, 18, 12, 6, om, BG);   // pieds
   RR(124, 196, 18, 12, 6, om, BG);
-  if (charge || e == VOLTA_CONTENTE) {   // bras levés
+  if (branchee || e == VOLTA_CONTENTE) {   // bras levés
     L(76, 120, 50, 84, 6, om, BG); L(164, 120, 190, 84, 6, om, BG);
     C(48, 80, 8, boit, BG); C(192, 80, 8, boit, BG);
   } else if (e == VOLTA_ROUGE) {         // bras ballants

@@ -327,31 +327,35 @@ async def principal() -> int:
          (-1.1, 0.5), (0.7, 0.1), (-0.5, -0.3), (0.2, 0.0), (-3.6, -7.5), (0.1, 0.1), (-0.05, 12.0)])]
     sel = MA.selection("actions", vals, ["ID2"], 3.0, 5.0)
     ok = (len(sel["t"]) == 12 and sel["t"][0] == ["C0", 56, 1]                     # tri |24 h|, ×10, liseré
-          and sel["a"] == [["ID0", "ID1", "ID11"], ["ID6"]]                         # ID2 choisie : exclue
-          and sorted(sel["x"]) == ["ID0", "ID11", "ID3"]                             # |7 j| ≥ 5 : les 3 seules
-          and [t[2] for t in sel["t"] if t[0] == "C3"] == [1]                       # liseré : page sur 30 jours
+          and sel["a"] == [["ID0", "ID1", "ID11"], ["ID6"]]                         # ID2 choisie : exclue ; 4 ≤ 6 : sans tirage
+          and sorted(sel["x"]) == ["ID0", "ID11"]                                    # 3.5.2 : |7 j| ≥ 5 parmi les pages auto
+          and [t[2] for t in sel["t"] if t[0] == "C3"] == [0]                       # ID3 : 7 j ≥ 5 mais 24 h < 3 : rien
           and "ID13" not in [t[0] for t in sel["t"]]                                 # hors des 12 : ignorée
           and [t[2] for t in sel["t"] if t[0] == "C2"] == [0])
     sel0 = MA.selection("actions", vals, [], 0.0, 100.0)
     ok = ok and len(sel0["a"]) == 2 and len(sel0["a"][0]) == 3 and sel0["x"] == []   # seuil 0 : 2 pages au plus
     echecs += not ok
-    print(f"{'OK ' if ok else 'ÉCHEC'} mosaïque : 12 tuiles, pages automatiques (2 × 3, sans les choisies), 30 jours (3) -> {sel}")
-    # 3.5.1 : pages sur 30 jours tirées au hasard parmi les tuiles qui atteignent S7
+    print(f"{'OK ' if ok else 'ÉCHEC'} mosaïque : 12 tuiles, pages automatiques (sans les choisies), 30 jours parmi elles -> {sel}")
+    # 3.5.2 : plus de 6 valeurs ≥ S24 -> 6 tirées ; parmi elles, ≥ S7 -> 2 tirées
     import random as _rnd
-    candidats = {"ID0", "ID1", "ID2", "ID3", "ID11"}                                 # |7 j| ≥ 3, parmi les 12
-    tirages, ok = set(), True
+    v24 = {v[0]: abs(v[2]) for v in vals}
+    v7 = {v[0]: abs(v[3]) for v in vals}
+    cand24 = {"ID0", "ID1", "ID2", "ID3", "ID5", "ID6", "ID7", "ID8", "ID9", "ID11"}   # |24 h| ≥ 0,5 parmi les 12
+    six, deux, ok = set(), set(), True
     for graine in range(200):
-        s = MA.selection("actions", vals, [], 9.0, 3.0, _rnd.Random(graine))
-        ok = ok and len(s["x"]) == 3 and len(set(s["x"])) == 3 and set(s["x"]) <= candidats
-        ok = ok and {t[0] for t in s["t"] if t[2]} == {"C" + i[2:] for i in s["x"]}  # liseré = tirage
-        tirages.add(frozenset(s["x"]))
-    ok = ok and len(tirages) == 10                                                    # C(5,3) : tous sortis
-    s = MA.selection("actions", vals, [], 9.0, 9.0, _rnd.Random(1))
-    ok = ok and s["x"] == ["ID0"]                                                     # un seul candidat
-    s = MA.selection("actions", vals, [], 9.0, 50.0, _rnd.Random(1))
-    ok = ok and s["x"] == [] and not any(t[2] for t in s["t"])                         # aucun candidat
+        s_ = MA.selection("actions", vals, ["ID9"], 0.5, 3.0, _rnd.Random(graine))
+        auto = [i for p in s_["a"] for i in p]
+        ok = ok and len(auto) == 6 and len(set(auto)) == 6 and set(auto) <= cand24 - {"ID9"}
+        ok = ok and auto == sorted(auto, key=lambda i: -v24[i])                      # rangées par |24 h|
+        attendus = [i for i in auto if v7[i] >= 3.0]
+        ok = ok and len(s_["x"]) == min(2, len(attendus)) and set(s_["x"]) <= set(attendus)
+        ok = ok and {t[0] for t in s_["t"] if t[2]} == {"C" + i[2:] for i in auto}  # liseré = pages auto
+        six.add(frozenset(auto)); deux.add(frozenset(s_["x"]))
+    ok = ok and len(six) > 20 and len(deux) > 3
+    s_ = MA.selection("actions", vals, [], 3.0, 50.0, _rnd.Random(1))
+    ok = ok and s_["x"] == []                                                         # aucun candidat S7
     echecs += not ok
-    print(f"{'OK ' if ok else 'ÉCHEC'} mosaïque : 30 jours tirés au hasard (3 parmi 5 candidats, {len(tirages)} tirages différents sur 200, ID13 hors tuiles jamais tirée), liseré conforme")
+    print(f"{'OK ' if ok else 'ÉCHEC'} mosaïque : 6 tirées parmi 9 (≥ S24, sans la choisie), 2 tirées parmi elles (≥ S7) ; {len(six)} tirages de 6 et {len(deux)} de 2 différents sur 200")
     ok = (len(COT.INDICES) == 20 and len(COT.COMMODITIES) == 20 and COT.symbole_indice("FCHI") == "^FCHI"
           and COT.symbole_indice("FTSEMIB.MI") == "FTSEMIB.MI" and COT.indice("ibex35") == "IBEX"
           and all(len(v[1]) <= 5 for v in list(COT.INDICES.values()) + list(COT.COMMODITIES.values())))
@@ -503,8 +507,8 @@ async def principal() -> int:
             # 3.5.0 : mosaïque Crypto (30 premières hors stablecoins), seuils, valeurs choisies
             ("/marche/btc?s24=1&s7=5", lambda d: d["ok"] and len(d["t"]) == 12 and d["ch"] == 0
                 and all(t[0] not in ("USDT", "USDC", "STETH", "WBTC") for t in d["t"])
-                and d["t"][0][1] in (19, -8) and len(d["a"]) == 2 and len(d["x"]) == 3
-                and "ethereum" not in d["x"]),
+                and d["t"][0][1] in (19, -8) and len(d["a"]) == 2 and len(d["x"]) <= 2   # 3.5.2 : 2 au plus,
+                and set(d["x"]) <= set(sum(d["a"], [])) and "ethereum" not in d["x"]),  # parmi les pages auto
             ("/marche/btc?s24=1&s7=5&s1=bitcoin", lambda d: d["ok"] and d["ch"] == 1
                 and "bitcoin" not in sum(d["a"], [])),
             # Seuil « s7 » des pages sur 30 jours appliqué aux pages de cours ; « _v7 » jamais envoyé

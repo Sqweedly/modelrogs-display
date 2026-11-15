@@ -12,6 +12,35 @@ Toutes les évolutions de MODELROGS Display : firmware de l'afficheur (SmallTV E
 
 ---
 
+## [3.5.2] — 2026-11-15
+
+Passerelle **et** afficheur.
+
+### Modifié
+- **Pages des marchés : tirages et ordre de passage.** Pour chaque catégorie (Crypto, Actions Monde, Actions Europe, Indices, Matières premières), après la mosaïque :
+  1. **pages automatiques** : les tuiles dont |24 h| ≥ S24, hors « Mes 3 valeurs ». Plus de 6 : **6 tirées au hasard**, rangées par variation décroissante, par 3. Avant : les 6 plus fortes ;
+  2. **pages sur 30 jours tirées** : seulement parmi ces valeurs affichées, celles dont |7 j| ≥ S7. Plus de 2 : **2 tirées au hasard**. Avant (3.5.1) : 3 tirées parmi toutes les tuiles ; une valeur à fort mouvement sur 7 jours mais sous S24 n'a plus de page ;
+  3. **« Mes 3 valeurs »** (déplacée : avant, juste après la mosaïque) ;
+  4. **pages sur 30 jours de « Mes 3 valeurs »** : chaque valeur avec |7 j| ≥ S7, sans tirage, en dehors des 2. Avant, elles partageaient avec la mosaïque et les pages automatiques une file de 3 où la mosaïque passait en premier : une valeur choisie pouvait perdre sa page.
+  - Les pages automatiques n'ajoutent plus de pages sur 30 jours : seules les 2 tirées par la passerelle passent. Une valeur tirée déjà seule sur sa page automatique (montrée sur 30 jours) n'est pas remontrée.
+  - Tuiles inchangées : les 12 plus fortes |24 h|, sans seuil. Liseré : les valeurs des pages automatiques (celles sur 30 jours en font partie).
+  - Tirages refaits à chaque appel de `/marche/<catégorie>` ; l'afficheur garde la réponse 10 minutes.
+  - Page Personnalisée inchangée (S7 depuis la 3.5.0).
+- **Volta, voiture branchée sans charger** : câble et bras levés, comme en charge. Visage, couleur et texte suivent toujours la batterie ; éclair et étincelles restent réservés à la charge.
+
+### Compatibilité
+- **Mettre à jour la passerelle et l'afficheur.** Afficheur 3.5.0 ou 3.5.1 avec la passerelle 3.5.2 : tirages de la passerelle appliqués, mais les pages automatiques ajoutent encore leurs propres pages sur 30 jours (ancienne file de 3) et « Mes 3 valeurs » passe juste après la mosaïque. Afficheur 3.5.2 avec une passerelle 3.5.0 ou 3.5.1 : ordre de la 3.5.2, mais sélection de l'ancienne passerelle.
+- Format de `/marche/<catégorie>` inchangé (clés `t`, `a`, `x`, `ch`, `p`).
+
+### Outils
+- `test_passerelle` : 6 tirées parmi 9 candidates (≥ S24, valeur choisie jamais tirée), rangées par |24 h|, 2 tirées parmi elles (≥ S7) ; 200 graines ; liseré conforme ; une valeur ≥ S7 sous S24 sans page. Test de `/marche/btc` rendu indépendant du tirage.
+- Simulateur : enchaînement d'une catégorie (mosaïque, 2 pages automatiques dont une d'une seule valeur, page sur 30 jours tirée, « Mes 3 valeurs », leurs 2 pages sur 30 jours ; les marques des pages automatiques ignorées). Vérifié qu'il échoue si les pages automatiques ajoutent de nouveau leurs pages sur 30 jours. Écrans Volta branchée rouge et orange ajoutés ; seul l'écran Volta branchée à 80 % change, les 74 autres sont identiques à la 3.5.1.
+
+### Mesures (compilation locale, PlatformIO 6.1.16)
+- Flash +272 octets depuis la 3.5.0 (638 235), RAM statique +48 octets (38 816), code en IRAM inchangé (27 735 octets).
+
+---
+
 ## [3.5.1] — 2026-11-14
 
 Passerelle seule : le firmware ne change pas (même code que la 3.5.0 ; seul le numéro affiché change si l'afficheur est mis à jour).
